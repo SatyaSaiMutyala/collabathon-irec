@@ -7,13 +7,11 @@ require Pod::Executable.execute_command('node', ['-p',
 
 platform :ios, '15.0'
 prepare_react_native_project!
-use_modular_headers!
 
-linkage = ENV['USE_FRAMEWORKS']
-if linkage != nil
-  Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
-  use_frameworks! :linkage => linkage.to_sym
-end
+# react-native-firebase's Swift dependencies (GoogleUtilities, FirebaseCoreInternal, etc.)
+# require proper module maps. Static frameworks (not `use_modular_headers!`, which conflicts
+# with React Native's own C++/Obj-C module maps) is the supported combination here.
+use_frameworks! :linkage => :static
 
 target 'Collabathon' do
   config = use_native_modules!

@@ -1,0 +1,166 @@
+import React from 'react';
+import {ScrollView, View} from 'react-native';
+import Icon from 'react-native-vector-icons/Ionicons';
+import {moderateScale} from 'react-native-size-matters';
+import {useAppTheme} from '../../theme';
+import {AppText, Avatar, Badge, Button, Card, ScreenContainer, SectionHeader} from '../../components';
+import {useAppDispatch, useAppSelector} from '../../store/hooks';
+import {logOut} from '../../store/slices/authSlice';
+
+const fallback = value => (value && String(value).trim() ? value : '—');
+const yesNo = value => (value ? 'Yes' : 'No');
+const attachmentLabel = uri => (uri ? 'Attached' : 'Not attached');
+
+const InfoRow = ({icon, label, value, valueColor}) => {
+  const {colors, spacing} = useAppTheme();
+  return (
+    <View style={{flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm}}>
+      <Icon name={icon} size={moderateScale(18)} color={colors.primary} />
+      <View style={{marginLeft: spacing.sm, flex: 1}}>
+        <AppText variant="caption" color={colors.textMuted}>
+          {label}
+        </AppText>
+        <AppText variant="bodyMedium" color={valueColor}>
+          {value}
+        </AppText>
+      </View>
+    </View>
+  );
+};
+
+const ProfileScreen = () => {
+  const {colors, spacing} = useAppTheme();
+  const dispatch = useAppDispatch();
+  const broker = useAppSelector(state => state.auth.broker) ?? {};
+
+  return (
+    <ScreenContainer edges={['top']}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: spacing.xxl}}>
+        <AppText variant="h1" style={{marginTop: spacing.sm, marginBottom: spacing.lg}}>
+          Profile
+        </AppText>
+
+        <Card>
+          <View style={{alignItems: 'center'}}>
+            <Avatar
+              uri={broker.photoAttachment}
+              name={broker.fullNameAsRera}
+              size="xl"
+              ringColor={colors.primary}
+            />
+            <AppText variant="h2" align="center" style={{marginTop: spacing.md}}>
+              {broker.suffix ? `${broker.suffix} ` : ''}
+              {broker.fullNameAsRera || 'Broker'}
+            </AppText>
+            <AppText variant="body" color={colors.textSecondary}>
+              {broker.emailId}
+            </AppText>
+            <View style={{marginTop: spacing.sm}}>
+              <Badge label="Approved Broker" tone="success" />
+            </View>
+          </View>
+        </Card>
+
+        <View style={{marginTop: spacing.xl, marginBottom: spacing.sm}}>
+          <SectionHeader step={1} title="Personal info" />
+        </View>
+        <Card>
+          <InfoRow icon="person-outline" label="Suffix" value={fallback(broker.suffix)} />
+          <InfoRow icon="call-outline" label="Mobile Number" value={fallback(broker.mobileNumber)} />
+          <InfoRow icon="call-outline" label="Alternate Mobile" value={fallback(broker.alternateMobile)} />
+          <InfoRow icon="mail-outline" label="Email ID" value={fallback(broker.emailId)} />
+          <InfoRow icon="home-outline" label="Residence Address" value={fallback(broker.residenceAddress)} />
+        </Card>
+
+        <View style={{marginTop: spacing.xl, marginBottom: spacing.sm}}>
+          <SectionHeader step={2} title="Professional info" />
+        </View>
+        <Card>
+          <InfoRow icon="business-outline" label="Registered as Company" value={yesNo(broker.isCompany)} />
+          {broker.isCompany && (
+            <>
+              <InfoRow icon="business-outline" label="Company Name" value={fallback(broker.companyName)} />
+              <InfoRow icon="location-outline" label="Office Address" value={fallback(broker.officeAddress)} />
+              <InfoRow icon="globe-outline" label="Company Website" value={fallback(broker.companyWebsite)} />
+              <InfoRow icon="at-outline" label="Social Media Handle" value={fallback(broker.socialMediaHandle)} />
+              <InfoRow icon="briefcase-outline" label="Years of Experience" value={fallback(broker.yearsOfExperience)} />
+              <InfoRow icon="people-outline" label="Team Size" value={fallback(broker.teamSize)} />
+            </>
+          )}
+          <InfoRow icon="card-outline" label="PAN Card" value={fallback(broker.panCard)} />
+          <InfoRow
+            icon="document-attach-outline"
+            label="PAN Card Attachment"
+            value={attachmentLabel(broker.panCardAttachment)}
+            valueColor={broker.panCardAttachment ? colors.success : colors.textMuted}
+          />
+          <InfoRow icon="card-outline" label="Aadhaar Card" value={fallback(broker.aadhaarCard)} />
+          <InfoRow
+            icon="document-attach-outline"
+            label="Aadhaar Attachment"
+            value={attachmentLabel(broker.aadhaarAttachment)}
+            valueColor={broker.aadhaarAttachment ? colors.success : colors.textMuted}
+          />
+          <InfoRow icon="shield-checkmark-outline" label="RERA Number" value={fallback(broker.reraNumber)} />
+          <InfoRow icon="calendar-outline" label="RERA Certificate Expiry" value={fallback(broker.reraCertificateExpiry)} />
+          <InfoRow
+            icon="document-attach-outline"
+            label="RERA Certificate Attachment"
+            value={attachmentLabel(broker.reraCertificateAttachment)}
+            valueColor={broker.reraCertificateAttachment ? colors.success : colors.textMuted}
+          />
+          <InfoRow icon="wallet-outline" label="Cancelled Cheque" value={fallback(broker.chequeDetails)} />
+          <InfoRow
+            icon="document-attach-outline"
+            label="Cheque Attachment"
+            value={attachmentLabel(broker.chequeAttachment)}
+            valueColor={broker.chequeAttachment ? colors.success : colors.textMuted}
+          />
+          <InfoRow icon="receipt-outline" label="GST Number" value={fallback(broker.gstNumber)} />
+          <InfoRow
+            icon="document-attach-outline"
+            label="GST Attachment"
+            value={attachmentLabel(broker.gstAttachment)}
+            valueColor={broker.gstAttachment ? colors.success : colors.textMuted}
+          />
+        </Card>
+
+        <View style={{marginTop: spacing.xl, marginBottom: spacing.sm}}>
+          <SectionHeader step={3} title="Business info" />
+        </View>
+        <Card>
+          <InfoRow icon="location-outline" label="State" value={fallback(broker.state)} />
+          <InfoRow icon="location-outline" label="City" value={fallback(broker.city)} />
+          <InfoRow
+            icon="pricetags-outline"
+            label="Segment"
+            value={broker.segments?.length ? broker.segments.join(', ') : '—'}
+          />
+          <InfoRow
+            icon="compass-outline"
+            label="Zone"
+            value={broker.zones?.length ? broker.zones.join(', ') : '—'}
+          />
+          <InfoRow icon="albums-outline" label="Project Contributions" value={fallback(broker.projectContributions)} />
+          <InfoRow icon="earth-outline" label="Operates in Multiple States" value={yesNo(broker.operatesMultipleStates)} />
+          <InfoRow
+            icon="create-outline"
+            label="Authorized Signature"
+            value={broker.hasSignature ? 'Signed' : 'Not signed'}
+            valueColor={broker.hasSignature ? colors.success : colors.textMuted}
+          />
+        </Card>
+
+        <Button
+          label="Log Out"
+          variant="outline"
+          icon="log-out-outline"
+          style={{marginTop: spacing.xl}}
+          onPress={() => dispatch(logOut())}
+        />
+      </ScrollView>
+    </ScreenContainer>
+  );
+};
+
+export default ProfileScreen;
