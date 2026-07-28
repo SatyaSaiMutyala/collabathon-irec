@@ -4,6 +4,31 @@
 @source '../../storage/framework/views/*.php';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    --font-sans: 'Outfit', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /* Seed theme — gold accent on navy/white. Admin-configurable in a later pass. */
+    --color-primary: #C9A227;
+    --color-primary-dark: #91751C;
+    --color-primary-light: #D8BC63;
+    --color-primary-soft: #F7F2E1;
+
+    --color-navy: #12141C;
+    --color-navy-soft: #1B1E2B;
+    --color-surface: #FAF8F4;
+    --color-border: #EAE4D6;
+
+    --color-text-secondary: #565D6D;
+    --color-text-muted: #8A90A0;
+
+    --color-success: #1F9254;
+    --color-success-soft: #E6F4EB;
+    --color-danger: #D0342C;
+    --color-danger-soft: #FBEAE9;
+    --color-warning: #C9922B;
+    --color-warning-soft: #FBF1DD;
+}
+
+body {
+    -webkit-font-smoothing: antialiased;
 }
