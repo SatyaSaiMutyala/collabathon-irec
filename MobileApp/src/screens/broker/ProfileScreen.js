@@ -5,7 +5,7 @@ import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../../theme';
 import {AppText, Avatar, Badge, Button, Card, ScreenContainer, SectionHeader} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
-import {logOut} from '../../store/slices/authSlice';
+import {logout} from '../../store/slices/authSlice';
 
 const fallback = value => (value && String(value).trim() ? value : '—');
 const yesNo = value => (value ? 'Yes' : 'No');
@@ -31,7 +31,38 @@ const InfoRow = ({icon, label, value, valueColor}) => {
 const ProfileScreen = () => {
   const {colors, spacing} = useAppTheme();
   const dispatch = useAppDispatch();
-  const broker = useAppSelector(state => state.auth.broker) ?? {};
+  // The API returns the user plus their broker_profile; flatten into the shape
+  // this screen renders so the field list below stays untouched.
+  const user = useAppSelector(state => state.auth.user) ?? {};
+  const profile = user.broker_profile ?? {};
+  const broker = {
+    suffix: '',
+    fullNameAsRera: user.name,
+    mobileNumber: user.mobile,
+    emailId: user.email,
+    photoAttachment: user.avatar_url,
+    alternateMobile: profile.alternate_mobile,
+    residenceAddress: profile.residence_address,
+    isCompany: profile.is_company,
+    companyName: profile.company_name,
+    officeAddress: profile.office_address,
+    companyWebsite: profile.company_website,
+    socialMediaHandle: profile.social_media_handle,
+    yearsOfExperience: profile.years_of_experience,
+    teamSize: profile.team_size,
+    panCard: profile.pan_card,
+    aadhaarCard: profile.aadhaar_card,
+    reraNumber: profile.rera_number,
+    reraCertificateExpiry: profile.rera_certificate_expiry,
+    gstNumber: profile.gst_number,
+    chequeDetails: profile.cheque_details,
+    state: profile.state,
+    city: profile.city,
+    segments: profile.segments,
+    zones: profile.zones,
+    projectContributions: profile.project_contributions,
+    operatesMultipleStates: profile.operates_multiple_states,
+  };
 
   return (
     <ScreenContainer edges={['top']}>
@@ -156,7 +187,7 @@ const ProfileScreen = () => {
           variant="outline"
           icon="log-out-outline"
           style={{marginTop: spacing.xl}}
-          onPress={() => dispatch(logOut())}
+          onPress={() => dispatch(logout())}
         />
       </ScrollView>
     </ScreenContainer>

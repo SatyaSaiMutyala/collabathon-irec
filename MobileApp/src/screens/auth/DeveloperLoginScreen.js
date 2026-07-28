@@ -1,46 +1,46 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {StyleSheet, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {KeyboardAwareScrollView} from 'react-native-keyboard-aware-scroll-view';
 import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../../theme';
 import {AppText, Button, Input, ScreenContainer} from '../../components';
-import {useAppDispatch} from '../../store/hooks';
-import {logInAsDeveloper} from '../../store/slices/authSlice';
+import {useAppDispatch, useAppSelector} from '../../store/hooks';
+import {clearAuthError, login} from '../../store/slices/authSlice';
 
-const DEMO_DEVELOPER = {
-  developerId: 'dev-1',
-  contactName: 'Ahmed Al Suwaidi',
-  mobile: '+971502345678',
-  email: 'ahmed@aurumestates.com',
-};
-
+/**
+ * Developer sign-in. Accounts are issued by the admin — there is no self-registration
+ * path — and the credential is the email the admin entered when creating the company.
+ */
 const DeveloperLoginScreen = ({navigation}) => {
   const {colors, spacing} = useAppTheme();
   const dispatch = useAppDispatch();
-  const [mobile, setMobile] = useState('');
+
+  const status = useAppSelector(state => state.auth.status);
+  const serverError = useAppSelector(state => state.auth.error);
+  const fieldErrors = useAppSelector(state => state.auth.fieldErrors);
+
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState();
+  const [localError, setLocalError] = useState();
+
+  const isSubmitting = status === 'loading';
+
+  useEffect(() => {
+    dispatch(clearAuthError());
+  }, [dispatch]);
 
   const handleLogin = () => {
-    if (!mobile.trim() || !password.trim()) {
-      setError('Enter your mobile number and password.');
+    if (!email.trim() || !password) {
+      setLocalError('Enter your email and password.');
       return;
     }
-    setError(undefined);
-    dispatch(
-      logInAsDeveloper({
-        developerId: 'dev-1',
-        contactName: 'Developer',
-        mobile: mobile.trim(),
-        email: '',
-      }),
-    );
+    setLocalError(undefined);
+    dispatch(login({email: email.trim(), password, role: 'developer'}));
   };
 
-  const handleDemoLogin = () => {
-    dispatch(logInAsDeveloper(DEMO_DEVELOPER));
-  };
+  const passwordError =
+    localError || fieldErrors?.password?.[0] || fieldErrors?.email?.[0] || serverError;
 
   return (
     <ScreenContainer edges={['top', 'bottom']} style={{justifyContent: 'center'}}>
@@ -48,7 +48,10 @@ const DeveloperLoginScreen = ({navigation}) => {
         showsVerticalScrollIndicator={false}
         enableOnAndroid
         keyboardShouldPersistTaps="handled">
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={10} style={{marginBottom: spacing.lg}}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          hitSlop={10}
+          style={{marginBottom: spacing.lg}}>
           <Icon name="chevron-back" size={moderateScale(22)} color={colors.textPrimary} />
         </TouchableOpacity>
 
@@ -60,18 +63,20 @@ const DeveloperLoginScreen = ({navigation}) => {
             Log in to your account
           </AppText>
           <AppText variant="body" color={colors.textSecondary} style={{marginTop: spacing.xs}}>
-            Developer accounts are created by the Admin. Sign in with the mobile number and
-            password you were issued.
+            Developer accounts are created by the Admin. Sign in with the email and password
+            you were issued.
           </AppText>
         </View>
 
         <Input
-          label="Mobile Number"
-          placeholder="Enter Mobile Number"
-          leftIcon="call-outline"
-          keyboardType="phone-pad"
-          value={mobile}
-          onChangeText={setMobile}
+          label="Email"
+          placeholder="you@company.ae"
+          leftIcon="mail-outline"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          value={email}
+          onChangeText={setEmail}
         />
         <Input
           label="Password"
@@ -80,43 +85,20 @@ const DeveloperLoginScreen = ({navigation}) => {
           isPassword
           value={password}
           onChangeText={setPassword}
-          error={error}
+          error={passwordError}
         />
 
-        <Button label="Log In" onPress={handleLogin} style={{marginTop: spacing.sm}} />
-
-        <View style={styles.dividerRow}>
-          <View style={[styles.dividerLine, {backgroundColor: colors.border}]} />
-          <AppText variant="caption" color={colors.textMuted} style={styles.dividerLabel}>
-            OR
-          </AppText>
-          <View style={[styles.dividerLine, {backgroundColor: colors.border}]} />
-        </View>
-
         <Button
-          label="Continue with Demo Account"
-          variant="outline"
-          icon="flash-outline"
-          onPress={handleDemoLogin}
+          label={isSubmitting ? 'Signing in…' : 'Log In'}
+          onPress={handleLogin}
+          disabled={isSubmitting}
+          style={{marginTop: spacing.sm}}
         />
       </KeyboardAwareScrollView>
     </ScreenContainer>
   );
 };
 
-const styles = StyleSheet.create({
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: moderateScale(16),
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-  },
-  dividerLabel: {
-    marginHorizontal: moderateScale(10),
-  },
-});
+const styles = StyleSheet.create({});
 
 export default DeveloperLoginScreen;

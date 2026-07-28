@@ -1,21 +1,48 @@
-import React from 'react';
-import {FlatList, StatusBar, View} from 'react-native';
-import Icon from 'react-native-vector-icons/Ionicons';
-import {moderateScale} from 'react-native-size-matters';
+import React, {useCallback, useEffect} from 'react';
+import {ActivityIndicator, StatusBar, View} from 'react-native';
 import {useAppTheme} from '../../theme';
-import {AppText, BrokerLeadCard, PropertyDetailBody, PropertyHero} from '../../components';
-import {getProjectById} from '../../data/mockDevelopers';
-import {useEffectiveLeads} from '../../hooks/useDeveloperLeads';
+import {
+  AppText,
+  BrokerLeadCard,
+  PaginatedList,
+  PropertyDetailBody,
+  PropertyHero,
+} from '../../components';
+import {useAppDispatch, useAppSelector} from '../../store/hooks';
+import {fetchProperty, selectPropertyById} from '../../store/slices/propertiesSlice';
+import {fetchLeads, fetchNextLeads} from '../../store/slices/leadsSlice';
 
+/** One listing plus every broker who touched it — viewed and interested alike. */
 const PropertyLeadsScreen = ({route, navigation}) => {
   const {colors, spacing} = useAppTheme();
-  const project = getProjectById(route.params.projectId);
-  const leads = useEffectiveLeads(project ? [project.id] : []);
+  const dispatch = useAppDispatch();
+  const {projectId} = route.params;
+
+  const project = useAppSelector(state => selectPropertyById(state, projectId));
+  const detailStatus = useAppSelector(state => state.properties.detail.status);
+  const list = useAppSelector(state => state.leads.list);
+
+  const loadFirstPage = useCallback(() => {
+    dispatch(fetchLeads({page: 1, property_id: projectId}));
+  }, [dispatch, projectId]);
+
+  useEffect(() => {
+    dispatch(fetchProperty(projectId));
+    loadFirstPage();
+  }, [dispatch, projectId, loadFirstPage]);
+
+  const handleEndReached = useCallback(() => {
+    dispatch(fetchNextLeads());
+  }, [dispatch]);
 
   if (!project) {
     return (
       <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
-        <AppText variant="body">Property not found.</AppText>
+        {detailStatus === 'loading' ? (
+          <ActivityIndicator size="large" color={colors.primary} />
+        ) : (
+          <AppText variant="body">Property not found.</AppText>
+        )}
       </View>
     );
   }
@@ -23,10 +50,12 @@ const PropertyLeadsScreen = ({route, navigation}) => {
   return (
     <View style={{flex: 1, backgroundColor: colors.background}}>
       <StatusBar barStyle="light-content" />
-      <FlatList
-        data={leads}
-        keyExtractor={item => item.brokerId}
-        showsVerticalScrollIndicator={false}
+      <PaginatedList
+        list={list}
+        onRefresh={loadFirstPage}
+        onEndReached={handleEndReached}
+        emptyTitle="No broker activity yet"
+        emptyMessage="Views and interests on this listing will appear here."
         contentContainerStyle={{paddingBottom: spacing.xxxl}}
         ListHeaderComponent={
           <>
@@ -34,7 +63,7 @@ const PropertyLeadsScreen = ({route, navigation}) => {
             <PropertyDetailBody project={project} />
             <View style={{paddingHorizontal: spacing.lg}}>
               <AppText variant="h3" style={{marginTop: spacing.xl, marginBottom: spacing.sm}}>
-                Broker Leads
+                Broker Leads ({list.total})
               </AppText>
             </View>
           </>
@@ -44,14 +73,6 @@ const PropertyLeadsScreen = ({route, navigation}) => {
             <BrokerLeadCard lead={item} />
           </View>
         )}
-        ListEmptyComponent={
-          <View style={{alignItems: 'center', marginTop: spacing.lg, paddingHorizontal: spacing.lg}}>
-            <Icon name="people-outline" size={moderateScale(36)} color={colors.textMuted} />
-            <AppText variant="body" color={colors.textMuted} style={{marginTop: spacing.md}}>
-              No broker activity on this property yet.
-            </AppText>
-          </View>
-        }
       />
     </View>
   );

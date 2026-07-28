@@ -22,3 +22,4 @@ export {default as BrokerLeadCard} from './BrokerLeadCard';
 export {default as InfoRow} from './InfoRow';
 export {default as PropertyHero} from './PropertyHero';
 export {default as PropertyDetailBody} from './PropertyDetailBody';
+export {default as PaginatedList} from './PaginatedList';

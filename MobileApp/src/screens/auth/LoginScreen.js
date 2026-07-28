@@ -1,53 +1,50 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {StyleSheet, TouchableOpacity, View} from 'react-native';
 import {KeyboardAwareScrollView} from 'react-native-keyboard-aware-scroll-view';
 import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../../theme';
 import {AppText, Badge, Button, Input, ScreenContainer} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
-import {approveRegistration, logIn, submitRegistration} from '../../store/slices/authSlice';
+import {clearAuthError, login} from '../../store/slices/authSlice';
 
-const DEMO_BROKER = {
-  suffix: 'Mr.',
-  fullNameAsRera: 'Rachid Al Mansoori',
-  mobileNumber: '+971501234567',
-  alternateMobile: '',
-  emailId: 'rachid@primerealty.com',
-  residenceAddress: 'Marina Walk, Dubai Marina, Dubai, UAE',
-  photoAttachment: '',
-};
-
+/**
+ * Broker sign-in. Email is the login key — the API authenticates on email + password,
+ * and the mobile number is profile data only.
+ *
+ * The approval gate is enforced by the server: a pending broker gets a 403 and no
+ * token, which surfaces here as the "awaiting approval" state rather than an error.
+ */
 const LoginScreen = ({navigation}) => {
   const {colors, spacing} = useAppTheme();
   const dispatch = useAppDispatch();
+
+  const status = useAppSelector(state => state.auth.status);
+  const serverError = useAppSelector(state => state.auth.error);
+  const fieldErrors = useAppSelector(state => state.auth.fieldErrors);
   const registrationStatus = useAppSelector(state => state.auth.registrationStatus);
 
-  const [mobile, setMobile] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState();
+  const [localError, setLocalError] = useState();
+
+  const isSubmitting = status === 'loading';
+
+  // Clear any stale error when the screen is first shown.
+  useEffect(() => {
+    dispatch(clearAuthError());
+  }, [dispatch]);
 
   const handleLogin = () => {
-    if (registrationStatus !== 'approved') {
-      setError(
-        registrationStatus === 'pendingApproval'
-          ? 'Your registration is still awaiting admin approval.'
-          : 'No approved account found. Please register first.',
-      );
+    if (!email.trim() || !password) {
+      setLocalError('Enter your email and password.');
       return;
     }
-    if (!mobile.trim() || !password.trim()) {
-      setError('Enter your mobile number and password.');
-      return;
-    }
-    setError(undefined);
-    dispatch(logIn());
+    setLocalError(undefined);
+    dispatch(login({email: email.trim(), password, role: 'broker'}));
   };
 
-  const handleDemoLogin = () => {
-    dispatch(submitRegistration(DEMO_BROKER));
-    dispatch(approveRegistration());
-    dispatch(logIn());
-  };
+  const passwordError =
+    localError || fieldErrors?.password?.[0] || fieldErrors?.email?.[0] || serverError;
 
   return (
     <ScreenContainer edges={['top', 'bottom']} style={{justifyContent: 'center'}}>
@@ -63,7 +60,7 @@ const LoginScreen = ({navigation}) => {
             Log in to Collabathon
           </AppText>
           <AppText variant="body" color={colors.textSecondary} style={{marginTop: spacing.xs}}>
-            Sign in with the mobile number and password from your approved registration.
+            Sign in with the email and password from your approved registration.
           </AppText>
 
           {registrationStatus === 'pendingApproval' && (
@@ -71,15 +68,22 @@ const LoginScreen = ({navigation}) => {
               <Badge label="Approval pending" tone="warning" />
             </View>
           )}
+          {registrationStatus === 'rejected' && (
+            <View style={{marginTop: spacing.md}}>
+              <Badge label="Registration not approved" tone="danger" />
+            </View>
+          )}
         </View>
 
         <Input
-          label="Mobile Number"
-          placeholder="e.g. +971 50 123 4567"
-          leftIcon="call-outline"
-          keyboardType="phone-pad"
-          value={mobile}
-          onChangeText={setMobile}
+          label="Email"
+          placeholder="you@company.com"
+          leftIcon="mail-outline"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          value={email}
+          onChangeText={setEmail}
         />
         <Input
           label="Password"
@@ -88,24 +92,14 @@ const LoginScreen = ({navigation}) => {
           isPassword
           value={password}
           onChangeText={setPassword}
-          error={error}
+          error={passwordError}
         />
 
-        <Button label="Log In" onPress={handleLogin} style={{marginTop: spacing.sm}} />
-
-        <View style={styles.dividerRow}>
-          <View style={[styles.dividerLine, {backgroundColor: colors.border}]} />
-          <AppText variant="caption" color={colors.textMuted} style={styles.dividerLabel}>
-            OR
-          </AppText>
-          <View style={[styles.dividerLine, {backgroundColor: colors.border}]} />
-        </View>
-
         <Button
-          label="Continue with Demo Account"
-          variant="outline"
-          icon="flash-outline"
-          onPress={handleDemoLogin}
+          label={isSubmitting ? 'Signing in…' : 'Log In'}
+          onPress={handleLogin}
+          disabled={isSubmitting}
+          style={{marginTop: spacing.sm}}
         />
 
         <View style={styles.footerRow}>
@@ -128,18 +122,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: moderateScale(20),
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: moderateScale(16),
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-  },
-  dividerLabel: {
-    marginHorizontal: moderateScale(10),
   },
 });
 

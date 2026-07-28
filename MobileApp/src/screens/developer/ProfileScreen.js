@@ -5,8 +5,7 @@ import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../../theme';
 import {AppText, Avatar, Badge, Button, Card, ScreenContainer, StatRow} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
-import {logOut} from '../../store/slices/authSlice';
-import {getDeveloperById} from '../../data/mockDevelopers';
+import {logout} from '../../store/slices/authSlice';
 
 const InfoRow = ({icon, label, value}) => {
   const {colors, spacing} = useAppTheme();
@@ -26,8 +25,10 @@ const InfoRow = ({icon, label, value}) => {
 const ProfileScreen = () => {
   const {colors, spacing} = useAppTheme();
   const dispatch = useAppDispatch();
-  const developer = useAppSelector(state => state.auth.developer);
-  const company = getDeveloperById(developer?.developerId);
+  const user = useAppSelector(state => state.auth.user);
+  const company = user?.developer;
+  // Screen renders `developer.*` for the contact person and `company.*` for the firm.
+  const developer = {contactName: user?.name, mobile: user?.mobile, email: user?.email};
 
   return (
     <ScreenContainer edges={['top']}>
@@ -88,7 +89,7 @@ const ProfileScreen = () => {
           variant="outline"
           icon="log-out-outline"
           style={{marginTop: spacing.lg}}
-          onPress={() => dispatch(logOut())}
+          onPress={() => dispatch(logout())}
         />
       </ScrollView>
     </ScreenContainer>
