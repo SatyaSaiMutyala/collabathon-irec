@@ -86,7 +86,11 @@ const DashboardScreen = ({navigation}) => {
               </AppText>
             </View>
           </View>
-          <IconButton icon="notifications-outline" badgeCount={stats?.interested ?? 0} />
+          <IconButton
+            icon="notifications-outline"
+            badgeCount={stats?.interested ?? 0}
+            onPress={() => navigation.navigate('Notifications')}
+          />
         </View>
 
         <Card style={{paddingVertical: spacing.sm}}>

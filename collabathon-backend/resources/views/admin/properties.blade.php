@@ -9,7 +9,8 @@
         subtitle="Every listing on the platform and the developer it belongs to. Brokers only see active listings.">
         <x-slot:actions>
             <x-modal title="Add property" subtitle="The listing goes live to brokers once its status is Active."
-                     width="max-w-xl">
+                     width="max-w-xl"
+                     :open="$errors->any()">
                 <x-slot:trigger>
                     <x-button variant="gold" icon="plus">Add property</x-button>
                 </x-slot:trigger>
@@ -22,7 +23,7 @@
                     <x-select-field label="Assign to developer" name="developer_id" required
                                     hint="Leads from this listing route to this developer.">
                         @foreach($developers as $dev)
-                            <option value="{{ $dev->id }}">{{ $dev->company_name }}</option>
+                            <option value="{{ $dev->id }}" @selected((string) old('developer_id') === (string) $dev->id)>{{ $dev->company_name }}</option>
                         @endforeach
                     </x-select-field>
 

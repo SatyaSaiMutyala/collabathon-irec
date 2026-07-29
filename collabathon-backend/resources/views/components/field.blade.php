@@ -11,6 +11,9 @@
 
 @php
 $id = $name ?? 'f-' . \Illuminate\Support\Str::slug($label ?? uniqid());
+// Repopulates after a failed submit (e.g. a sibling field's validation error) without
+// every call site having to wire old() by hand.
+$currentValue = old($id, $value);
 $inputClass = 'w-full h-10 rounded-lg bg-panel border border-line text-[13.5px] text-ink placeholder:text-ink-3
     focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/15 transition-[border-color,box-shadow]';
 @endphp
@@ -31,9 +34,9 @@ $inputClass = 'w-full h-10 rounded-lg bg-panel border border-line text-[13.5px] 
         @if($type === 'textarea')
             <textarea id="{{ $id }}" name="{{ $id }}" rows="3" placeholder="{{ $placeholder }}"
                 @if($required) required @endif
-                {{ $attributes->except('class')->merge(['class' => str_replace('h-10', 'h-auto py-2.5', $inputClass) . ' px-3.5 resize-y']) }}>{{ $value }}</textarea>
+                {{ $attributes->except('class')->merge(['class' => str_replace('h-10', 'h-auto py-2.5', $inputClass) . ' px-3.5 resize-y']) }}>{{ $currentValue }}</textarea>
         @else
-            <input id="{{ $id }}" name="{{ $id }}" type="{{ $type }}" placeholder="{{ $placeholder }}" value="{{ $value }}"
+            <input id="{{ $id }}" name="{{ $id }}" type="{{ $type }}" placeholder="{{ $placeholder }}" value="{{ $currentValue }}"
                 @if($required) required @endif
                 {{ $attributes->except('class')->merge(['class' => $inputClass . ' ' . ($icon ? 'pl-9 pr-3.5' : 'px-3.5')]) }}>
         @endif

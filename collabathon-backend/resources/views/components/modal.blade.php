@@ -1,6 +1,6 @@
-@props(['title', 'subtitle' => null, 'width' => 'max-w-lg'])
+@props(['title', 'subtitle' => null, 'width' => 'max-w-lg', 'open' => false])
 
-<div x-data="{ open: false }" @keydown.escape.window="open = false" class="inline-block">
+<div x-data="{ open: {{ $open ? 'true' : 'false' }} }" @keydown.escape.window="open = false" class="inline-block">
     <div @click="open = true">
         {{ $trigger }}
     </div>

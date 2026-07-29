@@ -102,7 +102,10 @@ const HomeScreen = ({navigation}) => {
             </TouchableOpacity>
           </View>
         </View>
-        <IconButton icon="notifications-outline" />
+        <IconButton
+          icon="notifications-outline"
+          onPress={() => navigation.navigate('Notifications')}
+        />
       </View>
 
       <Input

@@ -6,7 +6,8 @@
         <x-slot:actions>
             <x-modal title="Create developer account"
                      subtitle="A login account is created and a temporary password generated on save."
-                     width="max-w-xl">
+                     width="max-w-xl"
+                     :open="$errors->any()">
                 <x-slot:trigger>
                     <x-button variant="gold" icon="plus">Add developer</x-button>
                 </x-slot:trigger>
