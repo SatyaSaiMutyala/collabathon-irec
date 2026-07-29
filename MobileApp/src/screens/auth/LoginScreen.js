@@ -51,6 +51,7 @@ const LoginScreen = ({navigation}) => {
       <KeyboardAwareScrollView
         showsVerticalScrollIndicator={false}
         enableOnAndroid
+        enableResetScrollToCoords={false}
         keyboardShouldPersistTaps="handled">
         <View style={{marginBottom: spacing.xxl}}>
           <AppText variant="overline" color={colors.primary}>
@@ -106,7 +107,7 @@ const LoginScreen = ({navigation}) => {
           <AppText variant="body" color={colors.textSecondary}>
             New broker?{' '}
           </AppText>
-          <TouchableOpacity onPress={() => navigation.replace('Register')} hitSlop={8}>
+          <TouchableOpacity onPress={() => navigation.navigate('Register')} hitSlop={8}>
             <AppText variant="bodyMedium" color={colors.primary}>
               Create an account
             </AppText>

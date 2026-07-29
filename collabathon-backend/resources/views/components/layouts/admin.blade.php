@@ -3,9 +3,14 @@
 @php
 use App\Models\Lead;
 use App\Models\User;
+use Illuminate\Support\Facades\Gate;
 
 // Indexed count on (role, status) — cheap enough to run per request.
 $pendingCount = User::role(User::ROLE_BROKER)->status(User::STATUS_PENDING)->count();
+
+// Eager-loaded once so the per-item Gate::allows('view-module', ...) calls below
+// don't each re-query role_permissions.
+auth()->user()->loadMissing('adminRole.permissions');
 
 $navGroups = [
     'Overview' => [
@@ -21,6 +26,24 @@ $navGroups = [
         ['key' => 'settings', 'icon' => 'cog', 'label' => 'Settings', 'route' => route('admin.settings')],
     ],
 ];
+
+// Each nav item's `key` matches a Role::MODULES key 1:1 — reused directly as the
+// Gate argument, no second naming scheme.
+$navGroups = collect($navGroups)
+    ->map(fn ($items) => array_values(array_filter(
+        $items,
+        fn ($item) => Gate::allows('view-module', $item['key'])
+    )))
+    ->reject(fn ($items) => empty($items))
+    ->all();
+
+// Added after filtering so it's never run through the module-based view-module check.
+if (Gate::allows('manage-team')) {
+    $navGroups['Administration'] = [
+        ['key' => 'team', 'icon' => 'users', 'label' => 'Team', 'route' => route('admin.team')],
+        ['key' => 'roles', 'icon' => 'shield', 'label' => 'Roles', 'route' => route('admin.roles')],
+    ];
+}
 
 // Live notifications: the approval backlog plus the most recent unlocked leads.
 $notifications = [];
@@ -69,27 +92,27 @@ $toneClasses = [
     <div class="flex h-dvh">
 
         {{-- ============================ Sidebar ============================ --}}
-        <aside class="fixed inset-y-0 left-0 z-40 w-[236px] shrink-0 h-dvh bg-navy flex flex-col overflow-hidden
+        <aside class="fixed inset-y-0 left-0 z-40 w-[236px] shrink-0 h-dvh bg-nav flex flex-col overflow-hidden
                       transition-transform duration-200 lg:translate-x-0 lg:static lg:z-auto"
                :class="mobileNav ? 'translate-x-0' : '-translate-x-full'">
 
             <div class="h-[60px] flex items-center gap-2.5 px-5 shrink-0">
                 <div class="w-[30px] h-[30px] rounded-lg bg-primary flex items-center justify-center shrink-0">
-                    <span class="text-navy font-bold text-[11.5px] tracking-tight">iR</span>
+                    <span class="text-white font-bold text-[11.5px] tracking-tight">iR</span>
                 </div>
                 <div class="min-w-0">
                     <p class="text-white font-semibold text-[13.5px] leading-tight tracking-[-0.01em]">iREC Admin</p>
-                    <p class="text-white/40 text-[10.5px] leading-tight">Platform control</p>
+                    <p class="text-nav-text-2 text-[10.5px] leading-tight">Platform control</p>
                 </div>
                 <button type="button" @click="mobileNav = false"
-                        class="ml-auto lg:hidden text-white/50 hover:text-white p-1 -mr-1" aria-label="Close navigation">
+                        class="ml-auto lg:hidden text-nav-text-2 hover:text-white p-1 -mr-1" aria-label="Close navigation">
                     <x-icon name="x" class="w-4.5 h-4.5" />
                 </button>
             </div>
 
             <nav class="flex-1 px-3 pt-3 overflow-y-auto scrollbar-slim" aria-label="Main">
                 @foreach($navGroups as $groupLabel => $items)
-                    <p class="px-3.5 pt-4 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.09em] text-white/30">
+                    <p class="px-3.5 pt-4 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.09em] text-nav-text-3">
                         {{ $groupLabel }}
                     </p>
                     <div class="space-y-0.5">
@@ -106,20 +129,20 @@ $toneClasses = [
                 @endforeach
             </nav>
 
-            <div class="p-3 shrink-0 border-t border-navy-line/70">
+            <div class="p-3 shrink-0 border-t border-nav-line">
                 <div class="flex items-center gap-2.5 px-2 py-2 rounded-lg">
-                    <span class="w-8 h-8 rounded-full bg-primary/15 text-primary ring-1 ring-inset ring-primary/25
+                    <span class="w-8 h-8 rounded-full bg-primary-soft-dark text-primary-light ring-1 ring-inset ring-primary-ring-dark
                                  inline-flex items-center justify-center text-[12px] font-semibold shrink-0">
                         {{ Str::upper(Str::substr(auth()->user()->name, 0, 1)) }}
                     </span>
                     <div class="min-w-0 flex-1">
-                        <p class="text-[12.5px] font-medium text-white/90 truncate">{{ auth()->user()->name }}</p>
-                        <p class="text-[11px] text-white/40 truncate">{{ auth()->user()->email }}</p>
+                        <p class="text-[12.5px] font-medium text-nav-text truncate">{{ auth()->user()->name }}</p>
+                        <p class="text-[11px] text-nav-text-2 truncate">{{ auth()->user()->email }}</p>
                     </div>
                     <form method="POST" action="{{ route('logout') }}" class="shrink-0">
                         @csrf
                         <button type="submit" title="Log out" aria-label="Log out"
-                                class="text-white/40 hover:text-white/90 hover:bg-white/5 rounded-md p-1.5 transition-colors block">
+                                class="text-nav-text-2 hover:text-nav-text hover:bg-nav-hover rounded-md p-1.5 transition-colors block">
                             <x-icon name="logout" class="w-4 h-4" />
                         </button>
                     </form>
@@ -129,7 +152,7 @@ $toneClasses = [
 
         {{-- Mobile scrim --}}
         <div x-show="mobileNav" x-cloak @click="mobileNav = false" x-transition.opacity
-             class="fixed inset-0 z-30 bg-navy/40 lg:hidden"></div>
+             class="fixed inset-0 z-30 bg-scrim lg:hidden"></div>
 
         {{-- ============================ Main ============================ --}}
         <div class="flex-1 min-w-0 h-dvh flex flex-col overflow-hidden">
@@ -148,10 +171,10 @@ $toneClasses = [
                 <nav aria-label="Breadcrumb" class="min-w-0 hidden sm:flex items-center gap-1.5 text-[12.5px]">
                     <span class="text-ink-3">iREC</span>
                     @if($section)
-                        <x-icon name="chevron-right" class="w-3.5 h-3.5 text-ink-3/60 shrink-0" />
+                        <x-icon name="chevron-right" class="w-3.5 h-3.5 text-ink-3 shrink-0" />
                         <span class="text-ink-3">{{ $section }}</span>
                     @endif
-                    <x-icon name="chevron-right" class="w-3.5 h-3.5 text-ink-3/60 shrink-0" />
+                    <x-icon name="chevron-right" class="w-3.5 h-3.5 text-ink-3 shrink-0" />
                     <span class="text-ink font-medium truncate">{{ $title }}</span>
                 </nav>
                 <p class="sm:hidden min-w-0 truncate text-[14px] font-semibold text-ink tracking-[-0.01em]">{{ $title }}</p>

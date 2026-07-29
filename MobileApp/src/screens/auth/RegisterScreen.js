@@ -196,6 +196,7 @@ const RegisterScreen = ({navigation}) => {
       <KeyboardAwareScrollView
         showsVerticalScrollIndicator={false}
         enableOnAndroid
+        enableResetScrollToCoords={false}
         scrollEnabled={isScrollEnabled}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{paddingBottom: spacing.xxl}}>

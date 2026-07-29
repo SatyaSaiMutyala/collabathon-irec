@@ -54,10 +54,16 @@ class DeveloperController extends Controller
     {
         $user = $request->user();
 
+        // Chaining scopes on a HasMany relation keeps re-wrapping the result back into
+        // the relation itself (Eloquent's __call proxies scope calls, and a scope
+        // returning the same builder instance makes Relation::__call hand back `$this`
+        // rather than the Builder) — getQuery() unwraps it to the real Eloquent Builder
+        // that applySort()'s type hint requires.
         $query = $developer->properties()
             ->active()
             ->with('developer')
-            ->search($request->query('search'));
+            ->search($request->query('search'))
+            ->getQuery();
 
         if ($user && $user->isBroker()) {
             $query->with(['myLead' => fn ($q) => $q->where('broker_id', $user->id)]);

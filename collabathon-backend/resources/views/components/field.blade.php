@@ -15,7 +15,7 @@ $id = $name ?? 'f-' . \Illuminate\Support\Str::slug($label ?? uniqid());
 // every call site having to wire old() by hand.
 $currentValue = old($id, $value);
 $inputClass = 'w-full h-10 rounded-lg bg-panel border border-line text-[13.5px] text-ink placeholder:text-ink-3
-    focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/15 transition-[border-color,box-shadow]';
+    focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring transition-[border-color,box-shadow]';
 @endphp
 
 <div {{ $attributes->only('class') }}>

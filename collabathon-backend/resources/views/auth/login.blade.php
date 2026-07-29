@@ -2,13 +2,10 @@
     <div class="min-h-screen grid lg:grid-cols-2">
 
         {{-- ------------------------ Brand panel ------------------------ --}}
-        <div class="relative hidden lg:flex flex-col justify-between p-12 overflow-hidden">
-            <div class="absolute -top-32 -left-24 w-[420px] h-[420px] rounded-full bg-primary/10 blur-3xl"></div>
-            <div class="absolute bottom-0 -right-20 w-[360px] h-[360px] rounded-full bg-primary/[0.06] blur-3xl"></div>
-
+        <div class="relative hidden lg:flex flex-col justify-between p-12 overflow-hidden bg-nav">
             <div class="relative flex items-center gap-2.5">
                 <div class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                    <span class="text-navy font-bold text-[12px]">iR</span>
+                    <span class="text-white font-bold text-[12px]">iR</span>
                 </div>
                 <span class="text-white font-semibold text-[14.5px] tracking-[-0.01em]">iREC</span>
             </div>
@@ -17,22 +14,22 @@
                 <h2 class="text-white text-[26px] font-semibold leading-snug tracking-[-0.02em]">
                     One place to approve brokers, issue developer accounts and watch every lead.
                 </h2>
-                <p class="text-white/45 text-[13.5px] mt-4 leading-relaxed">
+                <p class="text-nav-text-2 text-[13.5px] mt-4 leading-relaxed">
                     Brokers register from the mobile app and stay locked out until you approve them.
                     Developers never self-register — you create their accounts here.
                 </p>
 
-                <div class="flex items-center gap-8 mt-10 pt-8 border-t border-white/10">
+                <div class="flex items-center gap-8 mt-10 pt-8 border-t border-nav-line">
                     @foreach([['58', 'Brokers'], ['5', 'Developers'], ['640', 'Leads tracked']] as [$value, $label])
                         <div>
                             <p class="text-white text-[20px] font-semibold leading-none">{{ $value }}</p>
-                            <p class="text-white/40 text-[11.5px] mt-1.5">{{ $label }}</p>
+                            <p class="text-nav-text-3 text-[11.5px] mt-1.5">{{ $label }}</p>
                         </div>
                     @endforeach
                 </div>
             </div>
 
-            <p class="relative text-white/25 text-[11.5px]">© {{ date('Y') }} iREC Platform</p>
+            <p class="relative text-nav-text-3 text-[11.5px]">© {{ date('Y') }} iREC Platform</p>
         </div>
 
         {{-- ------------------------ Form panel ------------------------ --}}
@@ -41,7 +38,7 @@
 
                 <div class="flex items-center gap-2.5 mb-9 lg:hidden">
                     <div class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                        <span class="text-navy font-bold text-[12px]">iR</span>
+                        <span class="text-white font-bold text-[12px]">iR</span>
                     </div>
                     <span class="text-ink font-semibold text-[14.5px]">iREC Admin</span>
                 </div>
@@ -79,13 +76,13 @@
                             <input id="password" name="password" type="password" placeholder="Enter password" required
                                    class="w-full h-10 pl-9 pr-3.5 rounded-lg bg-panel border border-line text-[13.5px] text-ink
                                           placeholder:text-ink-3 focus:outline-none focus:border-primary
-                                          focus:ring-[3px] focus:ring-primary/15 transition-[border-color,box-shadow]">
+                                          focus:ring-[3px] focus:ring-primary-ring transition-[border-color,box-shadow]">
                         </div>
                     </div>
 
                     <label class="flex items-center gap-2 select-none cursor-pointer">
                         <input type="checkbox" name="remember" value="1"
-                               class="w-4 h-4 rounded border-line text-primary focus:ring-primary/20">
+                               class="w-4 h-4 rounded border-line text-primary focus:ring-primary-ring">
                         <span class="text-[12.5px] text-ink-2">Keep me signed in</span>
                     </label>
 

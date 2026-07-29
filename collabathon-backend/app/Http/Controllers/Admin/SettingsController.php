@@ -22,6 +22,8 @@ class SettingsController extends Controller
     /** Toggle a single form field on/off. */
     public function toggleField(Request $request, FormField $field): RedirectResponse
     {
+        $this->authorize('edit-module', 'settings');
+
         $data = $request->validate(['enabled' => ['required', 'boolean']]);
 
         // A required core field cannot be switched off — the mobile form depends on it.
@@ -38,6 +40,8 @@ class SettingsController extends Controller
 
     public function updateTheme(Request $request): RedirectResponse
     {
+        $this->authorize('edit-module', 'settings');
+
         $data = $request->validate([
             'accent_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
         ]);

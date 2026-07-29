@@ -58,6 +58,8 @@ class DeveloperController extends Controller
     /** Creates the company record and its login account in one transaction. */
     public function store(Request $request): RedirectResponse
     {
+        $this->authorize('edit-module', 'developers');
+
         $data = $request->validate([
             'company_name' => ['required', 'string', 'max:255', 'unique:developers,company_name'],
             'contact_person' => ['required', 'string', 'max:255'],
@@ -90,6 +92,8 @@ class DeveloperController extends Controller
 
     public function update(Request $request, Developer $developer): RedirectResponse
     {
+        $this->authorize('edit-module', 'developers');
+
         $data = $request->validate([
             'status' => ['required', 'in:active,paused'],
         ]);

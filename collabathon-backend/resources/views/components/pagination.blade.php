@@ -18,7 +18,7 @@
             <nav class="flex items-center gap-1" aria-label="Pagination">
                 {{-- Previous --}}
                 @if($paginator->onFirstPage())
-                    <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-ink-3/50 cursor-not-allowed">
+                    <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-line cursor-not-allowed">
                         <x-icon name="chevron-left" class="w-4 h-4" />
                     </span>
                 @else
@@ -40,7 +40,7 @@
                             @if($page == $paginator->currentPage())
                                 <span aria-current="page"
                                       class="inline-flex items-center justify-center min-w-8 h-8 px-2 rounded-lg
-                                             bg-navy text-white text-[12.5px] font-medium nums">{{ $page }}</span>
+                                             bg-nav text-white text-[12.5px] font-medium nums">{{ $page }}</span>
                             @else
                                 <a href="{{ $url }}"
                                    class="inline-flex items-center justify-center min-w-8 h-8 px-2 rounded-lg
@@ -57,7 +57,7 @@
                         <x-icon name="chevron-right" class="w-4 h-4" />
                     </a>
                 @else
-                    <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-ink-3/50 cursor-not-allowed">
+                    <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-line cursor-not-allowed">
                         <x-icon name="chevron-right" class="w-4 h-4" />
                     </span>
                 @endif

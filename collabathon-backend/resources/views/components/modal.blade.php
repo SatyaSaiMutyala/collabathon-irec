@@ -14,7 +14,7 @@
                  x-transition:leave="transition ease-in duration-150"
                  x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
                  @click="open = false"
-                 class="fixed inset-0 bg-navy/40 backdrop-blur-[2px]"></div>
+                 class="fixed inset-0 bg-scrim"></div>
 
             <div x-show="open"
                  x-transition:enter="transition ease-out duration-200"
@@ -43,7 +43,7 @@
                 </div>
 
                 @isset($footer)
-                    <footer class="px-6 py-4 border-t border-line bg-canvas/60 rounded-b-2xl">{{ $footer }}</footer>
+                    <footer class="px-6 py-4 border-t border-line bg-canvas rounded-b-2xl">{{ $footer }}</footer>
                 @endisset
             </div>
         </div>

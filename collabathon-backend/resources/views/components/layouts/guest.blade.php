@@ -6,7 +6,7 @@
     <title>{{ $title ?? 'iREC Admin' }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="min-h-screen bg-navy font-sans antialiased">
+<body class="min-h-screen bg-nav font-sans antialiased">
     {{ $slot }}
 </body>
 </html>

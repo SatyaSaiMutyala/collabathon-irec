@@ -92,7 +92,7 @@
         </x-slot:head>
 
         @foreach($properties as $p)
-            <tr class="hover:bg-canvas/70 transition-colors">
+            <tr class="hover:bg-canvas transition-colors">
                 <td class="px-4 py-3">
                     <p class="text-[13px] font-medium text-ink truncate">{{ $p->name }}</p>
                 </td>

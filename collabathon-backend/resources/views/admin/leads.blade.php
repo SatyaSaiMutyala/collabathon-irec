@@ -57,7 +57,7 @@
             </x-slot:head>
 
             @foreach($leads as $lead)
-                <tr class="hover:bg-canvas/70 transition-colors">
+                <tr class="hover:bg-canvas transition-colors">
                     <td class="px-4 py-3">
                         <div class="flex items-center gap-2.5 min-w-0">
                             <x-avatar :name="$lead->broker?->name ?? '—'" size="sm" />

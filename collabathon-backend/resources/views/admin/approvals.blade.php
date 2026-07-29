@@ -50,7 +50,7 @@
 
                 @foreach($pending as $broker)
                     @php $profile = $broker->brokerProfile; @endphp
-                    <tr class="hover:bg-canvas/70 transition-colors">
+                    <tr class="hover:bg-canvas transition-colors">
                         <td class="px-4 py-3">
                             <div class="flex items-center gap-2.5 min-w-0">
                                 <x-avatar :name="$broker->name" size="md" />
@@ -205,7 +205,7 @@
                 </x-slot:head>
 
                 @foreach($decided as $decision)
-                    <tr class="hover:bg-canvas/70 transition-colors">
+                    <tr class="hover:bg-canvas transition-colors">
                         <td class="px-4 py-3">
                             <div class="flex items-center gap-2.5 min-w-0">
                                 <x-avatar :name="$decision->broker?->name ?? '—'" size="sm" />

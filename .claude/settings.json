@@ -2,7 +2,22 @@
   "permissions": {
     "allow": [
       "Bash(npm view *)",
-      "Bash(open -a Simulator)"
+      "Bash(open -a Simulator)",
+      "Bash(php -r \"require 'vendor/autoload.php'; var_dump\\(class_exists\\('Str'\\)\\);\")",
+      "Bash(/usr/bin/curl --version)",
+      "Bash(php artisan tinker '--execute= *)",
+      "Bash(rm -f /tmp/irec_cookies.txt /tmp/irec_manager_cookies.txt /tmp/login_page.html /tmp/login_result.html /tmp/login2.html /tmp/resp.html)",
+      "Bash(npx --no-install playwright --version)",
+      "Read(//Applications/**)",
+      "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless=new --disable-gpu --no-sandbox --screenshot=/private/tmp/claude-501/-Users-satyamutyala-Satya-Apps-collabathon-irec/eb6a544b-3ed5-4142-ba88-a98c2bfdde15/scratchpad/login-theme.png --window-size=1440,1000 http://localhost:8000/login)",
+      "Bash(rm -rf /tmp/chrome-irec-profile)",
+      "Bash(mkdir -p /tmp/chrome-irec-profile)",
+      "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless=new --disable-gpu --no-sandbox --user-data-dir=/tmp/chrome-irec-profile --screenshot=/private/tmp/claude-501/-Users-satyamutyala-Satya-Apps-collabathon-irec/eb6a544b-3ed5-4142-ba88-a98c2bfdde15/scratchpad/step1_login.png --window-size=1440,1000 http://localhost:8000/login)",
+      "Bash(pkill -f \"Google Chrome.*headless\")",
+      "Bash(timeout 25 '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless=new --disable-gpu --no-sandbox --no-first-run --disable-extensions --screenshot=/private/tmp/claude-501/-Users-satyamutyala-Satya-Apps-collabathon-irec/eb6a544b-3ed5-4142-ba88-a98c2bfdde15/scratchpad/roles-nocookie.png --window-size=1440,1000 http://localhost:8000/login)",
+      "Bash(echo \"exit:$?\")",
+      "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless=new --disable-gpu --no-sandbox --no-first-run --disable-extensions --screenshot=/private/tmp/claude-501/-Users-satyamutyala-Satya-Apps-collabathon-irec/eb6a544b-3ed5-4142-ba88-a98c2bfdde15/scratchpad/dashboard-attempt.png --window-size=1440,1000 http://localhost:8000/login)",
+      "Bash(rm -f /tmp/irec_verify.txt /tmp/lp.html /tmp/dash.html /tmp/roles.html /tmp/team.html)"
     ]
   }
 }

@@ -6,6 +6,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -16,7 +17,7 @@ use Laravel\Sanctum\HasApiTokens;
  * One table for all three actors, separated by `role`.
  * `email` is the login key for every role; `mobile` is profile data, not a credential.
  */
-#[Fillable(['name', 'email', 'password', 'role', 'status', 'mobile', 'avatar_path'])]
+#[Fillable(['name', 'email', 'password', 'role', 'role_id', 'status', 'mobile', 'avatar_path'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -64,11 +65,49 @@ class User extends Authenticatable
         return $this->hasMany(ApprovalDecision::class);
     }
 
+    /**
+     * The admin-side staff role (Super Admin / Manager / custom) governing this
+     * user's module permissions. Only meaningful when `role === 'admin'`; brokers
+     * and developers never have one. Named `adminRole`, not `role`, so it never
+     * collides with the `role` enum column/attribute.
+     */
+    public function adminRole(): BelongsTo
+    {
+        return $this->belongsTo(Role::class, 'role_id');
+    }
+
     // ------------------------------------------------------------------ helpers
 
     public function isAdmin(): bool
     {
         return $this->role === self::ROLE_ADMIN;
+    }
+
+    /** The one reserved role that bypasses every permission check. */
+    public function isSuperAdmin(): bool
+    {
+        return $this->isAdmin() && (bool) $this->adminRole?->is_system;
+    }
+
+    private function permissionFor(string $module): ?RolePermission
+    {
+        return $this->adminRole?->permissions->firstWhere('module', $module);
+    }
+
+    /** Fail-closed: no role, or no permission row for this module, means no access. */
+    public function canView(string $module): bool
+    {
+        return $this->isSuperAdmin() || (bool) $this->permissionFor($module)?->can_view;
+    }
+
+    public function canEdit(string $module): bool
+    {
+        return $this->isSuperAdmin() || (bool) $this->permissionFor($module)?->can_edit;
+    }
+
+    public function canDelete(string $module): bool
+    {
+        return $this->isSuperAdmin() || (bool) $this->permissionFor($module)?->can_delete;
     }
 
     public function isBroker(): bool

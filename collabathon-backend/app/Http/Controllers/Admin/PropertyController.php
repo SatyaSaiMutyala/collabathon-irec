@@ -54,6 +54,8 @@ class PropertyController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $this->authorize('edit-module', 'properties');
+
         $data = $request->validate([
             // A property always belongs to exactly one developer.
             'developer_id' => ['required', 'exists:developers,id'],
@@ -84,6 +86,8 @@ class PropertyController extends Controller
 
     public function update(Request $request, Property $property): RedirectResponse
     {
+        $this->authorize('edit-module', 'properties');
+
         $data = $request->validate([
             'listing_status' => ['required', 'in:draft,active,archived'],
         ]);

@@ -69,6 +69,7 @@ class ApprovalController extends Controller
 
     public function approve(Request $request, User $user): RedirectResponse
     {
+        $this->authorize('edit-module', 'approvals');
         $this->guardIsPendingBroker($user);
 
         $data = $request->validate(['internal_note' => ['nullable', 'string', 'max:2000']]);
@@ -89,6 +90,7 @@ class ApprovalController extends Controller
 
     public function reject(Request $request, User $user): RedirectResponse
     {
+        $this->authorize('edit-module', 'approvals');
         $this->guardIsPendingBroker($user);
 
         $data = $request->validate([

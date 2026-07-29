@@ -110,9 +110,9 @@ $tabs = [
                     <div class="flex flex-wrap gap-2.5">
                         @foreach($themeColors as $color)
                             <button type="button" @click="picked = '{{ $color['hex'] }}'"
-                                    :class="picked === '{{ $color['hex'] }}' ? 'border-navy bg-canvas' : 'border-line hover:border-ink-3/40'"
+                                    :class="picked === '{{ $color['hex'] }}' ? 'border-nav bg-canvas' : 'border-line hover:border-ink-3'"
                                     class="group flex items-center gap-2.5 rounded-xl border px-3 py-2.5 transition-colors">
-                                <span class="w-7 h-7 rounded-lg shrink-0 ring-1 ring-inset ring-black/10"
+                                <span class="w-7 h-7 rounded-lg shrink-0 ring-1 ring-inset ring-line"
                                       style="background-color: {{ $color['hex'] }}"></span>
                                 <span class="text-left">
                                     <span class="block text-[12.5px] font-medium text-ink">{{ $color['name'] }}</span>
@@ -132,15 +132,15 @@ $tabs = [
             </x-panel>
 
             <x-panel title="Preview" padded class="self-start">
-                <div class="rounded-xl bg-navy p-4">
+                <div class="rounded-xl bg-nav p-4">
                     <div class="flex items-center gap-2.5 mb-4">
-                        <span class="w-7 h-7 rounded-lg flex items-center justify-center text-navy text-[10.5px] font-bold"
+                        <span class="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[10.5px] font-bold"
                               style="background-color: {{ $accentColor }}">iR</span>
                         <span class="text-white text-[12.5px] font-medium">iREC Broker</span>
                     </div>
-                    <div class="h-2 w-2/3 rounded-full bg-white/15 mb-2"></div>
-                    <div class="h-2 w-1/2 rounded-full bg-white/10 mb-4"></div>
-                    <div class="h-8 rounded-lg flex items-center justify-center text-navy text-[11.5px] font-semibold"
+                    <div class="h-2 w-2/3 rounded-full bg-nav-active mb-2"></div>
+                    <div class="h-2 w-1/2 rounded-full bg-nav-soft mb-4"></div>
+                    <div class="h-8 rounded-lg flex items-center justify-center text-white text-[11.5px] font-semibold"
                          style="background-color: {{ $accentColor }}">
                         Submit for approval
                     </div>

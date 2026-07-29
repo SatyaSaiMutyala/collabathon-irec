@@ -8,9 +8,9 @@
 
 @php
 $variants = [
-    'primary'       => 'bg-navy text-white hover:bg-navy-soft shadow-card',
-    'gold'          => 'bg-primary text-navy hover:brightness-[0.94] shadow-card',
-    'outline'       => 'bg-panel border border-line text-ink hover:bg-canvas hover:border-ink-3/50',
+    'primary'       => 'bg-nav text-white hover:bg-nav-soft shadow-card',
+    'gold'          => 'bg-primary text-white hover:bg-primary-dark shadow-card',
+    'outline'       => 'bg-panel border border-line text-ink hover:bg-canvas hover:border-ink-3',
     'subtle'        => 'bg-canvas text-ink-2 hover:bg-line-soft hover:text-ink',
     'ghost'         => 'text-ink-2 hover:bg-canvas hover:text-ink',
     'danger'        => 'bg-danger text-white hover:brightness-110 shadow-card',

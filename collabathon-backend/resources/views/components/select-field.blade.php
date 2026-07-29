@@ -18,7 +18,7 @@ $currentValue = old($id, $selected);
     <div class="relative">
         <select id="{{ $id }}" name="{{ $id }}"
             {{ $attributes->except('class')->merge(['class' => 'w-full h-10 pl-3.5 pr-9 rounded-lg bg-panel border border-line text-[13.5px] text-ink appearance-none
-                focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/15 transition-[border-color,box-shadow]']) }}>
+                focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring transition-[border-color,box-shadow]']) }}>
             {{ $slot }}
             @foreach($options as $key => $option)
                 @php $optionValue = is_int($key) ? $option : $key; @endphp

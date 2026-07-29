@@ -11,6 +11,8 @@ use App\Models\Property;
 use App\Models\PropertyDetail;
 use App\Models\PropertyMedia;
 use App\Models\PropertyUnitType;
+use App\Models\Role;
+use App\Models\RolePermission;
 use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -37,12 +39,24 @@ class DatabaseSeeder extends Seeder
 
     private function seedAdmin(): User
     {
+        $superAdmin = Role::updateOrCreate(['name' => 'Super Admin'], ['is_system' => true]);
+
+        // Cosmetic parity for the Roles UI — Gate::before already bypasses every
+        // check for is_system regardless, but a 0/6 matrix would look broken.
+        foreach (Role::MODULES as $module => $label) {
+            RolePermission::updateOrCreate(
+                ['role_id' => $superAdmin->id, 'module' => $module],
+                ['can_view' => true, 'can_edit' => true, 'can_delete' => true]
+            );
+        }
+
         return User::updateOrCreate(
             ['email' => 'admin@irec.ae'],
             [
                 'name' => 'Admin',
                 'password' => 'password',
                 'role' => User::ROLE_ADMIN,
+                'role_id' => $superAdmin->id,
                 'status' => User::STATUS_ACTIVE,
                 'mobile' => '+971 50 000 1122',
                 'email_verified_at' => now(),
