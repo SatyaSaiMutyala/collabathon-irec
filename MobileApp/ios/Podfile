@@ -35,5 +35,21 @@ target 'Collabathon' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # CocoaPods emits LIBRARY_SEARCH_PATHS = "${TOOLCHAIN_DIR}/usr/lib/swift/${PLATFORM_NAME}",
+    # but under Xcode 26 TOOLCHAIN_DIR expands to the Metal toolchain at link time, so the Swift
+    # compatibility archives Firebase auto-links (swiftCompatibility56) are never found and the
+    # link fails with "Undefined symbols: __swift_FORCE_LOAD_$_swiftCompatibility56".
+    # DT_TOOLCHAIN_DIR always resolves to XcodeDefault.xctoolchain, where those archives live.
+    installer.aggregate_targets.each do |aggregate_target|
+      aggregate_target.xcconfigs.each_key do |config_name|
+        path = aggregate_target.xcconfig_path(config_name)
+        next unless File.exist?(path)
+
+        contents = File.read(path)
+        patched = contents.gsub('${TOOLCHAIN_DIR}', '${DT_TOOLCHAIN_DIR}')
+        File.write(path, patched) unless patched == contents
+      end
+    end
   end
 end

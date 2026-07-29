@@ -5,12 +5,14 @@ import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../../theme';
 import {AppText, Avatar, Badge, Button, Card, ScreenContainer} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
-import {approveRegistration} from '../../store/slices/authSlice';
+import {clearAuthError} from '../../store/slices/authSlice';
 
 const PendingApprovalScreen = ({navigation}) => {
   const {colors, spacing} = useAppTheme();
   const dispatch = useAppDispatch();
-  const broker = useAppSelector(state => state.auth.broker);
+  // The registered user as the API returned it — approval is an admin action,
+  // so this screen can only report status, never grant it.
+  const user = useAppSelector(state => state.auth.user);
   const status = useAppSelector(state => state.auth.registrationStatus);
 
   return (
@@ -41,21 +43,20 @@ const PendingApprovalScreen = ({navigation}) => {
         </AppText>
       </View>
 
-      {broker && (
+      {user && (
         <Card style={{marginBottom: spacing.xl}}>
           <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start'}}>
             <View style={{flexDirection: 'row', alignItems: 'center', flex: 1}}>
-              <Avatar uri={broker.photoAttachment} name={broker.fullNameAsRera} size="md" />
+              <Avatar uri={user.avatar_url} name={user.name} size="md" />
               <View style={{marginLeft: spacing.sm, flex: 1}}>
                 <AppText variant="h3" numberOfLines={1}>
-                  {broker.suffix ? `${broker.suffix} ` : ''}
-                  {broker.fullNameAsRera}
+                  {user.name}
                 </AppText>
                 <AppText
                   variant="caption"
                   color={colors.textSecondary}
                   style={{marginTop: moderateScale(2)}}>
-                  {broker.emailId}
+                  {user.email}
                 </AppText>
               </View>
             </View>
@@ -66,18 +67,18 @@ const PendingApprovalScreen = ({navigation}) => {
           </View>
           <View style={{marginTop: spacing.md}}>
             <AppText variant="caption" color={colors.textMuted}>
-              {broker.mobileNumber}
+              {user.mobile}
             </AppText>
           </View>
         </Card>
       )}
 
       <Button
-        label="I've Been Approved (Demo)"
+        label="Back to Sign In"
         variant="outline"
-        icon="checkmark-circle-outline"
+        icon="arrow-back-outline"
         onPress={() => {
-          dispatch(approveRegistration());
+          dispatch(clearAuthError());
           navigation.replace('Login');
         }}
       />

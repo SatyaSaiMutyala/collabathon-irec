@@ -16,8 +16,8 @@ import {
   SectionHeader,
   SignaturePad,
 } from '../../components';
-import {useAppDispatch} from '../../store/hooks';
-import {submitRegistration} from '../../store/slices/authSlice';
+import {useAppDispatch, useAppSelector} from '../../store/hooks';
+import {registerBroker} from '../../store/slices/authSlice';
 
 const SUFFIX_OPTIONS = ['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Eng.'];
 const SEGMENT_OPTIONS = ['Residential', 'Commercial', 'Lands', 'Liaisoning', 'All'];
@@ -29,6 +29,7 @@ const initialForm = {
   mobileNumber: '',
   alternateMobile: '',
   emailId: '',
+  password: '',
   residenceAddress: '',
   photoAttachment: '',
   isCompany: false,
@@ -97,6 +98,9 @@ const RegisterScreen = ({navigation}) => {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.emailId.trim())) {
       next.emailId = 'Enter a valid email';
     }
+    if (!form.password || form.password.length < 8) {
+      next.password = 'Password must be at least 8 characters';
+    }
     if (!form.residenceAddress.trim()) {
       next.residenceAddress = 'Enter your residence address';
     }
@@ -131,12 +135,60 @@ const RegisterScreen = ({navigation}) => {
     return Object.keys(next).length === 0;
   };
 
-  const handleSubmit = () => {
+  /** Maps the empanelment form onto the API's register contract. */
+  const toPayload = () => ({
+    name: [form.suffix, form.fullNameAsRera].filter(Boolean).join(' ').trim(),
+    email: form.emailId.trim(),
+    password: form.password,
+    mobile: form.mobileNumber.trim(),
+
+    alternate_mobile: form.alternateMobile.trim() || null,
+    residence_address: form.residenceAddress.trim(),
+    is_company: form.isCompany,
+    company_name: form.companyName.trim() || null,
+    office_address: form.officeAddress.trim() || null,
+    company_website: form.companyWebsite.trim() || null,
+    social_media_handle: form.socialMediaHandle.trim() || null,
+    years_of_experience: form.yearsOfExperience ? Number(form.yearsOfExperience) : null,
+    team_size: form.teamSize ? Number(form.teamSize) : null,
+
+    pan_card: form.panCard.trim() || null,
+    aadhaar_card: form.aadhaarCard.trim() || null,
+    rera_number: form.reraNumber.trim() || null,
+    rera_certificate_expiry: form.reraCertificateExpiry.trim() || null,
+    gst_number: form.gstNumber.trim() || null,
+    cheque_details: form.chequeDetails.trim() || null,
+
+    state: form.state.trim() || null,
+    city: form.city.trim() || null,
+    segments: form.segments,
+    zones: form.zones,
+    operates_multiple_states: form.operatesMultipleStates,
+    project_contributions: form.projectContributions.trim() || null,
+    confirm_accuracy: form.confirmAccuracy,
+  });
+
+  const handleSubmit = async () => {
     if (!validate()) {
       return;
     }
-    dispatch(submitRegistration(form));
-    navigation.replace('PendingApproval');
+
+    const result = await dispatch(registerBroker(toPayload()));
+
+    if (registerBroker.fulfilled.match(result)) {
+      navigation.replace('PendingApproval');
+      return;
+    }
+
+    // Surface server-side validation (e.g. duplicate email) on the right fields.
+    const serverErrors = result.payload?.errors ?? {};
+    setErrors(prev => ({
+      ...prev,
+      emailId: serverErrors.email?.[0],
+      password: serverErrors.password?.[0],
+      mobileNumber: serverErrors.mobile?.[0],
+      submit: serverErrors.email ? undefined : result.payload?.message,
+    }));
   };
 
   return (
@@ -210,9 +262,20 @@ const RegisterScreen = ({navigation}) => {
             leftIcon="mail-outline"
             keyboardType="email-address"
             autoCapitalize="none"
+            autoCorrect={false}
             value={form.emailId}
             onChangeText={update('emailId')}
             error={errors.emailId}
+          />
+          {/* Email + password is the login credential once an admin approves. */}
+          <Input
+            label="Password *"
+            placeholder="At least 8 characters"
+            leftIcon="lock-closed-outline"
+            isPassword
+            value={form.password}
+            onChangeText={update('password')}
+            error={errors.password}
           />
           <Input
             label="Residence address *"

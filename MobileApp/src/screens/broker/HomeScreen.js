@@ -1,5 +1,5 @@
-import React, {useEffect, useMemo, useState} from 'react';
-import {FlatList, TouchableOpacity, View} from 'react-native';
+import React, {useCallback, useEffect, useState} from 'react';
+import {TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../../theme';
@@ -11,47 +11,57 @@ import {
   IconButton,
   Input,
   LocationPickerSheet,
+  PaginatedList,
   ScreenContainer,
 } from '../../components';
-import {useAppSelector} from '../../store/hooks';
-import {developers} from '../../data/mockDevelopers';
+import {useAppDispatch, useAppSelector} from '../../store/hooks';
+import {fetchDevelopers, fetchNextDevelopers} from '../../store/slices/developersSlice';
 import {useCurrentLocation} from '../../hooks/useLocation';
-import {useNotifications} from '../../hooks/useNotifications';
+import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 
-const KNOWN_CITIES = Array.from(new Set(developers.map(d => d.city)));
-
+/**
+ * Developer directory. Search and city filtering are sent to the API — this screen
+ * holds only the pages it has fetched, never the whole table.
+ */
 const HomeScreen = ({navigation}) => {
   const {colors, spacing} = useAppTheme();
-  const broker = useAppSelector(state => state.auth.broker);
+  const dispatch = useAppDispatch();
+
+  const user = useAppSelector(state => state.auth.user);
+  const list = useAppSelector(state => state.developers.list);
+
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState('all');
   const [isPickerVisible, setIsPickerVisible] = useState(false);
+  const [manualCity, setManualCity] = useState(null);
   const location = useCurrentLocation();
-  const notifications = useNotifications();
-  const unreadCount = notifications.filter(item => item.isUnread).length;
+
+  // One request per typing pause, not one per keystroke.
+  const debouncedQuery = useDebouncedValue(query, 400);
+  const activeCity = manualCity ?? null;
 
   useEffect(() => {
     location.detectLocation();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const activeCity = location.city && KNOWN_CITIES.includes(location.city) ? location.city : null;
+  const loadFirstPage = useCallback(() => {
+    dispatch(
+      fetchDevelopers({
+        page: 1,
+        search: debouncedQuery.trim() || undefined,
+        city: activeCity || undefined,
+      }),
+    );
+  }, [dispatch, debouncedQuery, activeCity]);
 
-  const filteredDevelopers = useMemo(() => {
-    return developers.filter(dev => {
-      if (activeCity && dev.city !== activeCity) {
-        return false;
-      }
-      if (filter === 'verified' && !dev.verified) {
-        return false;
-      }
-      if (!query.trim()) {
-        return true;
-      }
-      const q = query.trim().toLowerCase();
-      return dev.name.toLowerCase().includes(q);
-    });
-  }, [query, filter, activeCity]);
+  // Any change to search or city restarts at page 1.
+  useEffect(() => {
+    loadFirstPage();
+  }, [loadFirstPage]);
+
+  const handleEndReached = useCallback(() => {
+    dispatch(fetchNextDevelopers());
+  }, [dispatch]);
 
   const goToDeveloper = id => navigation.navigate('DeveloperProfile', {developerId: id});
 
@@ -66,10 +76,10 @@ const HomeScreen = ({navigation}) => {
           marginBottom: spacing.lg,
         }}>
         <View style={{flexDirection: 'row', alignItems: 'center', flex: 1}}>
-          <Avatar uri={broker?.photoAttachment} name={broker?.fullNameAsRera} size="sm" />
+          <Avatar uri={user?.avatar_url} name={user?.name} size="sm" />
           <View style={{marginLeft: spacing.sm, flex: 1}}>
             <AppText variant="caption" color={colors.textMuted}>
-              Hi, {broker?.fullNameAsRera?.split(' ')[0] ?? 'Broker'}
+              Hi, {user?.name?.split(' ')[0] ?? 'Broker'}
             </AppText>
             <TouchableOpacity
               activeOpacity={0.75}
@@ -81,7 +91,7 @@ const HomeScreen = ({navigation}) => {
                 weight="semiBold"
                 numberOfLines={1}
                 style={{marginLeft: moderateScale(4), maxWidth: moderateScale(160)}}>
-                {location.isLoading ? 'Locating…' : location.label}
+                {activeCity ?? (location.isLoading ? 'Locating…' : location.label)}
               </AppText>
               <Icon
                 name="chevron-down"
@@ -92,11 +102,7 @@ const HomeScreen = ({navigation}) => {
             </TouchableOpacity>
           </View>
         </View>
-        <IconButton
-          icon="notifications-outline"
-          badgeCount={unreadCount}
-          onPress={() => navigation.navigate('Notifications')}
-        />
+        <IconButton icon="notifications-outline" />
       </View>
 
       <Input
@@ -104,58 +110,56 @@ const HomeScreen = ({navigation}) => {
         leftIcon="search-outline"
         value={query}
         onChangeText={setQuery}
+        autoCapitalize="none"
       />
 
-      <View style={{flexDirection: 'row', marginBottom: spacing.md}}>
-        <Chip label="All Developers" active={filter === 'all'} onPress={() => setFilter('all')} />
-        <Chip
-          label="Verified Only"
-          active={filter === 'verified'}
-          onPress={() => setFilter('verified')}
-          icon="shield-checkmark"
-        />
-      </View>
-
-      {location.city && !activeCity && (
-        <AppText variant="caption" color={colors.textMuted} style={{marginBottom: spacing.sm}}>
-          No developers in {location.city} yet — showing all developers.
-        </AppText>
+      {activeCity && (
+        <View style={{flexDirection: 'row', marginBottom: spacing.md}}>
+          <Chip
+            label={`City: ${activeCity}`}
+            active
+            icon="close"
+            onPress={() => setManualCity(null)}
+          />
+        </View>
       )}
 
-      <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.sm}}>
+      <View
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          marginBottom: spacing.sm,
+        }}>
         <AppText variant="h3">All Developers</AppText>
         <AppText variant="caption" color={colors.textMuted}>
-          {filteredDevelopers.length} found
+          {list.total} found
         </AppText>
       </View>
 
-      <FlatList
-        data={filteredDevelopers}
-        keyExtractor={item => item.id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{paddingBottom: spacing.xxl}}
-        renderItem={({item}) => <DeveloperCard developer={item} onPress={() => goToDeveloper(item.id)} />}
-        ListEmptyComponent={
-          <View style={{alignItems: 'center', marginTop: spacing.xxl}}>
-            <AppText variant="body" color={colors.textMuted}>
-              No developers match your search.
-            </AppText>
-          </View>
-        }
+      <PaginatedList
+        list={list}
+        onRefresh={loadFirstPage}
+        onEndReached={handleEndReached}
+        emptyTitle="No developers found"
+        emptyMessage="Try a different search term or clear the city filter."
+        renderItem={({item}) => (
+          <DeveloperCard developer={item} onPress={() => goToDeveloper(item.id)} />
+        )}
       />
 
       <LocationPickerSheet
         visible={isPickerVisible}
         onClose={() => setIsPickerVisible(false)}
-        cities={KNOWN_CITIES}
+        cities={['Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman']}
         selectedCity={activeCity}
         isDetecting={location.isLoading}
         onUseCurrentLocation={() => {
+          setManualCity(null);
           location.detectLocation();
           setIsPickerVisible(false);
         }}
         onSelectCity={city => {
-          location.setManualLocation(city);
+          setManualCity(city);
           setIsPickerVisible(false);
         }}
       />

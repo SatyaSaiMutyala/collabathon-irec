@@ -1,29 +1,47 @@
-import React, {useMemo} from 'react';
-import {FlatList, Image, TouchableOpacity, View} from 'react-native';
+import React, {useCallback, useEffect} from 'react';
+import {Image, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../../theme';
-import {AppText, Badge, Card, ScreenContainer} from '../../components';
-import {useAppSelector} from '../../store/hooks';
-import {getDeveloperById, getProjectById} from '../../data/mockDevelopers';
+import {AppText, Badge, Card, PaginatedList, ScreenContainer} from '../../components';
+import {useAppDispatch, useAppSelector} from '../../store/hooks';
+import {fetchLeads, fetchNextLeads} from '../../store/slices/leadsSlice';
 
+const STATUS_TONE = {
+  interested: 'warning',
+  accepted: 'success',
+  declined: 'danger',
+  viewed: 'muted',
+};
+
+const STATUS_LABEL = {
+  interested: 'Pending',
+  accepted: 'Accepted',
+  declined: 'Declined',
+  viewed: 'Viewed',
+};
+
+/**
+ * The broker's own leads, straight from /leads — the endpoint scopes to the caller,
+ * so no client-side filtering by broker id is needed or trusted.
+ */
 const InterestedScreen = ({navigation}) => {
   const {colors, spacing, radius} = useAppTheme();
-  const leadsByProject = useAppSelector(state => state.leads.byProjectId);
+  const dispatch = useAppDispatch();
+  const list = useAppSelector(state => state.leads.list);
 
-  const leads = useMemo(() => {
-    return Object.values(leadsByProject)
-      .map(lead => {
-        const project = getProjectById(lead.projectId);
-        const developer = getDeveloperById(lead.developerId);
-        if (!project || !developer) {
-          return null;
-        }
-        return {lead, project, developer};
-      })
-      .filter(Boolean)
-      .sort((a, b) => (a.lead.markedAt < b.lead.markedAt ? 1 : -1));
-  }, [leadsByProject]);
+  const loadFirstPage = useCallback(() => {
+    // Only leads the broker actually acted on — a bare view isn't "interested".
+    dispatch(fetchLeads({page: 1, status: 'interested'}));
+  }, [dispatch]);
+
+  useEffect(() => {
+    loadFirstPage();
+  }, [loadFirstPage]);
+
+  const handleEndReached = useCallback(() => {
+    dispatch(fetchNextLeads());
+  }, [dispatch]);
 
   return (
     <ScreenContainer edges={['top']}>
@@ -31,60 +49,69 @@ const InterestedScreen = ({navigation}) => {
         Interested
       </AppText>
 
-      <FlatList
-        data={leads}
-        keyExtractor={item => item.project.id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{paddingBottom: spacing.xxl}}
+      <PaginatedList
+        list={list}
+        onRefresh={loadFirstPage}
+        onEndReached={handleEndReached}
+        emptyTitle="Nothing yet"
+        emptyMessage="Projects you mark as Interested will show up here."
         ItemSeparatorComponent={() => <View style={{height: moderateScale(12)}} />}
         renderItem={({item}) => (
           <TouchableOpacity
             activeOpacity={0.85}
-            onPress={() => navigation.navigate('ProjectDetail', {projectId: item.project.id})}>
+            onPress={() =>
+              item.property &&
+              navigation.navigate('ProjectDetail', {projectId: item.property.id})
+            }>
             <Card>
               <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                <Image
-                  source={{uri: item.project.coverImage}}
-                  style={{
-                    width: moderateScale(64),
-                    height: moderateScale(64),
-                    borderRadius: radius.md,
-                  }}
-                />
+                {item.property?.cover_image_url ? (
+                  <Image
+                    source={{uri: item.property.cover_image_url}}
+                    style={{
+                      width: moderateScale(64),
+                      height: moderateScale(64),
+                      borderRadius: radius.md,
+                    }}
+                  />
+                ) : (
+                  <View
+                    style={{
+                      width: moderateScale(64),
+                      height: moderateScale(64),
+                      borderRadius: radius.md,
+                      backgroundColor: colors.border,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                    <Icon name="business-outline" size={moderateScale(22)} color={colors.textMuted} />
+                  </View>
+                )}
+
                 <View style={{flex: 1, marginLeft: spacing.md}}>
                   <AppText variant="h3" numberOfLines={1}>
-                    {item.project.name}
+                    {item.property?.name ?? 'Listing'}
                   </AppText>
                   <AppText
                     variant="caption"
                     color={colors.textSecondary}
-                    style={{marginTop: moderateScale(2)}}>
-                    {item.developer.name}
+                    style={{marginTop: moderateScale(2)}}
+                    numberOfLines={1}>
+                    {item.developer?.company_name ?? ''}
                   </AppText>
-                  <View style={{marginTop: spacing.xs}}>
+                  <View style={{marginTop: spacing.xs, flexDirection: 'row'}}>
                     <Badge
-                      label={item.lead.status === 'accepted' ? 'Accepted' : 'Pending'}
-                      tone={item.lead.status === 'accepted' ? 'success' : 'warning'}
+                      label={STATUS_LABEL[item.status] ?? item.status}
+                      tone={STATUS_TONE[item.status] ?? 'muted'}
                     />
                   </View>
                 </View>
+
                 <Icon name="chevron-forward" size={moderateScale(18)} color={colors.textMuted} />
               </View>
             </Card>
           </TouchableOpacity>
         )}
-        ListEmptyComponent={
-          <View style={{alignItems: 'center', marginTop: spacing.xxxl}}>
-            <Icon name="bookmark-outline" size={moderateScale(40)} color={colors.textMuted} />
-            <AppText
-              variant="body"
-              color={colors.textMuted}
-              align="center"
-              style={{marginTop: spacing.md, maxWidth: moderateScale(240)}}>
-              Projects you mark as Interested will show up here.
-            </AppText>
-          </View>
-        }
       />
     </ScreenContainer>
   );

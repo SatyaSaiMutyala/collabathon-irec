@@ -1,49 +1,72 @@
-import React, {useState} from 'react';
-import {ScrollView, View} from 'react-native';
+import React, {useCallback, useEffect, useState} from 'react';
+import {RefreshControl, ScrollView, View} from 'react-native';
 import {useAppTheme} from '../../theme';
-import {AppText, Avatar, Card, Chip, IconButton, PropertyCard, ScreenContainer, StatRow, TrendChart} from '../../components';
-import {useAppSelector} from '../../store/hooks';
-import {getDeveloperById} from '../../data/mockDevelopers';
-import {getMonthlyProfileViews, weeklyProfileViews} from '../../data/mockLeads';
-import {useEffectiveLeads} from '../../hooks/useDeveloperLeads';
-import {useNotifications} from '../../hooks/useNotifications';
+import {
+  AppText,
+  Avatar,
+  Card,
+  Chip,
+  IconButton,
+  PropertyCard,
+  ScreenContainer,
+  StatRow,
+  TrendChart,
+} from '../../components';
+import {useAppDispatch, useAppSelector} from '../../store/hooks';
+import {fetchDashboard} from '../../store/slices/dashboardSlice';
+import {
+  fetchDeveloperProperties,
+  selectDeveloperProperties,
+} from '../../store/slices/developersSlice';
 
-const WEEK_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const MONTH_LABELS = ['Wk 1', 'Wk 2', 'Wk 3', 'Wk 4', 'Wk 5'];
-
-function getRecentMonths(count = 6) {
-  const months = [];
-  const now = new Date();
-  for (let i = count - 1; i >= 0; i -= 1) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push(d.toLocaleString('en-US', {month: 'short', year: 'numeric'}));
-  }
-  return months;
-}
-
-const RECENT_MONTHS = getRecentMonths(6);
-
+/** Developer home. Figures come from /dashboard as SQL aggregates, not from a list. */
 const DashboardScreen = ({navigation}) => {
   const {colors, spacing} = useAppTheme();
-  const developer = useAppSelector(state => state.auth.developer);
-  const company = getDeveloperById(developer?.developerId);
-  const projects = company?.projects ?? [];
-  const projectIds = projects.map(p => p.id);
-  const leads = useEffectiveLeads(projectIds);
-  const notifications = useNotifications();
-  const unreadCount = notifications.filter(item => item.isUnread).length;
-  const [trendRange, setTrendRange] = useState('week');
-  const [selectedMonth, setSelectedMonth] = useState(RECENT_MONTHS[RECENT_MONTHS.length - 1]);
+  const dispatch = useAppDispatch();
 
-  const interestedCount = leads.filter(l => l.effectiveStatus === 'interested').length;
-  const matchesCount = leads.filter(l => l.effectiveStatus === 'accepted').length;
-  const trendData = trendRange === 'week' ? weeklyProfileViews : getMonthlyProfileViews(selectedMonth);
-  const trendLabels = trendRange === 'week' ? WEEK_LABELS : MONTH_LABELS;
-  const totalProfileViews = trendData.reduce((sum, v) => sum + v, 0);
+  const user = useAppSelector(state => state.auth.user);
+  const developer = user?.developer;
+  const developerId = developer?.id;
+
+  const stats = useAppSelector(state => state.dashboard.data);
+  const status = useAppSelector(state => state.dashboard.status);
+  const properties = useAppSelector(state =>
+    developerId ? selectDeveloperProperties(state, developerId) : null,
+  );
+
+  const [trendRange, setTrendRange] = useState('week');
+
+  const load = useCallback(() => {
+    dispatch(fetchDashboard());
+    if (developerId) {
+      dispatch(fetchDeveloperProperties({developerId, page: 1, per_page: 5}));
+    }
+  }, [dispatch, developerId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const series =
+    trendRange === 'week' ? stats?.weekly_views : stats?.monthly_views;
+  const trendData = series?.values ?? [];
+  const trendLabels = series?.labels ?? [];
+  const totalInRange = trendData.reduce((sum, v) => sum + v, 0);
+
+  const topProperties = (properties?.items ?? []).slice(0, 2);
 
   return (
     <ScreenContainer edges={['top']}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: spacing.xxl}}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{paddingBottom: spacing.xxl}}
+        refreshControl={
+          <RefreshControl
+            refreshing={status === 'loading'}
+            onRefresh={load}
+            tintColor={colors.primary}
+          />
+        }>
         <View
           style={{
             flexDirection: 'row',
@@ -53,29 +76,25 @@ const DashboardScreen = ({navigation}) => {
             marginBottom: spacing.lg,
           }}>
           <View style={{flexDirection: 'row', alignItems: 'center', flex: 1}}>
-            <Avatar uri={company?.logo} name={company?.name} size="sm" />
+            <Avatar uri={developer?.logo_url} name={developer?.company_name} size="sm" />
             <View style={{marginLeft: spacing.sm, flex: 1}}>
               <AppText variant="caption" color={colors.textMuted}>
-                Hi, {developer?.contactName?.split(' ')[0] ?? 'Developer'}
+                Hi, {user?.name?.split(' ')[0] ?? 'Developer'}
               </AppText>
               <AppText variant="h3" numberOfLines={1}>
-                {company?.name ?? 'Your Company'}
+                {developer?.company_name ?? 'Your Company'}
               </AppText>
             </View>
           </View>
-          <IconButton
-            icon="notifications-outline"
-            badgeCount={unreadCount}
-            onPress={() => navigation.navigate('Notifications')}
-          />
+          <IconButton icon="notifications-outline" badgeCount={stats?.interested ?? 0} />
         </View>
 
         <Card style={{paddingVertical: spacing.sm}}>
           <StatRow
             stats={[
-              {value: String(projects.length), label: 'Properties'},
-              {value: String(interestedCount), label: 'Interested Leads'},
-              {value: String(matchesCount), label: 'Matches'},
+              {value: String(stats?.properties ?? 0), label: 'Properties'},
+              {value: String(stats?.interested ?? 0), label: 'Interested Leads'},
+              {value: String(stats?.accepted ?? 0), label: 'Matches'},
             ]}
           />
         </Card>
@@ -88,34 +107,26 @@ const DashboardScreen = ({navigation}) => {
             marginTop: spacing.xl,
             marginBottom: spacing.xs,
           }}>
-          <AppText variant="h3">Profile Views</AppText>
+          <AppText variant="h3">Lead activity</AppText>
           <AppText variant="caption" color={colors.textMuted}>
-            {totalProfileViews} {trendRange === 'week' ? 'this week' : `in ${selectedMonth}`}
+            {totalInRange} {trendRange === 'week' ? 'this week' : 'in 5 weeks'}
           </AppText>
         </View>
 
         <View style={{flexDirection: 'row', marginBottom: spacing.xs}}>
-          <Chip compact label="Week" active={trendRange === 'week'} onPress={() => setTrendRange('week')} />
-          <Chip compact label="Month" active={trendRange === 'month'} onPress={() => setTrendRange('month')} />
+          <Chip
+            compact
+            label="Week"
+            active={trendRange === 'week'}
+            onPress={() => setTrendRange('week')}
+          />
+          <Chip
+            compact
+            label="Month"
+            active={trendRange === 'month'}
+            onPress={() => setTrendRange('month')}
+          />
         </View>
-
-        {trendRange === 'month' && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={{marginBottom: spacing.sm}}
-            contentContainerStyle={{paddingRight: spacing.lg}}>
-            {RECENT_MONTHS.map(month => (
-              <Chip
-                key={month}
-                compact
-                label={month}
-                active={month === selectedMonth}
-                onPress={() => setSelectedMonth(month)}
-              />
-            ))}
-          </ScrollView>
-        )}
 
         <Card>
           <TrendChart data={trendData} labels={trendLabels} />
@@ -138,7 +149,7 @@ const DashboardScreen = ({navigation}) => {
           </AppText>
         </View>
 
-        {projects.slice(0, 2).map(project => (
+        {topProperties.map(project => (
           <PropertyCard
             key={project.id}
             project={project}
@@ -148,7 +159,7 @@ const DashboardScreen = ({navigation}) => {
           />
         ))}
 
-        {projects.length === 0 && (
+        {topProperties.length === 0 && (
           <View style={{alignItems: 'center', marginTop: spacing.xl}}>
             <AppText variant="body" color={colors.textMuted}>
               No properties assigned yet.

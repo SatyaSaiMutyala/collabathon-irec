@@ -4,7 +4,7 @@ import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {useAppDispatch, useAppSelector} from '../store/hooks';
 import {loadAuthState} from '../store/authPersistence';
-import {hydrateAuth} from '../store/slices/authSlice';
+import {fetchMe, hydrateAuth} from '../store/slices/authSlice';
 import {useAppTheme} from '../theme';
 import AuthNavigator from './AuthNavigator';
 import BrokerTabNavigator from './BrokerTabNavigator';
@@ -12,7 +12,6 @@ import DeveloperTabNavigator from './DeveloperTabNavigator';
 import DeveloperProfileScreen from '../screens/broker/DeveloperProfileScreen';
 import ProjectDetailScreen from '../screens/broker/ProjectDetailScreen';
 import PropertyLeadsScreen from '../screens/developer/PropertyLeadsScreen';
-import BrokerProfileScreen from '../screens/developer/BrokerProfileScreen';
 import NotificationsScreen from '../screens/shared/NotificationsScreen';
 
 const BrokerStack = createNativeStackNavigator();
@@ -48,11 +47,6 @@ const DeveloperRootStack = () => (
       options={{animation: 'slide_from_right'}}
     />
     <DeveloperStack.Screen
-      name="BrokerProfile"
-      component={BrokerProfileScreen}
-      options={{animation: 'slide_from_right'}}
-    />
-    <DeveloperStack.Screen
       name="Notifications"
       component={NotificationsScreen}
       options={{animation: 'slide_from_right'}}
@@ -69,8 +63,12 @@ const RootNavigator = () => {
 
   useEffect(() => {
     loadAuthState().then(persisted => {
-      if (persisted) {
+      if (persisted?.token) {
+        // hydrateAuth also re-arms the HTTP client with the stored token.
         dispatch(hydrateAuth(persisted));
+        // Re-validate against the server: the account may have been paused or
+        // rejected since last launch, in which case the 401 interceptor signs out.
+        dispatch(fetchMe());
       }
       setIsSessionRestored(true);
     });

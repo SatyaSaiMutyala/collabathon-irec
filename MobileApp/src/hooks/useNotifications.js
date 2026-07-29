@@ -1,6 +1,4 @@
 import {useAppSelector} from '../store/hooks';
-import {getDeveloperById, getProjectById} from '../data/mockDevelopers';
-import {getBrokerById, getLeadsForProject} from '../data/mockLeads';
 
 function timeAgo(isoString) {
   const diffMs = Date.now() - new Date(isoString).getTime();
@@ -22,108 +20,103 @@ function timeAgo(isoString) {
   return `${Math.floor(days / 7)}w ago`;
 }
 
-function buildBrokerNotifications(leadsByProjectId) {
-  return Object.values(leadsByProjectId).map(lead => {
-    const projectName = getProjectById(lead.projectId)?.name ?? 'a property';
-    const developerName = getDeveloperById(lead.developerId)?.name ?? 'The developer';
+function leadDate(lead) {
+  return lead.responded_at || lead.interested_at || lead.viewed_at || lead.created_at;
+}
 
-    if (lead.status === 'accepted') {
-      return {
-        id: `broker-${lead.projectId}-accepted`,
-        icon: 'checkmark-circle',
-        tone: 'success',
-        title: 'Interest accepted',
-        message: `${developerName} accepted your interest in ${projectName}. Contact details are now unlocked.`,
-        date: lead.markedAt,
-      };
-    }
-    if (lead.status === 'declined') {
-      return {
-        id: `broker-${lead.projectId}-declined`,
-        icon: 'close-circle',
-        tone: 'danger',
-        title: 'Interest declined',
-        message: `${developerName} declined your interest in ${projectName}.`,
-        date: lead.markedAt,
-      };
-    }
-    return {
-      id: `broker-${lead.projectId}-pending`,
+/** Per-role copy for each lead status. A broker isn't notified about their own views. */
+const STATUS_CONFIG = {
+  broker: {
+    accepted: {
+      icon: 'checkmark-circle',
+      tone: 'success',
+      title: 'Interest accepted',
+      message: lead =>
+        `${lead.developer?.company_name ?? 'The developer'} accepted your interest in ${
+          lead.property?.name ?? 'a property'
+        }. Contact details are now unlocked.`,
+    },
+    declined: {
+      icon: 'close-circle',
+      tone: 'danger',
+      title: 'Interest declined',
+      message: lead =>
+        `${lead.developer?.company_name ?? 'The developer'} declined your interest in ${
+          lead.property?.name ?? 'a property'
+        }.`,
+    },
+    interested: {
       icon: 'time',
       tone: 'warning',
       title: 'Awaiting response',
-      message: `Your interest in ${projectName} is with ${developerName}, awaiting response.`,
-      date: lead.markedAt,
-    };
-  });
-}
+      message: lead =>
+        `Your interest in ${lead.property?.name ?? 'a property'} is with ${
+          lead.developer?.company_name ?? 'the developer'
+        }, awaiting response.`,
+    },
+  },
+  developer: {
+    accepted: {
+      icon: 'checkmark-done-circle',
+      tone: 'success',
+      title: 'Match confirmed',
+      message: lead =>
+        `You accepted ${lead.broker?.name ?? 'a broker'}'s interest in ${
+          lead.property?.name ?? 'a property'
+        }. Admin has been notified to follow up.`,
+    },
+    declined: {
+      icon: 'close-circle',
+      tone: 'neutral',
+      title: 'Lead declined',
+      message: lead =>
+        `You declined ${lead.broker?.name ?? 'a broker'}'s interest in ${
+          lead.property?.name ?? 'a property'
+        }.`,
+    },
+    interested: {
+      icon: 'star',
+      tone: 'primary',
+      title: 'New interested lead',
+      message: lead =>
+        `${lead.broker?.name ?? 'A broker'} marked interest in ${lead.property?.name ?? 'a property'}.`,
+    },
+    viewed: {
+      icon: 'eye',
+      tone: 'neutral',
+      title: 'Property viewed',
+      message: lead => `${lead.broker?.name ?? 'A broker'} viewed ${lead.property?.name ?? 'a property'}.`,
+    },
+  },
+};
 
-function buildDeveloperNotifications(projects, responses) {
-  const items = [];
-
-  projects.forEach(project => {
-    getLeadsForProject(project.id).forEach(lead => {
-      const brokerName = getBrokerById(lead.brokerId)?.name ?? 'A broker';
-      const responseStatus = responses[project.id]?.[lead.brokerId];
-
-      if (responseStatus === 'accepted') {
-        items.push({
-          id: `dev-${project.id}-${lead.brokerId}-accepted`,
-          icon: 'checkmark-done-circle',
-          tone: 'success',
-          title: 'Match confirmed',
-          message: `You accepted ${brokerName}'s interest in ${project.name}. Admin has been notified to follow up.`,
-          date: lead.markedAt,
-        });
-      } else if (responseStatus === 'declined') {
-        items.push({
-          id: `dev-${project.id}-${lead.brokerId}-declined`,
-          icon: 'close-circle',
-          tone: 'neutral',
-          title: 'Lead declined',
-          message: `You declined ${brokerName}'s interest in ${project.name}.`,
-          date: lead.markedAt,
-        });
-      } else if (lead.status === 'interested') {
-        items.push({
-          id: `dev-${project.id}-${lead.brokerId}-interested`,
-          icon: 'star',
-          tone: 'primary',
-          title: 'New interested lead',
-          message: `${brokerName} marked interest in ${project.name}.`,
-          date: lead.markedAt,
-        });
-      } else {
-        items.push({
-          id: `dev-${project.id}-${lead.brokerId}-viewed`,
-          icon: 'eye',
-          tone: 'neutral',
-          title: 'Property viewed',
-          message: `${brokerName} viewed ${project.name}.`,
-          date: lead.markedAt,
-        });
-      }
-    });
-  });
-
-  return items;
-}
-
-/** Derives a role-aware notification feed from real lead/response state (no separate mock notification list to keep in sync). */
+/**
+ * Derives a role-aware notification feed from already-fetched lead state (no separate
+ * mock notification list to keep in sync — /api/v1/leads already returns each role's
+ * own view of the same leads, see leadsSlice.js).
+ */
 export function useNotifications() {
   const role = useAppSelector(state => state.auth.role);
-  const leadsByProjectId = useAppSelector(state => state.leads.byProjectId);
-  const developer = useAppSelector(state => state.auth.developer);
-  const responses = useAppSelector(state => state.developerLeads.responses);
+  const leads = useAppSelector(state => state.leads.list.items);
   const readIds = useAppSelector(state => state.notifications.readIds);
 
-  let items = [];
-  if (role === 'broker') {
-    items = buildBrokerNotifications(leadsByProjectId);
-  } else if (role === 'developer') {
-    const projects = getDeveloperById(developer?.developerId)?.projects ?? [];
-    items = buildDeveloperNotifications(projects, responses);
-  }
+  const config = STATUS_CONFIG[role] ?? {};
+  const items = leads
+    .map(lead => {
+      const entry = config[lead.status];
+      if (!entry) {
+        return null;
+      }
+      return {
+        id: `lead-${lead.id}-${lead.status}`,
+        icon: entry.icon,
+        tone: entry.tone,
+        title: entry.title,
+        message: entry.message(lead),
+        date: leadDate(lead),
+      };
+    })
+    .filter(Boolean);
 
   items.sort((a, b) => new Date(b.date) - new Date(a.date));
 

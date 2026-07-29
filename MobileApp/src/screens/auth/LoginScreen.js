@@ -1,80 +1,50 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {StyleSheet, TouchableOpacity, View} from 'react-native';
 import {KeyboardAwareScrollView} from 'react-native-keyboard-aware-scroll-view';
 import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../../theme';
 import {AppText, Badge, Button, Input, ScreenContainer} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
-import {approveRegistration, logIn, logInAsDeveloper, submitRegistration} from '../../store/slices/authSlice';
+import {clearAuthError, login} from '../../store/slices/authSlice';
 
-const DEMO_BROKER = {
-  suffix: 'Mr.',
-  fullNameAsRera: 'Niklish Reddy',
-  mobileNumber: '+971501234567',
-  alternateMobile: '',
-  emailId: 'niklish@primerealty.com',
-  residenceAddress: 'Marina Walk, Dubai Marina, Dubai, UAE',
-  photoAttachment: '',
-};
-
-const DEMO_DEVELOPER = {
-  developerId: 'dev-1',
-  contactName: 'Satya Mutyala',
-  mobile: '+971502345678',
-  email: 'satya@aurumestates.com',
-};
-
+/**
+ * Broker sign-in. Email is the login key — the API authenticates on email + password,
+ * and the mobile number is profile data only.
+ *
+ * The approval gate is enforced by the server: a pending broker gets a 403 and no
+ * token, which surfaces here as the "awaiting approval" state rather than an error.
+ */
 const LoginScreen = ({navigation}) => {
   const {colors, spacing} = useAppTheme();
   const dispatch = useAppDispatch();
+
+  const status = useAppSelector(state => state.auth.status);
+  const serverError = useAppSelector(state => state.auth.error);
+  const fieldErrors = useAppSelector(state => state.auth.fieldErrors);
   const registrationStatus = useAppSelector(state => state.auth.registrationStatus);
-  const developerProfile = useAppSelector(state => state.auth.developer);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState();
+  const [localError, setLocalError] = useState();
+
+  const isSubmitting = status === 'loading';
+
+  // Clear any stale error when the screen is first shown.
+  useEffect(() => {
+    dispatch(clearAuthError());
+  }, [dispatch]);
 
   const handleLogin = () => {
-    const enteredEmail = email.trim().toLowerCase();
-    if (!enteredEmail || !password.trim()) {
-      setError('Enter your email and password.');
+    if (!email.trim() || !password) {
+      setLocalError('Enter your email and password.');
       return;
     }
-
-    // Developer accounts are created by Admin, not self-registered — recognize this device's
-    // known developer email (or the canonical demo one) and route there automatically.
-    const knownDeveloperEmail = (developerProfile?.email ?? DEMO_DEVELOPER.email).toLowerCase();
-    if (enteredEmail === knownDeveloperEmail) {
-      setError(undefined);
-      dispatch(logInAsDeveloper(developerProfile ?? DEMO_DEVELOPER));
-      return;
-    }
-
-    if (registrationStatus === 'guest') {
-      navigation.navigate('Register');
-      return;
-    }
-    if (registrationStatus !== 'approved') {
-      setError(
-        registrationStatus === 'pendingApproval'
-          ? 'Your registration is still awaiting admin approval.'
-          : 'No approved account found. Please register first.',
-      );
-      return;
-    }
-    setError(undefined);
-    dispatch(logIn());
+    setLocalError(undefined);
+    dispatch(login({email: email.trim(), password, role: 'broker'}));
   };
 
-  const handleDemoBroker = () => {
-    dispatch(submitRegistration(DEMO_BROKER));
-    dispatch(approveRegistration());
-    dispatch(logIn());
-  };
-
-  const handleDemoDeveloper = () => {
-    dispatch(logInAsDeveloper(DEMO_DEVELOPER));
-  };
+  const passwordError =
+    localError || fieldErrors?.password?.[0] || fieldErrors?.email?.[0] || serverError;
 
   return (
     <ScreenContainer edges={['top', 'bottom']} style={{justifyContent: 'center'}}>
@@ -84,62 +54,51 @@ const LoginScreen = ({navigation}) => {
         keyboardShouldPersistTaps="handled">
         <View style={{marginBottom: spacing.xxl}}>
           <AppText variant="overline" color={colors.primary}>
-            WELCOME TO COLLABATHON
+            WELCOME BACK
           </AppText>
           <AppText variant="display" style={{marginTop: spacing.xxs}}>
-            Log in to continue
+            Log in to Collabathon
           </AppText>
           <AppText variant="body" color={colors.textSecondary} style={{marginTop: spacing.xs}}>
-            Enter your email and password — we'll take you to the right dashboard.
+            Sign in with the email and password from your approved registration.
           </AppText>
 
           {registrationStatus === 'pendingApproval' && (
             <View style={{marginTop: spacing.md}}>
-              <Badge label="Broker approval pending" tone="warning" />
+              <Badge label="Approval pending" tone="warning" />
+            </View>
+          )}
+          {registrationStatus === 'rejected' && (
+            <View style={{marginTop: spacing.md}}>
+              <Badge label="Registration not approved" tone="danger" />
             </View>
           )}
         </View>
 
         <Input
           label="Email"
-          placeholder="Enter Email"
+          placeholder="you@company.com"
           leftIcon="mail-outline"
           keyboardType="email-address"
           autoCapitalize="none"
+          autoCorrect={false}
           value={email}
           onChangeText={setEmail}
         />
         <Input
           label="Password"
-          placeholder="Enter Password"
+          placeholder="Enter your password"
           leftIcon="lock-closed-outline"
           isPassword
           value={password}
           onChangeText={setPassword}
-          error={error}
+          error={passwordError}
         />
 
-        <Button label="Log In" onPress={handleLogin} style={{marginTop: spacing.sm}} />
-
-        <View style={styles.dividerRow}>
-          <View style={[styles.dividerLine, {backgroundColor: colors.border}]} />
-          <AppText variant="caption" color={colors.textMuted} style={styles.dividerLabel}>
-            OR
-          </AppText>
-          <View style={[styles.dividerLine, {backgroundColor: colors.border}]} />
-        </View>
-
         <Button
-          label="Continue with Demo Broker Account"
-          variant="outline"
-          icon="flash-outline"
-          onPress={handleDemoBroker}
-        />
-        <Button
-          label="Continue with Demo Developer Account"
-          variant="outline"
-          icon="flash-outline"
-          onPress={handleDemoDeveloper}
+          label={isSubmitting ? 'Signing in…' : 'Log In'}
+          onPress={handleLogin}
+          disabled={isSubmitting}
           style={{marginTop: spacing.sm}}
         />
 
@@ -147,7 +106,7 @@ const LoginScreen = ({navigation}) => {
           <AppText variant="body" color={colors.textSecondary}>
             New broker?{' '}
           </AppText>
-          <TouchableOpacity onPress={() => navigation.navigate('Register')} hitSlop={8}>
+          <TouchableOpacity onPress={() => navigation.replace('Register')} hitSlop={8}>
             <AppText variant="bodyMedium" color={colors.primary}>
               Create an account
             </AppText>
@@ -163,18 +122,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: moderateScale(20),
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: moderateScale(16),
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-  },
-  dividerLabel: {
-    marginHorizontal: moderateScale(10),
   },
 });
 

@@ -23,3 +23,4 @@ export {default as InfoRow} from './InfoRow';
 export {default as PropertyHero} from './PropertyHero';
 export {default as PropertyDetailBody} from './PropertyDetailBody';
 export {default as RightDrawer} from './RightDrawer';
+export {default as PaginatedList} from './PaginatedList';
