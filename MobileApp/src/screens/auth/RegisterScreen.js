@@ -65,6 +65,7 @@ const RegisterScreen = ({navigation}) => {
   const dispatch = useAppDispatch();
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
+  const [isScrollEnabled, setIsScrollEnabled] = useState(true);
 
   const update = key => value => setForm(prev => ({...prev, [key]: value}));
 
@@ -143,6 +144,7 @@ const RegisterScreen = ({navigation}) => {
       <KeyboardAwareScrollView
         showsVerticalScrollIndicator={false}
         enableOnAndroid
+        scrollEnabled={isScrollEnabled}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{paddingBottom: spacing.xxl}}>
         <View style={{flexDirection: 'row', alignItems: 'center', marginTop: spacing.sm}}>
@@ -229,6 +231,7 @@ const RegisterScreen = ({navigation}) => {
             <AttachBox
               uri={form.photoAttachment}
               onPick={update('photoAttachment')}
+              onRemove={() => update('photoAttachment')('')}
               placeholder="Tap to upload a passport-size photo"
             />
           </View>
@@ -331,7 +334,11 @@ const RegisterScreen = ({navigation}) => {
               />
             </View>
             <View style={{marginBottom: spacing.sm}}>
-              <AttachPill uri={form.panCardAttachment} onPick={update('panCardAttachment')} />
+              <AttachPill
+                uri={form.panCardAttachment}
+                onPick={update('panCardAttachment')}
+                onRemove={() => update('panCardAttachment')('')}
+              />
             </View>
           </View>
 
@@ -347,7 +354,11 @@ const RegisterScreen = ({navigation}) => {
               />
             </View>
             <View style={{marginBottom: spacing.sm}}>
-              <AttachPill uri={form.aadhaarAttachment} onPick={update('aadhaarAttachment')} />
+              <AttachPill
+                uri={form.aadhaarAttachment}
+                onPick={update('aadhaarAttachment')}
+                onRemove={() => update('aadhaarAttachment')('')}
+              />
             </View>
           </View>
 
@@ -363,7 +374,11 @@ const RegisterScreen = ({navigation}) => {
               />
             </View>
             <View style={{marginBottom: spacing.sm}}>
-              <AttachPill uri={form.reraCertificateAttachment} onPick={update('reraCertificateAttachment')} />
+              <AttachPill
+                uri={form.reraCertificateAttachment}
+                onPick={update('reraCertificateAttachment')}
+                onRemove={() => update('reraCertificateAttachment')('')}
+              />
             </View>
           </View>
 
@@ -387,7 +402,11 @@ const RegisterScreen = ({navigation}) => {
               />
             </View>
             <View style={{marginBottom: spacing.sm}}>
-              <AttachPill uri={form.chequeAttachment} onPick={update('chequeAttachment')} />
+              <AttachPill
+                uri={form.chequeAttachment}
+                onPick={update('chequeAttachment')}
+                onRemove={() => update('chequeAttachment')('')}
+              />
             </View>
           </View>
 
@@ -402,7 +421,11 @@ const RegisterScreen = ({navigation}) => {
               />
             </View>
             <View style={{marginBottom: spacing.sm}}>
-              <AttachPill uri={form.gstAttachment} onPick={update('gstAttachment')} />
+              <AttachPill
+                uri={form.gstAttachment}
+                onPick={update('gstAttachment')}
+                onRemove={() => update('gstAttachment')('')}
+              />
             </View>
           </View>
         </View>
@@ -470,7 +493,12 @@ const RegisterScreen = ({navigation}) => {
             Authorized signature *
           </AppText>
           <View style={{marginBottom: spacing.lg}}>
-            <SignaturePad onChange={value => update('hasSignature')(value)} error={errors.signature} />
+            <SignaturePad
+              onChange={value => update('hasSignature')(value)}
+              onDrawStart={() => setIsScrollEnabled(false)}
+              onDrawEnd={() => setIsScrollEnabled(true)}
+              error={errors.signature}
+            />
           </View>
         </View>
 

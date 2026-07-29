@@ -5,8 +5,15 @@ import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../theme';
 import AppText from './AppText';
 
-const Chip = ({label, active = false, onPress, icon, compact = false}) => {
+const Chip = ({label, active = false, onPress, icon, compact = false, tone = 'primary'}) => {
   const {colors, radius} = useAppTheme();
+
+  const toneColor = {
+    primary: colors.primary,
+    success: colors.success,
+    warning: colors.warning,
+    danger: colors.danger,
+  }[tone];
 
   return (
     <TouchableOpacity
@@ -17,11 +24,14 @@ const Chip = ({label, active = false, onPress, icon, compact = false}) => {
         compact && styles.containerCompact,
         {
           borderRadius: radius.pill,
-          backgroundColor: active ? colors.primary : colors.surface,
-          borderColor: active ? colors.primary : colors.border,
+          backgroundColor: active ? toneColor : colors.surface,
+          borderColor: active ? toneColor : colors.border,
         },
       ]}>
-      <AppText variant={compact ? 'caption' : 'captionMedium'} color={active ? colors.textInverse : colors.textSecondary}>
+      <AppText
+        variant={compact ? 'caption' : 'captionMedium'}
+        color={active ? colors.textInverse : colors.textSecondary}
+        style={{lineHeight: moderateScale(compact ? 14 : 15)}}>
         {label}
       </AppText>
       {icon && (

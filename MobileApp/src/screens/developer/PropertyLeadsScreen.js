@@ -22,7 +22,7 @@ const PropertyLeadsScreen = ({route, navigation}) => {
 
   return (
     <View style={{flex: 1, backgroundColor: colors.background}}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <FlatList
         data={leads}
         keyExtractor={item => item.brokerId}
@@ -41,7 +41,10 @@ const PropertyLeadsScreen = ({route, navigation}) => {
         }
         renderItem={({item}) => (
           <View style={{paddingHorizontal: spacing.lg}}>
-            <BrokerLeadCard lead={item} />
+            <BrokerLeadCard
+              lead={item}
+              onPress={() => navigation.navigate('BrokerProfile', {brokerId: item.brokerId, projectId: project.id})}
+            />
           </View>
         )}
         ListEmptyComponent={

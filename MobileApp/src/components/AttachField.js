@@ -23,7 +23,7 @@ function pickImage(onPicked) {
   ]);
 }
 
-export const AttachBox = ({uri, onPick, placeholder = 'Tap to upload', error}) => {
+export const AttachBox = ({uri, onPick, onRemove, placeholder = 'Tap to upload', error}) => {
   const {colors, radius, spacing} = useAppTheme();
 
   return (
@@ -54,6 +54,27 @@ export const AttachBox = ({uri, onPick, placeholder = 'Tap to upload', error}) =
           </View>
         )}
       </TouchableOpacity>
+
+      {uri && onRemove && (
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={onRemove}
+          hitSlop={8}
+          style={{
+            position: 'absolute',
+            top: moderateScale(8),
+            right: moderateScale(8),
+            width: moderateScale(26),
+            height: moderateScale(26),
+            borderRadius: moderateScale(13),
+            backgroundColor: colors.overlayStrong,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+          <Icon name="close" size={moderateScale(15)} color={colors.white} />
+        </TouchableOpacity>
+      )}
+
       {error && (
         <AppText variant="caption" color={colors.danger} style={{marginTop: moderateScale(4)}}>
           {error}
@@ -63,29 +84,46 @@ export const AttachBox = ({uri, onPick, placeholder = 'Tap to upload', error}) =
   );
 };
 
-export const AttachPill = ({uri, onPick, label = 'Attach'}) => {
+export const AttachPill = ({uri, onPick, onRemove, label = 'Attach'}) => {
   const {colors, radius} = useAppTheme();
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.85}
-      onPress={() => pickImage(onPick)}
+    <View
       style={{
+        flexDirection: 'row',
+        alignItems: 'center',
         borderWidth: 1.5,
         borderStyle: 'dashed',
         borderColor: colors.primary,
         borderRadius: radius.sm,
-        paddingHorizontal: moderateScale(10),
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexDirection: 'row',
         height: verticalScale(42),
         backgroundColor: colors.primarySoft,
+        paddingLeft: moderateScale(uri ? 5 : 10),
+        paddingRight: moderateScale(uri && onRemove ? 6 : 10),
       }}>
-      <Icon name={uri ? 'checkmark-circle' : 'add'} size={moderateScale(14)} color={colors.primaryDark} />
-      <AppText variant="captionMedium" color={colors.primaryDark} style={{marginLeft: moderateScale(4)}}>
-        {uri ? 'Attached' : label}
-      </AppText>
-    </TouchableOpacity>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() => pickImage(onPick)}
+        style={{flexDirection: 'row', alignItems: 'center'}}>
+        {uri ? (
+          <Image
+            source={{uri}}
+            style={{width: moderateScale(28), height: moderateScale(28), borderRadius: moderateScale(6)}}
+            resizeMode="cover"
+          />
+        ) : (
+          <Icon name="add" size={moderateScale(14)} color={colors.primaryDark} />
+        )}
+        <AppText variant="captionMedium" color={colors.primaryDark} style={{marginLeft: moderateScale(5)}}>
+          {uri ? 'Attached' : label}
+        </AppText>
+      </TouchableOpacity>
+
+      {uri && onRemove && (
+        <TouchableOpacity activeOpacity={0.8} onPress={onRemove} hitSlop={8} style={{marginLeft: moderateScale(6)}}>
+          <Icon name="close-circle" size={moderateScale(17)} color={colors.textMuted} />
+        </TouchableOpacity>
+      )}
+    </View>
   );
 };

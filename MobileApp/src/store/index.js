@@ -2,6 +2,7 @@ import {configureStore} from '@reduxjs/toolkit';
 import authReducer from './slices/authSlice';
 import leadsReducer from './slices/leadsSlice';
 import developerLeadsReducer from './slices/developerLeadsSlice';
+import notificationsReducer from './slices/notificationsSlice';
 import {saveAuthState} from './authPersistence';
 
 export const store = configureStore({
@@ -9,6 +10,7 @@ export const store = configureStore({
     auth: authReducer,
     leads: leadsReducer,
     developerLeads: developerLeadsReducer,
+    notifications: notificationsReducer,
   },
 });
 

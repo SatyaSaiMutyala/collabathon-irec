@@ -4,7 +4,7 @@ import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../theme';
 import AppText from './AppText';
 
-const SignaturePad = ({onChange, error, height = 130}) => {
+const SignaturePad = ({onChange, onDrawStart, onDrawEnd, error, height = 130}) => {
   const {colors, radius} = useAppTheme();
   const [strokes, setStrokes] = useState([]);
   const currentStroke = useRef([]);
@@ -14,7 +14,11 @@ const SignaturePad = ({onChange, error, height = 130}) => {
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
+        onStartShouldSetPanResponderCapture: () => true,
+        onMoveShouldSetPanResponderCapture: () => true,
+        onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: e => {
+          onDrawStart?.();
           const point = {x: e.nativeEvent.locationX, y: e.nativeEvent.locationY};
           currentStroke.current = [point];
           setStrokes(prev => [...prev, [point]]);
@@ -31,9 +35,14 @@ const SignaturePad = ({onChange, error, height = 130}) => {
         onPanResponderRelease: () => {
           onChange?.(true);
           currentStroke.current = [];
+          onDrawEnd?.();
+        },
+        onPanResponderTerminate: () => {
+          currentStroke.current = [];
+          onDrawEnd?.();
         },
       }),
-    [onChange],
+    [onChange, onDrawStart, onDrawEnd],
   );
 
   const handleClear = () => {
@@ -42,6 +51,7 @@ const SignaturePad = ({onChange, error, height = 130}) => {
   };
 
   const points = strokes.flat();
+  const LINE_WIDTH = 2.5;
 
   return (
     <View>
@@ -63,19 +73,45 @@ const SignaturePad = ({onChange, error, height = 130}) => {
             </AppText>
           </View>
         )}
-        {points.map((p, i) => (
-          <View
-            key={i}
-            style={{
-              position: 'absolute',
-              left: p.x - 1.5,
-              top: p.y - 1.5,
-              width: 3,
-              height: 3,
-              borderRadius: 1.5,
-              backgroundColor: colors.textPrimary,
-            }}
-          />
+        {strokes.map((stroke, strokeIndex) => (
+          <React.Fragment key={strokeIndex}>
+            {stroke.map((p, i) => (
+              <View
+                key={`dot-${i}`}
+                style={{
+                  position: 'absolute',
+                  left: p.x - LINE_WIDTH / 2,
+                  top: p.y - LINE_WIDTH / 2,
+                  width: LINE_WIDTH,
+                  height: LINE_WIDTH,
+                  borderRadius: LINE_WIDTH / 2,
+                  backgroundColor: colors.textPrimary,
+                }}
+              />
+            ))}
+            {stroke.slice(1).map((p, i) => {
+              const prev = stroke[i];
+              const dx = p.x - prev.x;
+              const dy = p.y - prev.y;
+              const length = Math.sqrt(dx * dx + dy * dy);
+              const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+              return (
+                <View
+                  key={`seg-${i}`}
+                  style={{
+                    position: 'absolute',
+                    left: (prev.x + p.x) / 2 - length / 2,
+                    top: (prev.y + p.y) / 2 - LINE_WIDTH / 2,
+                    width: length,
+                    height: LINE_WIDTH,
+                    borderRadius: LINE_WIDTH / 2,
+                    backgroundColor: colors.textPrimary,
+                    transform: [{rotate: `${angle}deg`}],
+                  }}
+                />
+              );
+            })}
+          </React.Fragment>
         ))}
       </View>
       <View style={{flexDirection: 'row', justifyContent: 'space-between', marginTop: moderateScale(4)}}>

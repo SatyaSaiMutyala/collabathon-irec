@@ -25,6 +25,7 @@ const AppText = ({
           letterSpacing: base.letterSpacing,
           color: color ?? colors.textPrimary,
           textAlign: align,
+          includeFontPadding: false,
         },
         style,
       ]}>

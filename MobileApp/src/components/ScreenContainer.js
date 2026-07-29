@@ -23,6 +23,7 @@ const ScreenContainer = ({
       <StatusBar
         barStyle={statusBarStyle}
         backgroundColor={backgroundColor ?? colors.background}
+        translucent={false}
       />
       <View
         {...rest}

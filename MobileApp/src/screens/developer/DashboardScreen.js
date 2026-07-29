@@ -6,6 +6,7 @@ import {useAppSelector} from '../../store/hooks';
 import {getDeveloperById} from '../../data/mockDevelopers';
 import {getMonthlyProfileViews, weeklyProfileViews} from '../../data/mockLeads';
 import {useEffectiveLeads} from '../../hooks/useDeveloperLeads';
+import {useNotifications} from '../../hooks/useNotifications';
 
 const WEEK_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MONTH_LABELS = ['Wk 1', 'Wk 2', 'Wk 3', 'Wk 4', 'Wk 5'];
@@ -29,6 +30,8 @@ const DashboardScreen = ({navigation}) => {
   const projects = company?.projects ?? [];
   const projectIds = projects.map(p => p.id);
   const leads = useEffectiveLeads(projectIds);
+  const notifications = useNotifications();
+  const unreadCount = notifications.filter(item => item.isUnread).length;
   const [trendRange, setTrendRange] = useState('week');
   const [selectedMonth, setSelectedMonth] = useState(RECENT_MONTHS[RECENT_MONTHS.length - 1]);
 
@@ -60,7 +63,11 @@ const DashboardScreen = ({navigation}) => {
               </AppText>
             </View>
           </View>
-          <IconButton icon="notifications-outline" badgeCount={3} />
+          <IconButton
+            icon="notifications-outline"
+            badgeCount={unreadCount}
+            onPress={() => navigation.navigate('Notifications')}
+          />
         </View>
 
         <Card style={{paddingVertical: spacing.sm}}>

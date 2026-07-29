@@ -26,7 +26,7 @@ const ProjectDetailScreen = ({route, navigation}) => {
 
   return (
     <View style={{flex: 1, backgroundColor: colors.background}}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: spacing.xxxl}}>
         <PropertyHero project={project} onBack={() => navigation.goBack()} />
         <PropertyDetailBody project={project} />

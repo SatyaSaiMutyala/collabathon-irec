@@ -16,6 +16,7 @@ import {
 import {useAppSelector} from '../../store/hooks';
 import {developers} from '../../data/mockDevelopers';
 import {useCurrentLocation} from '../../hooks/useLocation';
+import {useNotifications} from '../../hooks/useNotifications';
 
 const KNOWN_CITIES = Array.from(new Set(developers.map(d => d.city)));
 
@@ -26,6 +27,8 @@ const HomeScreen = ({navigation}) => {
   const [filter, setFilter] = useState('all');
   const [isPickerVisible, setIsPickerVisible] = useState(false);
   const location = useCurrentLocation();
+  const notifications = useNotifications();
+  const unreadCount = notifications.filter(item => item.isUnread).length;
 
   useEffect(() => {
     location.detectLocation();
@@ -89,7 +92,11 @@ const HomeScreen = ({navigation}) => {
             </TouchableOpacity>
           </View>
         </View>
-        <IconButton icon="notifications-outline" badgeCount={5} />
+        <IconButton
+          icon="notifications-outline"
+          badgeCount={unreadCount}
+          onPress={() => navigation.navigate('Notifications')}
+        />
       </View>
 
       <Input

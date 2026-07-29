@@ -12,6 +12,8 @@ import DeveloperTabNavigator from './DeveloperTabNavigator';
 import DeveloperProfileScreen from '../screens/broker/DeveloperProfileScreen';
 import ProjectDetailScreen from '../screens/broker/ProjectDetailScreen';
 import PropertyLeadsScreen from '../screens/developer/PropertyLeadsScreen';
+import BrokerProfileScreen from '../screens/developer/BrokerProfileScreen';
+import NotificationsScreen from '../screens/shared/NotificationsScreen';
 
 const BrokerStack = createNativeStackNavigator();
 const DeveloperStack = createNativeStackNavigator();
@@ -29,6 +31,11 @@ const BrokerRootStack = () => (
       component={ProjectDetailScreen}
       options={{animation: 'slide_from_right'}}
     />
+    <BrokerStack.Screen
+      name="Notifications"
+      component={NotificationsScreen}
+      options={{animation: 'slide_from_right'}}
+    />
   </BrokerStack.Navigator>
 );
 
@@ -38,6 +45,16 @@ const DeveloperRootStack = () => (
     <DeveloperStack.Screen
       name="PropertyLeads"
       component={PropertyLeadsScreen}
+      options={{animation: 'slide_from_right'}}
+    />
+    <DeveloperStack.Screen
+      name="BrokerProfile"
+      component={BrokerProfileScreen}
+      options={{animation: 'slide_from_right'}}
+    />
+    <DeveloperStack.Screen
+      name="Notifications"
+      component={NotificationsScreen}
       options={{animation: 'slide_from_right'}}
     />
   </DeveloperStack.Navigator>

@@ -36,10 +36,17 @@ const PropertyDetailBody = ({project}) => {
           <AppText variant="overline" color={colors.textMuted}>
             AED
           </AppText>
-          <AppText variant="h1" color={colors.primaryDark}>
-            {formatPrice(project.price)}
-            <AppText variant="bodyMedium" color={colors.textSecondary}> {project.priceUnit}</AppText>
-          </AppText>
+          <View style={{flexDirection: 'row', alignItems: 'flex-end'}}>
+            <AppText variant="h1" color={colors.primaryDark}>
+              {formatPrice(project.price)}
+            </AppText>
+            <AppText
+              variant="bodyMedium"
+              color={colors.textSecondary}
+              style={{marginLeft: moderateScale(4), marginBottom: moderateScale(2)}}>
+              {project.priceUnit}
+            </AppText>
+          </View>
         </View>
         <Badge label={`${project.commissionPercent}% Commission`} tone="warning" />
       </View>
