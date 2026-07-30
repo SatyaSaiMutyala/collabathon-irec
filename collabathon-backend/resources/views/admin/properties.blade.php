@@ -2,60 +2,20 @@
     $statusTone = ['active' => 'success', 'draft' => 'warning', 'archived' => 'neutral'];
 @endphp
 
-<x-layouts.admin active="properties" title="Properties" section="Manage">
+<x-layouts.admin active="properties" title="Projects" section="Manage">
 
     <x-page-header
-        title="Properties"
+        title="Projects"
         subtitle="Every listing on the platform and the developer it belongs to. Brokers only see active listings.">
         <x-slot:actions>
-            <x-modal title="Add property" subtitle="The listing goes live to brokers once its status is Active."
-                     width="max-w-xl"
-                     :open="$errors->any()">
-                <x-slot:trigger>
-                    <x-button variant="gold" icon="plus">Add property</x-button>
-                </x-slot:trigger>
-
-                <form method="POST" action="{{ route('admin.properties.store') }}" class="space-y-4">
-                    @csrf
-                    <x-field label="Project name" name="name" placeholder="e.g. Azure Bay Residences" required />
-
-                    {{-- A property always belongs to exactly one developer. --}}
-                    <x-select-field label="Assign to developer" name="developer_id" required
-                                    hint="Leads from this listing route to this developer.">
-                        @foreach($developers as $dev)
-                            <option value="{{ $dev->id }}" @selected((string) old('developer_id') === (string) $dev->id)>{{ $dev->company_name }}</option>
-                        @endforeach
-                    </x-select-field>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <x-field label="City" name="city" placeholder="e.g. Dubai" icon="map-pin" required />
-                        <x-field label="Locality" name="locality" placeholder="e.g. Dubai Marina" />
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <x-select-field label="Property type" name="project_type"
-                                        :options="['Residential', 'Commercial', 'Mixed-use', 'Plotted Development', 'Villa', 'Row House']" />
-                        <x-select-field label="Status" name="listing_status"
-                                        :options="['draft' => 'Draft', 'active' => 'Active', 'archived' => 'Archived']" />
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <x-field label="Price from" name="price_min" type="number" placeholder="1800000" required />
-                        <x-field label="Price to" name="price_max" type="number" placeholder="3200000" required />
-                    </div>
-
-                    <x-field label="CP commission %" name="cp_commission_percent" type="number" step="0.01" placeholder="2.50" />
-                    <x-field label="Description" name="description" type="textarea" placeholder="Short overview of the project" />
-
-                    <div class="pt-1">
-                        <x-button variant="gold" tag="button" type="submit" icon="check" class="w-full">Add property</x-button>
-                    </div>
-                </form>
-            </x-modal>
+            {{-- The full project sheet is ~70 fields across nine sections — too much for a
+                 modal, so intake lives on its own page. --}}
+            <x-button variant="gold" icon="plus" tag="a" href="{{ route('admin.properties.create') }}">
+                Add project
+            </x-button>
         </x-slot:actions>
     </x-page-header>
 
-    <x-flash />
 
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-5">
         <x-stat-card icon="list" label="Total listings" :value="$totals['all']" />
@@ -69,13 +29,16 @@
         label="listings"
         search-placeholder="Search by project, locality or city…"
         empty-title="No listings match"
-        empty-description="Adjust the search or filters to see more properties.">
+        empty-description="Adjust the search or filters to see more projects.">
 
         <x-slot:filters>
             <x-filter-select name="developer_id" :options="$developers->pluck('company_name', 'id')" placeholder="All developers" />
             <x-filter-select name="type"
                              :options="['Residential', 'Commercial', 'Mixed-use', 'Plotted Development', 'Villa', 'Row House']"
                              placeholder="Any type" />
+            <x-filter-select name="project_status"
+                             :options="['New Launch', 'Under Construction', 'Ready to Move', 'Nearing Completion']"
+                             placeholder="Any stage" />
             <x-filter-select name="status" :options="['draft' => 'Draft', 'active' => 'Active', 'archived' => 'Archived']" placeholder="Any status" />
         </x-slot:filters>
 
@@ -88,13 +51,19 @@
             <x-th align="right" sort="views" hide="xl">Views</x-th>
             <x-th align="right" sort="interests" hide="lg">Interested</x-th>
             <x-th>Status</x-th>
-            <x-th align="right"><span class="sr-only">Actions</span></x-th>
+            <x-th align="right">Actions</x-th>
         </x-slot:head>
 
         @foreach($properties as $p)
-            <tr class="hover:bg-canvas transition-colors">
+            {{-- Whole row opens the project, except where the row's own menu was clicked —
+                 that guard is what keeps the dropdown usable. --}}
+            <tr class="hover:bg-canvas transition-colors cursor-pointer"
+                x-on:click="if (! $event.target.closest('[data-row-actions]')) window.location = @js(route('admin.properties.show', $p))">
                 <td class="px-4 py-3">
-                    <p class="text-[13px] font-medium text-ink truncate">{{ $p->name }}</p>
+                    <a href="{{ route('admin.properties.show', $p) }}"
+                       class="text-[13px] font-medium text-ink hover:text-primary transition-colors truncate block">
+                        {{ $p->name }}
+                    </a>
                 </td>
 
                 <td class="px-4 py-3 hidden lg:table-cell">
@@ -113,6 +82,7 @@
 
                 <td class="px-4 py-3 hidden xl:table-cell">
                     <x-badge tone="neutral" size="sm">{{ $p->project_type }}</x-badge>
+                    <p class="text-[11px] text-ink-3 mt-1 truncate">{{ $p->project_status }}</p>
                 </td>
 
                 <td class="px-4 py-3 text-[12.5px] text-ink-2 nums whitespace-nowrap hidden md:table-cell">
@@ -128,7 +98,7 @@
                     </x-badge>
                 </td>
 
-                <td class="px-4 py-3 text-right">
+                <td class="px-4 py-3 text-right" data-row-actions>
                     <x-dropdown>
                         <x-slot:trigger>
                             <button type="button" aria-label="Actions for {{ $p->name }}"
@@ -137,7 +107,13 @@
                             </button>
                         </x-slot:trigger>
 
-                        <x-dropdown-item icon="eye" tag="a" href="{{ route('admin.leads', ['search' => $p->name]) }}">
+                        <x-dropdown-item icon="eye" tag="a" href="{{ route('admin.properties.show', $p) }}">
+                            View details
+                        </x-dropdown-item>
+                        <x-dropdown-item icon="cog" tag="a" href="{{ route('admin.properties.edit', $p) }}">
+                            Edit project
+                        </x-dropdown-item>
+                        <x-dropdown-item icon="users" tag="a" href="{{ route('admin.leads', ['search' => $p->name]) }}">
                             View leads
                         </x-dropdown-item>
 
@@ -149,11 +125,27 @@
                                     @csrf @method('PATCH')
                                     <input type="hidden" name="listing_status" value="{{ $value }}">
                                     <x-dropdown-item :icon="$value === 'active' ? 'check' : ($value === 'archived' ? 'x' : 'list')"
-                                                     :tone="$value === 'archived' ? 'danger' : 'default'"
                                                      tag="button" type="submit">{{ $label }}</x-dropdown-item>
                                 </form>
                             @endif
                         @endforeach
+
+                        <div class="my-1 border-t border-line-soft"></div>
+
+                        {{-- Soft delete: leads cascade on a hard delete, so the row is kept. --}}
+                        <form method="POST" action="{{ route('admin.properties.destroy', $p) }}"
+                              x-on:submit.prevent="$dispatch('confirm-request', {
+                                  title: 'Delete this project?',
+                                  message: @js('"' . $p->name . '" will be removed from every listing and from broker view. Leads already raised against it are kept.'),
+                                  confirmLabel: 'Delete project',
+                                  tone: 'danger',
+                                  form: $el,
+                              }); close()">
+                            @csrf @method('DELETE')
+                            <x-dropdown-item icon="x" tone="danger" tag="button" type="submit">
+                                Delete project
+                            </x-dropdown-item>
+                        </form>
                     </x-dropdown>
                 </td>
             </tr>

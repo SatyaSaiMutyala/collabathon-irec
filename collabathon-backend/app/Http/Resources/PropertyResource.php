@@ -13,6 +13,13 @@ class PropertyResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        // Discriminates show from index. The previous `$request->routeIs('*.show')` test
+        // could never fire: routeIs matches route NAMES, and the mobile API routes in
+        // routes/api.php are unnamed — so `description` was silently dropped from every
+        // response. PropertyController::show() is the only action that eager-loads
+        // `detail`, which makes that the honest signal.
+        $isDetail = $this->resource->relationLoaded('detail');
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -27,6 +34,9 @@ class PropertyResource extends JsonResource
                 'state' => $this->state,
                 'city' => $this->city,
                 'locality' => $this->locality,
+                'full_address' => $this->full_address,
+                'landmark' => $this->landmark,
+                'maps_link' => $this->maps_link,
                 'zone' => $this->zone,
                 'pincode' => $this->pincode,
                 'latitude' => $this->latitude !== null ? (float) $this->latitude : null,
@@ -47,8 +57,34 @@ class PropertyResource extends JsonResource
 
             'developer' => new DeveloperResource($this->whenLoaded('developer')),
 
-            // Detail screen only
-            'description' => $this->when($request->routeIs('*.show'), $this->description),
+            // Detail screen only. These all live on the `properties` row that is already
+            // selected, so gating them costs nothing to fetch — it only keeps the list
+            // payload narrow, which is the same reason `description` is gated.
+            'description' => $this->when($isDetail, $this->description),
+
+            'rera' => $this->when($isDetail, fn () => [
+                'number' => $this->rera_number,
+                'registered_at' => $this->rera_registered_at?->toDateString(),
+                'valid_till' => $this->rera_valid_till?->toDateString(),
+            ]),
+
+            'scale' => $this->when($isDetail, fn () => [
+                'total_units' => $this->total_units,
+                'towers' => $this->towers,
+                'floors_per_tower' => $this->floors_per_tower,
+                'flats_per_floor' => $this->flats_per_floor,
+                'land_parcel_acres' => $this->land_parcel_acres !== null ? (float) $this->land_parcel_acres : null,
+                'total_project_area_sqft' => $this->total_project_area_sqft,
+                'open_space_percent' => $this->open_space_percent,
+            ]),
+
+            'compliance' => $this->when($isDetail, fn () => [
+                'green_certification' => $this->green_certification,
+                'vastu_compliant' => (bool) $this->vastu_compliant,
+                'launch_date' => $this->launch_date?->toDateString(),
+            ]),
+
+            'logo_url' => $this->logo_path ? asset('storage/' . $this->logo_path) : null,
             'detail' => new PropertyDetailResource($this->whenLoaded('detail')),
             'unit_types' => PropertyUnitTypeResource::collection($this->whenLoaded('unitTypes')),
             'media' => PropertyMediaResource::collection($this->whenLoaded('media')),

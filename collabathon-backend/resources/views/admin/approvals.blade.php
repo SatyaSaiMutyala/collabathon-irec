@@ -11,7 +11,6 @@
         title="Broker Approvals"
         subtitle="Brokers cannot sign in to the mobile app until an admin approves their registration. Approving issues their access immediately." />
 
-    <x-flash />
 
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-5">
         <x-stat-card icon="clock" label="Awaiting review" :value="$stats['pending']" />
@@ -50,12 +49,16 @@
 
                 @foreach($pending as $broker)
                     @php $profile = $broker->brokerProfile; @endphp
-                    <tr class="hover:bg-canvas transition-colors">
+                    {{-- The row opens the full registration. Clicks on the decision cell are
+                         ignored so Approve/Review still work — a <tr> cannot hold an <a>. --}}
+                    <tr class="hover:bg-canvas transition-colors cursor-pointer"
+                        x-on:click="if (! $event.target.closest('[data-row-actions]')) window.location = @js(route('admin.approvals.show', $broker))">
                         <td class="px-4 py-3">
                             <div class="flex items-center gap-2.5 min-w-0">
                                 <x-avatar :name="$broker->name" size="md" />
                                 <div class="min-w-0">
-                                    <p class="text-[13px] font-medium text-ink truncate">{{ $broker->name }}</p>
+                                    <a href="{{ route('admin.approvals.show', $broker) }}"
+                                       class="text-[13px] font-medium text-ink hover:underline truncate block">{{ $broker->name }}</a>
                                     <p class="text-[11.5px] text-ink-3 truncate">{{ $profile?->company_name ?: $broker->email }}</p>
                                 </div>
                             </div>
@@ -82,91 +85,15 @@
                             <span class="text-[12.5px] text-ink-3 nums">{{ $broker->created_at->format('d M Y') }}</span>
                         </td>
 
-                        <td class="px-4 py-3">
+                        {{-- data-row-actions stops the row's click-through firing in here. --}}
+                        <td class="px-4 py-3" data-row-actions>
                             <div class="flex items-center justify-end gap-1.5">
-                                <x-drawer :title="$broker->name"
-                                          :subtitle="($profile?->company_name ?: 'Independent') . ' · ' . ($profile?->city ?: '—')">
-                                    <x-slot:trigger>
-                                        <x-button variant="subtle" size="sm">Review</x-button>
-                                    </x-slot:trigger>
-
-                                    <div class="space-y-5">
-                                        <div class="flex items-center gap-3">
-                                            <x-avatar :name="$broker->name" size="lg" />
-                                            <div class="min-w-0">
-                                                <p class="text-[14px] font-medium text-ink">{{ $broker->name }}</p>
-                                                <p class="text-[12.5px] text-ink-3">
-                                                    Submitted {{ ($profile?->submitted_at ?? $broker->created_at)->format('d M Y') }}
-                                                </p>
-                                            </div>
-                                            <x-badge tone="warning" size="sm" dot class="ml-auto">Pending</x-badge>
-                                        </div>
-
-                                        <dl class="grid grid-cols-2 gap-x-4 gap-y-3.5 pt-1">
-                                            @foreach([
-                                                'Company' => $profile?->company_name ?: '—',
-                                                'City' => $profile?->city ?: '—',
-                                                'Mobile' => $broker->mobile ?: '—',
-                                                'Email' => $broker->email,
-                                                'RERA' => $profile?->rera_number ?: '—',
-                                                'Experience' => $profile?->years_of_experience ? $profile->years_of_experience . ' years' : '—',
-                                            ] as $label => $value)
-                                                <div class="min-w-0">
-                                                    <dt class="text-[11px] uppercase tracking-[0.05em] text-ink-3">{{ $label }}</dt>
-                                                    <dd class="text-[13px] text-ink mt-0.5 truncate">{{ $value }}</dd>
-                                                </div>
-                                            @endforeach
-                                        </dl>
-
-                                        @if($profile?->segments)
-                                            <div>
-                                                <p class="text-[11px] uppercase tracking-[0.05em] text-ink-3 mb-1.5">Segments</p>
-                                                <div class="flex flex-wrap gap-1.5">
-                                                    @foreach($profile->segments as $segment)
-                                                        <x-badge tone="primary" size="sm">{{ $segment }}</x-badge>
-                                                    @endforeach
-                                                </div>
-                                            </div>
-                                        @endif
-
-                                        @if($profile?->zones)
-                                            <div>
-                                                <p class="text-[11px] uppercase tracking-[0.05em] text-ink-3 mb-1.5">Operating zones</p>
-                                                <div class="flex flex-wrap gap-1.5">
-                                                    @foreach($profile->zones as $zone)
-                                                        <x-badge tone="neutral" size="sm">{{ $zone }}</x-badge>
-                                                    @endforeach
-                                                </div>
-                                            </div>
-                                        @endif
-
-                                        <div class="rounded-lg bg-warning-soft ring-1 ring-inset ring-warning-ring px-3.5 py-3">
-                                            <p class="text-[12.5px] text-ink-2 leading-relaxed">
-                                                <span class="font-medium text-ink">Verify the RERA number</span> against the
-                                                regulator's registry before approving. Approval grants mobile-app access immediately.
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <x-slot:footer>
-                                        <div class="flex items-center gap-2.5">
-                                            <form method="POST" action="{{ route('admin.approvals.approve', $broker) }}" class="flex-1">
-                                                @csrf
-                                                <x-button variant="primary" tag="button" type="submit" icon="check" class="w-full">
-                                                    Approve broker
-                                                </x-button>
-                                            </form>
-                                            <form method="POST" action="{{ route('admin.approvals.reject', $broker) }}" class="flex-1"
-                                                  x-data @submit="$refs.reason.value = $refs.reason.value || prompt('Reason for rejection?') || ''">
-                                                @csrf
-                                                <input type="hidden" name="reason" x-ref="reason" value="">
-                                                <x-button variant="outline" tag="button" type="submit" icon="x" class="w-full">
-                                                    Reject
-                                                </x-button>
-                                            </form>
-                                        </div>
-                                    </x-slot:footer>
-                                </x-drawer>
+                                {{-- The full registration is ~34 fields plus documents — too
+                                     much for a drawer, so review happens on its own page. --}}
+                                <x-button variant="subtle" size="sm" tag="a"
+                                          href="{{ route('admin.approvals.show', $broker) }}">
+                                    Review
+                                </x-button>
 
                                 <form method="POST" action="{{ route('admin.approvals.approve', $broker) }}">
                                     @csrf
@@ -205,11 +132,21 @@
                 </x-slot:head>
 
                 @foreach($decided as $decision)
-                    <tr class="hover:bg-canvas transition-colors">
+                    {{-- Decided rows open the same page: an approved broker's paperwork
+                         still needs to be auditable after the fact. --}}
+                    <tr @class(['hover:bg-canvas transition-colors', 'cursor-pointer' => $decision->broker])
+                        @if($decision->broker)
+                            x-on:click="window.location = @js(route('admin.approvals.show', $decision->broker))"
+                        @endif>
                         <td class="px-4 py-3">
                             <div class="flex items-center gap-2.5 min-w-0">
                                 <x-avatar :name="$decision->broker?->name ?? '—'" size="sm" />
-                                <p class="text-[13px] font-medium text-ink truncate">{{ $decision->broker?->name }}</p>
+                                @if($decision->broker)
+                                    <a href="{{ route('admin.approvals.show', $decision->broker) }}"
+                                       class="text-[13px] font-medium text-ink hover:underline truncate">{{ $decision->broker->name }}</a>
+                                @else
+                                    <p class="text-[13px] font-medium text-ink truncate">—</p>
+                                @endif
                             </div>
                         </td>
                         <td class="px-4 py-3 text-[12.5px] text-ink-2 hidden md:table-cell">

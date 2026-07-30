@@ -6,7 +6,7 @@ import {useAppTheme} from '../theme';
 import AppText from './AppText';
 
 const Input = ({label, error, leftIcon, isPassword = false, multiline = false, style, ...rest}) => {
-  const {colors, radius, spacing, fontFamily} = useAppTheme();
+  const {colors, radius, spacing, fontFamily, fontWeight} = useAppTheme();
   const [isFocused, setIsFocused] = useState(false);
   const [secure, setSecure] = useState(isPassword);
 
@@ -58,7 +58,9 @@ const Input = ({label, error, leftIcon, isPassword = false, multiline = false, s
             {
               color: colors.textPrimary,
               fontFamily: fontFamily.regular,
+              fontWeight: fontWeight.regular,
               fontSize: moderateScale(13.5),
+              letterSpacing: 0,
             },
             style,
           ]}

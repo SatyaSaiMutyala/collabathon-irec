@@ -25,7 +25,6 @@ $accepted = $funnel[2]['value'] ?: 0;
         </x-slot:actions>
     </x-page-header>
 
-    <x-flash />
 
     {{-- ---------------------------- KPI row ---------------------------- --}}
     <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3.5 mb-5">

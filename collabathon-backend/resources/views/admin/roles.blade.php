@@ -26,7 +26,6 @@
         </x-slot:actions>
     </x-page-header>
 
-    <x-flash />
 
     <x-panel flush>
         <div class="divide-y divide-line-soft">

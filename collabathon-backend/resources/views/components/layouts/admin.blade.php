@@ -19,8 +19,8 @@ $navGroups = [
     'Manage' => [
         ['key' => 'approvals', 'icon' => 'user-check', 'label' => 'Broker Approvals', 'route' => route('admin.approvals'), 'count' => $pendingCount],
         ['key' => 'developers', 'icon' => 'building', 'label' => 'Developers', 'route' => route('admin.developers')],
-        ['key' => 'properties', 'icon' => 'list', 'label' => 'Properties', 'route' => route('admin.properties')],
-        ['key' => 'leads', 'icon' => 'chart', 'label' => 'Leads & Matches', 'route' => route('admin.leads')],
+        ['key' => 'properties', 'icon' => 'list', 'label' => 'Projects', 'route' => route('admin.properties')],
+        ['key' => 'leads', 'icon' => 'chart', 'label' => 'Approvals', 'route' => route('admin.leads')],
     ],
     'Configure' => [
         ['key' => 'settings', 'icon' => 'cog', 'label' => 'Settings', 'route' => route('admin.settings')],
@@ -262,5 +262,14 @@ $toneClasses = [
             </main>
         </div>
     </div>
+
+    {{-- Global overlays. Mounted here once, so no page includes any of them itself:
+         pages just flash a session key or $dispatch an event. --}}
+    <x-toast />
+    <x-confirm-dialog />
+    <x-credentials-dialog />
+    <x-reset-password-dialog />
+
+    @stack('scripts')
 </body>
 </html>

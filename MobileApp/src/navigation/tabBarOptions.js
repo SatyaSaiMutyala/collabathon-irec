@@ -4,7 +4,7 @@ import {moderateScale, verticalScale} from 'react-native-size-matters';
 import {useAppTheme} from '../theme';
 
 export function useTabBarScreenOptions(tabIcons) {
-  const {colors, fontFamily} = useAppTheme();
+  const {colors, fontFamily, fontWeight} = useAppTheme();
 
   return ({route}) => ({
     headerShown: false,
@@ -12,7 +12,9 @@ export function useTabBarScreenOptions(tabIcons) {
     tabBarInactiveTintColor: colors.textMuted,
     tabBarLabelStyle: {
       fontFamily: fontFamily.medium,
+      fontWeight: fontWeight.medium,
       fontSize: moderateScale(11),
+      letterSpacing: 0,
       marginBottom: verticalScale(4),
     },
     tabBarStyle: {

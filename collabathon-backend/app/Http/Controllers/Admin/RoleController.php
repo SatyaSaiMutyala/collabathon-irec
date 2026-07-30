@@ -57,7 +57,7 @@ class RoleController extends Controller
 
         $role->delete();
 
-        return back()->with('status', "Role \"{$role->name}\" deleted.");
+        return back()->with('warning', "Role \"{$role->name}\" deleted.");
     }
 
     /** @return array{name: string, permissions: array<string, array{view: bool, edit: bool, delete: bool}>} */

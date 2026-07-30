@@ -1,7 +1,7 @@
 import React, {createContext, useContext, useEffect, useMemo, useState} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {buildPalette, DEFAULT_PRIMARY, withAlpha} from './palette';
-import {fontFamily, textVariants} from './typography';
+import {fontFamily, fontWeight, textVariants} from './typography';
 import {avatarSize, iconSize, radius, spacing} from './metrics';
 
 const THEME_STORAGE_KEY = '@collabathon/theme-primary-color';
@@ -33,6 +33,7 @@ export const ThemeProvider = ({children}) => {
     () => ({
       colors,
       fontFamily,
+      fontWeight,
       textVariants,
       spacing,
       radius,

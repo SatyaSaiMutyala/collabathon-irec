@@ -4,11 +4,11 @@
     $accepted = (int) $counts->accepted;
 @endphp
 
-<x-layouts.admin active="leads" title="Leads & Matches" section="Manage">
+<x-layouts.admin active="leads" title="Approvals" section="Manage">
 
     <x-page-header
-        title="Leads & Matches"
-        subtitle="Every view and interest recorded across all developers and properties, platform-wide.">
+        title="Approvals"
+        subtitle="Every view and interest recorded across all developers and projects, platform-wide.">
         <x-slot:actions>
             <x-button variant="outline" icon="download">Export CSV</x-button>
         </x-slot:actions>
@@ -18,7 +18,7 @@
     <div class="flex items-start gap-3 rounded-xl bg-primary-soft ring-1 ring-inset ring-primary-ring px-4 py-3 mb-5">
         <x-icon name="lock" class="w-4 h-4 text-primary-dark shrink-0 mt-0.5" />
         <p class="text-[12.5px] text-ink-2 leading-relaxed">
-            <span class="font-medium text-ink">Contact details stay locked until a broker marks a property “Interested.”</span>
+            <span class="font-medium text-ink">Contact details stay locked until a broker marks a project “Interested.”</span>
             A casual view never exposes the broker's phone number or email to the developer.
         </p>
     </div>
@@ -36,7 +36,7 @@
             class="xl:col-span-3"
             :paginator="$leads"
             label="leads"
-            search-placeholder="Search by broker or property…"
+            search-placeholder="Search by broker or project…"
             empty-title="No activity matches"
             empty-description="Adjust the search or filters to see more leads.">
 
@@ -49,19 +49,27 @@
 
             <x-slot:head>
                 <x-th>Broker</x-th>
-                <x-th hide="md">Property</x-th>
+                <x-th hide="md">Project</x-th>
                 <x-th hide="xl">Developer</x-th>
                 <x-th sort="created_at" hide="lg">Date</x-th>
                 <x-th hide="lg">Contact</x-th>
                 <x-th align="right" sort="status">Status</x-th>
+                <x-th align="right"><span class="sr-only">Open</span></x-th>
             </x-slot:head>
 
             @foreach($leads as $lead)
-                <tr class="hover:bg-canvas transition-colors">
+                {{-- Whole row opens the lead. A <tr> cannot hold an <a>, so the click is
+                     delegated; the broker name is still a real link for keyboard and
+                     middle-click users. --}}
+                <tr class="hover:bg-canvas transition-colors cursor-pointer"
+                    x-on:click="window.location = @js(route('admin.leads.show', $lead))">
                     <td class="px-4 py-3">
                         <div class="flex items-center gap-2.5 min-w-0">
                             <x-avatar :name="$lead->broker?->name ?? '—'" size="sm" />
-                            <span class="text-[13px] font-medium text-ink truncate">{{ $lead->broker?->name }}</span>
+                            <a href="{{ route('admin.leads.show', $lead) }}"
+                               class="text-[13px] font-medium text-ink hover:text-primary transition-colors truncate">
+                                {{ $lead->broker?->name ?? 'Deleted broker' }}
+                            </a>
                         </div>
                     </td>
 
@@ -87,6 +95,10 @@
                         <x-badge :tone="$toneMap[$lead->status] ?? 'neutral'" size="sm" dot>
                             {{ ucfirst($lead->status) }}
                         </x-badge>
+                    </td>
+
+                    <td class="px-4 py-3 text-right">
+                        <x-icon name="chevron-right" class="w-4 h-4 text-ink-3 inline-block" />
                     </td>
                 </tr>
             @endforeach

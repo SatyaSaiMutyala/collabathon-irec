@@ -135,7 +135,7 @@ class AuthController extends Controller
         }
 
         $user->forceFill(['last_login_at' => now()])->save();
-        $user->load($user->isDeveloper() ? 'developer' : 'brokerProfile');
+        $this->loadProfile($user);
 
         return response()->json([
             'token' => $user->createToken($data['device_name'] ?? 'mobile')->plainTextToken,
@@ -147,9 +147,25 @@ class AuthController extends Controller
     public function me(Request $request): JsonResponse
     {
         $user = $request->user();
-        $user->load($user->isDeveloper() ? 'developer' : 'brokerProfile');
+        $this->loadProfile($user);
 
         return response()->json(['data' => new UserResource($user)]);
+    }
+
+    /**
+     * Eager-loads the role's profile. The developer side also carries its property
+     * tally, which the mobile profile screen renders — counted here so the resource's
+     * `whenCounted` guard resolves instead of silently omitting the field.
+     */
+    private function loadProfile(User $user): void
+    {
+        if ($user->isDeveloper()) {
+            $user->load(['developer' => fn ($q) => $q->withCount('properties')]);
+
+            return;
+        }
+
+        $user->load('brokerProfile');
     }
 
     /** Revokes the current device's token only, not every session. */

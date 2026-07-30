@@ -33,21 +33,39 @@ Route::prefix('admin')
 
         Route::get('/approvals', [ApprovalController::class, 'index'])->name('approvals')
             ->middleware("can:view-module,'approvals'");
+        Route::get('/approvals/{user}', [ApprovalController::class, 'show'])->name('approvals.show')
+            ->middleware("can:view-module,'approvals'");
         Route::post('/approvals/{user}/approve', [ApprovalController::class, 'approve'])->name('approvals.approve');
         Route::post('/approvals/{user}/reject', [ApprovalController::class, 'reject'])->name('approvals.reject');
 
         Route::get('/developers', [DeveloperController::class, 'index'])->name('developers')
             ->middleware("can:view-module,'developers'");
+        Route::get('/developers/{developer}', [DeveloperController::class, 'show'])->name('developers.show')
+            ->middleware("can:view-module,'developers'");
         Route::post('/developers', [DeveloperController::class, 'store'])->name('developers.store');
+        Route::delete('/developers/{developer}', [DeveloperController::class, 'destroy'])->name('developers.destroy');
         Route::patch('/developers/{developer}', [DeveloperController::class, 'update'])->name('developers.update');
+        Route::post('/developers/{developer}/password', [DeveloperController::class, 'resetPassword'])
+            ->name('developers.password');
 
         Route::get('/properties', [PropertyController::class, 'index'])->name('properties')
             ->middleware("can:view-module,'properties'");
+        // `create` is declared before `{property}` so the literal segment wins the match.
+        Route::get('/properties/create', [PropertyController::class, 'create'])->name('properties.create')
+            ->middleware("can:view-module,'properties'");
+        Route::get('/properties/{property}', [PropertyController::class, 'show'])->name('properties.show')
+            ->middleware("can:view-module,'properties'");
+        Route::get('/properties/{property}/edit', [PropertyController::class, 'edit'])->name('properties.edit')
+            ->middleware("can:view-module,'properties'");
         Route::post('/properties', [PropertyController::class, 'store'])->name('properties.store');
         Route::patch('/properties/{property}', [PropertyController::class, 'update'])->name('properties.update');
+        Route::delete('/properties/{property}', [PropertyController::class, 'destroy'])->name('properties.destroy');
 
         Route::get('/leads', [LeadController::class, 'index'])->name('leads')
             ->middleware("can:view-module,'leads'");
+        Route::get('/leads/{lead}', [LeadController::class, 'show'])->name('leads.show')
+            ->middleware("can:view-module,'leads'");
+        Route::patch('/leads/{lead}', [LeadController::class, 'update'])->name('leads.update');
 
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings')
             ->middleware("can:view-module,'settings'");
@@ -64,5 +82,7 @@ Route::prefix('admin')
             Route::get('/team', [TeamController::class, 'index'])->name('team');
             Route::post('/team', [TeamController::class, 'store'])->name('team.store');
             Route::patch('/team/{user}', [TeamController::class, 'update'])->name('team.update');
+            Route::post('/team/{user}/password', [TeamController::class, 'resetPassword'])->name('team.password');
+            Route::delete('/team/{user}', [TeamController::class, 'destroy'])->name('team.destroy');
         });
     });

@@ -17,7 +17,10 @@
       "Bash(timeout 25 '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless=new --disable-gpu --no-sandbox --no-first-run --disable-extensions --screenshot=/private/tmp/claude-501/-Users-satyamutyala-Satya-Apps-collabathon-irec/eb6a544b-3ed5-4142-ba88-a98c2bfdde15/scratchpad/roles-nocookie.png --window-size=1440,1000 http://localhost:8000/login)",
       "Bash(echo \"exit:$?\")",
       "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless=new --disable-gpu --no-sandbox --no-first-run --disable-extensions --screenshot=/private/tmp/claude-501/-Users-satyamutyala-Satya-Apps-collabathon-irec/eb6a544b-3ed5-4142-ba88-a98c2bfdde15/scratchpad/dashboard-attempt.png --window-size=1440,1000 http://localhost:8000/login)",
-      "Bash(rm -f /tmp/irec_verify.txt /tmp/lp.html /tmp/dash.html /tmp/roles.html /tmp/team.html)"
+      "Bash(rm -f /tmp/irec_verify.txt /tmp/lp.html /tmp/dash.html /tmp/roles.html /tmp/team.html)",
+      "Bash(\"/c/xampp/mysql/bin/mysql.exe\" -u root -e \"show databases;\")",
+      "Bash(\"/c/xampp/mysql/bin/mysql.exe\" -u root -e \"use \\\\`new\\\\`; show tables;\")",
+      "Bash(echo \"EXIT=$?\")"
     ]
   }
 }

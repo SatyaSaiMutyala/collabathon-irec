@@ -1,6 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {StyleSheet, TouchableOpacity, View} from 'react-native';
 import {KeyboardAwareScrollView} from 'react-native-keyboard-aware-scroll-view';
+import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../../theme';
 import {AppText, Badge, Button, Input, ScreenContainer} from '../../components';
@@ -8,8 +9,11 @@ import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {clearAuthError, login} from '../../store/slices/authSlice';
 
 /**
- * Broker sign-in. Email is the login key — the API authenticates on email + password,
- * and the mobile number is profile data only.
+ * Shared sign-in for both mobile roles. Email is the login key — the API authenticates
+ * on email + password alone and answers with the account's own role, which RootNavigator
+ * uses to pick the broker or developer stack. No role is sent with the request: an email
+ * belongs to exactly one account, so asking the client to declare the role up front only
+ * creates a way to be wrong about it.
  *
  * The approval gate is enforced by the server: a pending broker gets a 403 and no
  * token, which surfaces here as the "awaiting approval" state rather than an error.
@@ -40,7 +44,8 @@ const LoginScreen = ({navigation}) => {
       return;
     }
     setLocalError(undefined);
-    dispatch(login({email: email.trim(), password, role: 'broker'}));
+    // No `role` — the server resolves it from the account and we route on the answer.
+    dispatch(login({email: email.trim(), password}));
   };
 
   const passwordError =
@@ -54,6 +59,15 @@ const LoginScreen = ({navigation}) => {
         enableResetScrollToCoords={false}
         keyboardShouldPersistTaps="handled">
         <View style={{marginBottom: spacing.xxl}}>
+          {navigation.canGoBack() && (
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              hitSlop={10}
+              style={{alignSelf: 'flex-start', marginBottom: spacing.lg}}>
+              <Icon name="arrow-back" size={moderateScale(22)} color={colors.textPrimary} />
+            </TouchableOpacity>
+          )}
+
           <AppText variant="overline" color={colors.primary}>
             WELCOME BACK
           </AppText>
@@ -61,7 +75,8 @@ const LoginScreen = ({navigation}) => {
             Log in to Collabathon
           </AppText>
           <AppText variant="body" color={colors.textSecondary} style={{marginTop: spacing.xs}}>
-            Sign in with the email and password from your approved registration.
+            One sign-in for channel partners and developers — we'll take you to the right
+            place based on your account.
           </AppText>
 
           {registrationStatus === 'pendingApproval' && (
@@ -105,7 +120,7 @@ const LoginScreen = ({navigation}) => {
 
         <View style={styles.footerRow}>
           <AppText variant="body" color={colors.textSecondary}>
-            New broker?{' '}
+            New channel partner?{' '}
           </AppText>
           <TouchableOpacity onPress={() => navigation.navigate('Register')} hitSlop={8}>
             <AppText variant="bodyMedium" color={colors.primary}>
@@ -113,6 +128,15 @@ const LoginScreen = ({navigation}) => {
             </AppText>
           </TouchableOpacity>
         </View>
+
+        {/* Developers are onboarded by an admin, so there's no self-serve path to offer. */}
+        <AppText
+          variant="caption"
+          color={colors.textMuted}
+          align="center"
+          style={{marginTop: spacing.sm}}>
+          Developer accounts are created by the Collabathon team.
+        </AppText>
       </KeyboardAwareScrollView>
     </ScreenContainer>
   );

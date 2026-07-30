@@ -1,9 +1,19 @@
 /**
- * Maps the API's property resource onto the view shape the property components
- * already render (PropertyCard / PropertyHero / PropertyDetailBody).
+ * Maps the API's property resource onto the view shape the property components render
+ * (PropertyCard / PropertyHero / PropertyDetailBody).
  *
  * Kept at the store boundary rather than inside each component so there is exactly
  * one place that knows both shapes. If the API changes, only this file moves.
+ *
+ * Two rules this file exists to enforce:
+ *   1. Nothing the API sends is dropped silently. The property spec is ~69 fields
+ *      across `properties` + `property_details`, and every populated one has to reach
+ *      the detail screen — a field the admin captured but the app never shows is
+ *      indistinguishable, to the user, from a field that was never captured.
+ *   2. Media is grouped by `kind`, not filtered down to photos. `property_media.kind`
+ *      carries eleven values; only one of them is `image`. The rest are brochures,
+ *      price lists, plans, certificates, videos and tours, and they are the documents
+ *      a channel partner actually needs in front of a client.
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -21,36 +31,138 @@ function bedroomsFromLabel(label = '') {
   return match ? Number(match[1]) : null;
 }
 
+/** Joins a list into readable prose, or returns null so InfoRow drops the row. */
+function listToText(value) {
+  if (!Array.isArray(value) || !value.length) {
+    return null;
+  }
+  return value
+    .map(entry => {
+      if (entry && typeof entry === 'object') {
+        // JSON columns hold either plain strings or {label,value}-ish objects.
+        const label = entry.label ?? entry.name ?? entry.title;
+        const detail = entry.value ?? entry.distance ?? entry.detail;
+        return [label, detail].filter(Boolean).join(' — ');
+      }
+      return String(entry);
+    })
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function money(value, currency = 'AED') {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  return `${currency} ${Number(value).toLocaleString()}`;
+}
+
+function sqft(value) {
+  return value ? `${Number(value).toLocaleString()} sqft` : null;
+}
+
+/**
+ * How each media kind is presented. `image` feeds the gallery; everything else is an
+ * attachment the user opens externally, so each kind needs a label and an icon rather
+ * than being lumped into one undifferentiated "files" list.
+ */
+const MEDIA_KINDS = {
+  image: {label: 'Photo', icon: 'image-outline', group: 'gallery'},
+  site_layout: {label: 'Site Layout', icon: 'map-outline', group: 'plans'},
+  master_plan: {label: 'Master Plan', icon: 'grid-outline', group: 'plans'},
+  floor_plan: {label: 'Floor Plan', icon: 'layers-outline', group: 'plans'},
+  unit_plan: {label: 'Unit Plan / Layout', icon: 'home-outline', group: 'plans'},
+  brochure: {label: 'Brochure', icon: 'document-text-outline', group: 'documents'},
+  price_list: {label: 'Price List', icon: 'pricetags-outline', group: 'documents'},
+  payment_schedule: {label: 'Payment Schedule', icon: 'calendar-outline', group: 'documents'},
+  rera_certificate: {label: 'RERA Certificate', icon: 'shield-checkmark-outline', group: 'documents'},
+  video: {label: 'Video', icon: 'videocam-outline', group: 'tours'},
+  virtual_tour: {label: 'Virtual Tour', icon: 'cube-outline', group: 'tours'},
+};
+
+function normalizeMedia(media = []) {
+  const usable = media.filter(item => item?.url);
+
+  const bucket = group =>
+    usable
+      .filter(item => (MEDIA_KINDS[item.kind]?.group ?? 'documents') === group)
+      .map(item => ({
+        id: item.id,
+        url: item.url,
+        kind: item.kind,
+        caption: item.caption,
+        label: MEDIA_KINDS[item.kind]?.label ?? 'Attachment',
+        icon: MEDIA_KINDS[item.kind]?.icon ?? 'document-outline',
+      }));
+
+  return {
+    images: bucket('gallery').map(item => item.url),
+    plans: bucket('plans'),
+    documents: bucket('documents'),
+    tours: bucket('tours'),
+  };
+}
+
+function normalizeUnitTypes(units = []) {
+  return units.map(unit => ({
+    id: unit.id,
+    label: unit.label,
+    carpetArea: sqft(unit.carpet_area_sqft),
+    builtUpArea: sqft(unit.built_up_area_sqft),
+    superBuiltUpArea: sqft(unit.super_built_up_area_sqft),
+    priceMin: unit.price_min,
+    priceMax: unit.price_max,
+    unitsCount: unit.units_count,
+    floorPlanUrl: unit.floor_plan_url,
+  }));
+}
+
 export function normalizeProperty(api) {
   if (!api) {
     return null;
   }
 
-  const media = api.media ?? [];
-  const images = media.filter(m => m.kind === 'image').map(m => m.url).filter(Boolean);
+  const media = normalizeMedia(api.media);
   const units = api.unit_types ?? [];
   const primaryUnit = units[0] ?? {};
   const detail = api.detail ?? {};
   const location = api.location ?? {};
   const price = api.price ?? {};
+  const currency = price.currency ?? 'AED';
+  // Emitted by PropertyResource on the show route only — absent on list payloads.
+  const rera = api.rera ?? {};
+  const scale = api.scale ?? {};
+  const compliance = api.compliance ?? {};
+
+  const priceRange =
+    price.max && price.max !== price.min
+      ? `${money(price.min, currency)} – ${Number(price.max).toLocaleString()}`
+      : money(price.min, currency);
 
   return {
     id: api.id,
     name: api.name,
     developerId: api.developer?.id,
     developerName: api.developer?.company_name,
+    developer: api.developer ?? null,
 
     type: api.project_type,
     listingType: api.project_status,
+    listingStatus: api.listing_status,
     price: price.min ?? 0,
     priceUnit: price.max && price.max !== price.min ? `– ${price.max.toLocaleString()}` : '',
-    currency: price.currency ?? 'AED',
+    currency,
     location: [location.locality, location.city].filter(Boolean).join(', '),
     postedDaysAgo: daysSince(api.created_at),
 
-    coverImage: api.cover_image_url ?? images[0] ?? null,
-    images,
-    photoCount: images.length,
+    coverImage: api.cover_image_url ?? media.images[0] ?? null,
+    images: media.images,
+    photoCount: media.images.length,
+    // Everything that is not a photo — surfaced as openable attachments.
+    plans: media.plans,
+    documents: media.documents,
+    tours: media.tours,
+    attachmentCount: media.plans.length + media.documents.length + media.tours.length,
 
     commissionPercent: detail.cp_commission_percent ?? 0,
     bedrooms: bedroomsFromLabel(primaryUnit.label) ?? units.length,
@@ -64,55 +176,90 @@ export function normalizeProperty(api) {
     // Kept in the API's own shape — screens read `my_lead.status` directly.
     my_lead: api.my_lead ?? null,
 
+    unitTypes: normalizeUnitTypes(units),
+
     details: {
       overview: {
-        reraNumber: api.rera_number,
+        reraNumber: rera.number,
+        reraRegisteredAt: rera.registered_at,
+        reraValidTill: rera.valid_till,
         projectType: api.project_type,
         projectStatus: api.project_status,
+        listingStatus: api.listing_status,
         tagline: api.tagline,
+        launchDate: compliance.launch_date,
         possessionDate: api.possession_date,
-        constructionProgress: api.construction_progress ? `${api.construction_progress}%` : null,
+        constructionProgress: api.construction_progress
+          ? `${api.construction_progress}%`
+          : null,
       },
       unit: {
-        unitTypes: units.map(u => u.label).join(', '),
-        carpetArea: primaryUnit.carpet_area_sqft
-          ? `${primaryUnit.carpet_area_sqft.toLocaleString()} sqft`
-          : null,
-        builtUpArea: primaryUnit.built_up_area_sqft
-          ? `${primaryUnit.built_up_area_sqft.toLocaleString()} sqft`
-          : null,
-        superBuiltUpArea: primaryUnit.super_built_up_area_sqft
-          ? `${primaryUnit.super_built_up_area_sqft.toLocaleString()} sqft`
-          : null,
-        pricePerSqft: price.per_sqft ? `${price.currency} ${price.per_sqft.toLocaleString()}` : null,
+        unitTypes: units.map(u => u.label).filter(Boolean).join(', ') || null,
+        carpetArea: sqft(primaryUnit.carpet_area_sqft),
+        builtUpArea: sqft(primaryUnit.built_up_area_sqft),
+        superBuiltUpArea: sqft(primaryUnit.super_built_up_area_sqft),
+        pricePerSqft: price.per_sqft ? `${currency} ${price.per_sqft.toLocaleString()}` : null,
+        // Prefer the property's own tally; fall back to summing the unit-type rows.
+        totalUnits: scale.total_units
+          ? String(scale.total_units)
+          : String(units.reduce((sum, u) => sum + (u.units_count ?? 0), 0) || '') || null,
+        towers: scale.towers ? String(scale.towers) : null,
+        floorsPerTower: scale.floors_per_tower ? String(scale.floors_per_tower) : null,
+        flatsPerFloor: scale.flats_per_floor ? String(scale.flats_per_floor) : null,
+        parking: detail.parking_details,
       },
       location: {
-        address: location.locality,
+        locality: location.locality,
+        fullAddress: location.full_address,
+        landmark: location.landmark,
+        mapsLink: location.maps_link,
         city: location.city,
+        state: location.state,
         zone: location.zone,
         pincode: location.pincode,
-        connectivity: detail.connectivity_highlights ?? [],
-        nearby: detail.nearby_infrastructure ?? [],
+        connectivity: listToText(detail.connectivity_highlights),
+        nearbyInfrastructure: listToText(detail.nearby_infrastructure),
+        coordinates:
+          location.latitude && location.longitude
+            ? `${location.latitude}, ${location.longitude}`
+            : null,
       },
       specs: {
-        construction: detail.construction_specifications,
+        totalProjectArea: sqft(scale.total_project_area_sqft),
+        landParcel: scale.land_parcel_acres ? `${scale.land_parcel_acres} acres` : null,
+        openSpace: scale.open_space_percent ? `${scale.open_space_percent}%` : null,
+        constructionSpecs: detail.construction_specifications,
+        amenitiesSize: detail.amenities_size,
+        amenitiesCount: detail.amenities_count ? String(detail.amenities_count) : null,
         parking: detail.parking_details,
-        amenities: detail.amenities ?? [],
+        greenCertification: compliance.green_certification,
+        // Only worth a row when true — "Vastu Compliant: No" is noise.
+        vastuCompliant: compliance.vastu_compliant ? 'Yes' : null,
+        awards: listToText(detail.awards),
       },
       approvals: {
-        authorities: detail.approving_authorities ?? [],
-        banks: detail.bank_approvals ?? [],
+        approvingAuthorities: listToText(detail.approving_authorities),
+        bankApprovals: listToText(detail.bank_approvals),
       },
       payment: {
-        plans: detail.payment_plan_options ?? [],
-        bookingAmount: detail.booking_amount,
-        maintenance: detail.maintenance_charges,
+        priceRange,
+        bookingAmount: money(detail.booking_amount, currency),
+        paymentPlan: listToText(detail.payment_plan_options),
+        paymentSchedule: detail.payment_schedule,
+        maintenanceCharges: detail.maintenance_charges,
+        floorRise: detail.floor_rise,
+        plcCharges: detail.plc_charges,
+        otherCharges: listToText(detail.other_charges),
+        stampDuty: detail.registration_stamp_duty,
+        specialIncentives: detail.special_incentives,
+        cashbackSchemes: detail.cashback_schemes,
       },
       sales: {
-        office: detail.sales_office_address,
-        timings: detail.site_visit_timings,
+        officeAddress: detail.sales_office_address,
+        visitTimings: detail.site_visit_timings,
         contactName: detail.sales_contact_name,
         contactNumber: detail.sales_contact_number,
+        bookingProcess: detail.booking_process,
       },
     },
   };

@@ -7,6 +7,7 @@ import {
   AppText,
   Avatar,
   Card,
+  InfoRow,
   PaginatedList,
   PropertyCard,
   ScreenContainer,
@@ -149,6 +150,31 @@ const DeveloperProfileScreen = ({route, navigation}) => {
                   </AppText>
                 </View>
               )}
+            </Card>
+
+            {/* The rest of DeveloperResource. A channel partner working a lead needs the
+                contact route and the RERA/registration facts, not just the headline. */}
+            <Card style={{marginTop: spacing.md, paddingVertical: spacing.xxs}}>
+              <InfoRow icon="person-outline" label="Contact Person" value={developer.contact_person} />
+              <InfoRow icon="call-outline" label="Mobile" value={developer.mobile} />
+              <InfoRow icon="mail-outline" label="Email" value={developer.email} />
+              <InfoRow
+                icon="location-outline"
+                label="Location"
+                value={[developer.city, developer.state].filter(Boolean).join(', ') || null}
+              />
+              <InfoRow icon="shield-checkmark-outline" label="RERA Number" value={developer.rera_number} />
+              <InfoRow
+                icon="pricetag-outline"
+                label="CP Payout"
+                value={developer.cp_payout_percent ? `${payout}%` : null}
+              />
+              <InfoRow
+                icon="pulse-outline"
+                label="Account Status"
+                value={developer.status ? developer.status[0].toUpperCase() + developer.status.slice(1) : null}
+                valueColor={developer.status === 'active' ? colors.success : colors.textPrimary}
+              />
             </Card>
 
             <AppText variant="h3" style={{marginTop: spacing.xl, marginBottom: spacing.sm}}>

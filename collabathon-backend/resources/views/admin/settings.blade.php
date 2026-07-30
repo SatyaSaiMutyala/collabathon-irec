@@ -9,7 +9,7 @@ $themeColors = [
 
 $formTitles = [
     'broker_registration' => 'Broker Registration',
-    'property_listing' => 'Property Listing',
+    'property_listing' => 'Project Listing',
 ];
 
 $tabs = [
@@ -25,7 +25,6 @@ $tabs = [
         title="Settings"
         subtitle="Control what appears on registration and listing forms, and how the mobile apps are branded." />
 
-    <x-flash />
 
     <div x-data="{ tab: 'forms' }">
         <x-tab-bar :tabs="$tabs" model="tab" class="mb-5" />

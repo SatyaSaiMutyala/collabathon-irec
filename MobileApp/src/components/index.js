@@ -20,6 +20,8 @@ export {default as TrendChart} from './TrendChart';
 export {default as SwipeableImages} from './SwipeableImages';
 export {default as BrokerLeadCard} from './BrokerLeadCard';
 export {default as InfoRow} from './InfoRow';
+export {default as AttachmentList} from './AttachmentList';
+export {default as UnitTypeTable} from './UnitTypeTable';
 export {default as PropertyHero} from './PropertyHero';
 export {default as PropertyDetailBody} from './PropertyDetailBody';
 export {default as RightDrawer} from './RightDrawer';

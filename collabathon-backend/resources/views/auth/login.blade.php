@@ -45,7 +45,7 @@
 
                 <div class="mb-7">
                     <h1 class="text-[22px] font-semibold text-ink tracking-[-0.02em]">Welcome back</h1>
-                    <p class="text-[13px] text-ink-2 mt-1.5">Sign in to manage developers, brokers and properties.</p>
+                    <p class="text-[13px] text-ink-2 mt-1.5">Sign in to manage developers, brokers and projects.</p>
                 </div>
 
                 @if($errors->any())

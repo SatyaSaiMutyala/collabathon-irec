@@ -9,11 +9,13 @@
     $current = request($name);
     $isSet = $current !== null && $current !== '';
 
-    // Normalise a flat list into value => label.
-    $normalised = [];
-    foreach ($options as $key => $value) {
-        $normalised[is_int($key) ? $value : $key] = $value;
-    }
+    // Normalise a flat list into value => label. A keyed map ([5 => 'Skyline Realty'])
+    // keeps its key — is_int($key) alone would treat it as a flat list and filter by
+    // the label instead of the id, which silently matches nothing.
+    $optionList = $options instanceof \Illuminate\Support\Collection ? $options->all() : (array) $options;
+    $normalised = array_is_list($optionList)
+        ? array_combine($optionList, $optionList)
+        : $optionList;
 @endphp
 
 {{-- Submits on change; carries every other active param so filters compose.

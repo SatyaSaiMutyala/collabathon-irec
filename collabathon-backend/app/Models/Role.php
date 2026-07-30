@@ -19,8 +19,8 @@ class Role extends Model
         'dashboard' => 'Dashboard',
         'approvals' => 'Broker Approvals',
         'developers' => 'Developers',
-        'properties' => 'Properties',
-        'leads' => 'Leads & Matches',
+        'properties' => 'Projects',
+        'leads' => 'Approvals',
         'settings' => 'Settings',
     ];
 

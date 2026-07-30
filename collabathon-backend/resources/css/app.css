@@ -4,7 +4,11 @@
 @source '../../storage/framework/views/*.php';
 
 @theme {
-    --font-sans: 'Outfit', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    /* Helvetica first, Arial as the Windows stand-in, then the generic sans. The
+       emoji families trail the stack so they only ever serve codepoints the Latin
+       faces lack. No webfont is loaded — every entry here is already on the host,
+       so type paints on first frame with no FOUT. */
+    --font-sans: 'Helvetica Neue', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 
     /* ---------------------------------------------------------------
@@ -65,6 +69,14 @@
     --color-info: #1d5fa8;
     --color-info-soft: #e9f0f9;
     --color-info-ring: #b9d0ea;
+
+    /* Toast fills — solid, higher-contrast than the -soft banner tones above.
+       Warning is a true yellow, so it carries dark ink text instead of white
+       (white on yellow fails contrast). See components/toast.blade.php. */
+    --color-toast-success: #10653d;
+    --color-toast-error: #b3261e;
+    --color-toast-warning: #f5c518;
+    --color-toast-info: #17518f;
 
     /* ---------------------------------------------------------------
        Chart palette — validated with the dataviz validator against the
