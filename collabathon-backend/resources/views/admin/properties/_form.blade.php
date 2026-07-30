@@ -546,7 +546,7 @@
                                         <label class="group relative block cursor-pointer">
                                             <input type="checkbox" name="remove_media[]" value="{{ $image->id }}"
                                                    class="peer sr-only">
-                                            <img src="{{ Storage::disk('public')->url($image->path) }}" alt=""
+                                            <img src="{{ $image->url ?: Storage::disk('public')->url($image->path) }}" alt=""
                                                  class="w-full aspect-[4/3] object-cover rounded-lg border border-line
                                                         transition-opacity peer-checked:opacity-30">
                                             <span class="absolute inset-x-1 bottom-1 flex items-center justify-center gap-1

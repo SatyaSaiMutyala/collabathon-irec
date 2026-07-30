@@ -304,9 +304,10 @@
                 @if($media->get('image')?->isNotEmpty())
                     <div class="grid grid-cols-3 gap-2">
                         @foreach($media['image'] as $image)
-                            <a href="{{ Storage::disk('public')->url($image->path) }}" target="_blank" rel="noopener"
+                            @php $imageUrl = $image->url ?: Storage::disk('public')->url($image->path); @endphp
+                            <a href="{{ $imageUrl }}" target="_blank" rel="noopener"
                                class="block rounded-lg overflow-hidden border border-line hover:opacity-90 transition-opacity">
-                                <img src="{{ Storage::disk('public')->url($image->path) }}" alt=""
+                                <img src="{{ $imageUrl }}" alt=""
                                      class="w-full aspect-square object-cover">
                             </a>
                         @endforeach
