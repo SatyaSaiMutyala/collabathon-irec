@@ -23,6 +23,16 @@ const SUFFIX_OPTIONS = ['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Eng.'];
 const SEGMENT_OPTIONS = ['Residential', 'Commercial', 'Lands', 'Liaisoning', 'All'];
 const ZONE_OPTIONS = ['East', 'West', 'North', 'South', 'Central', 'All'];
 
+/** Parses a "DD/MM/YYYY" string into "YYYY-MM-DD" (the API's expected date format), or null if invalid. */
+const parseDdMmYyyy = value => {
+  const match = value.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) {
+    return null;
+  }
+  const [, day, month, year] = match;
+  return `${year}-${month}-${day}`;
+};
+
 const initialForm = {
   suffix: '',
   fullNameAsRera: '',
@@ -119,8 +129,8 @@ const RegisterScreen = ({navigation}) => {
     if (!form.reraNumber.trim()) {
       next.reraNumber = 'Enter RERA number';
     }
-    if (!form.reraCertificateExpiry.trim()) {
-      next.reraCertificateExpiry = 'Enter certificate expiry date';
+    if (!parseDdMmYyyy(form.reraCertificateExpiry)) {
+      next.reraCertificateExpiry = 'Enter date as DD/MM/YYYY';
     }
     if (!form.chequeDetails.trim()) {
       next.chequeDetails = 'Enter cancelled cheque details';
@@ -155,7 +165,7 @@ const RegisterScreen = ({navigation}) => {
     pan_card: form.panCard.trim() || null,
     aadhaar_card: form.aadhaarCard.trim() || null,
     rera_number: form.reraNumber.trim() || null,
-    rera_certificate_expiry: form.reraCertificateExpiry.trim() || null,
+    rera_certificate_expiry: parseDdMmYyyy(form.reraCertificateExpiry),
     gst_number: form.gstNumber.trim() || null,
     cheque_details: form.chequeDetails.trim() || null,
 
@@ -566,6 +576,14 @@ const RegisterScreen = ({navigation}) => {
           </View>
         </View>
 
+        {errors.submit && (
+          <AppText
+            variant="caption"
+            color={colors.danger}
+            style={{textAlign: 'center', marginBottom: spacing.sm}}>
+            {errors.submit}
+          </AppText>
+        )}
         <Button label="Submit for approval" icon="arrow-forward" iconPosition="right" onPress={handleSubmit} />
 
         <View style={styles.footerRow}>
