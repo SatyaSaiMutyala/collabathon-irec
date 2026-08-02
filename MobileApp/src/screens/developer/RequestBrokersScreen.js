@@ -1,6 +1,12 @@
 import React, {useCallback, useEffect} from 'react';
 import {useAppTheme} from '../../theme';
-import {AppText, BrokerLeadCard, PaginatedList, ScreenContainer} from '../../components';
+import {
+  AppText,
+  BrokerLeadCard,
+  BrokerLeadCardSkeleton,
+  PaginatedList,
+  ScreenContainer,
+} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {fetchLeads, fetchNextLeads} from '../../store/slices/leadsSlice';
 
@@ -17,6 +23,12 @@ const RequestBrokersScreen = ({navigation}) => {
     dispatch(fetchLeads({page: 1, status: 'interested'}));
   }, [dispatch]);
 
+  // On focus, not on mount. `leads.list` is shared with PropertyLeads, which refills it
+  // scoped to one listing — and tab screens stay mounted, so a mount-only fetch would
+  // leave this inbox showing that listing's brokers after coming back from it.
+  // On mount, not on focus. Nothing else writes to this list any more, so refetching
+  // every time the screen comes back would only throw away the scroll position the user
+  // had when they tapped through to a detail screen. Pull-to-refresh is the way back.
   useEffect(() => {
     loadFirstPage();
   }, [loadFirstPage]);
@@ -35,16 +47,17 @@ const RequestBrokersScreen = ({navigation}) => {
         list={list}
         onRefresh={loadFirstPage}
         onEndReached={handleEndReached}
+        renderSkeleton={() => <BrokerLeadCardSkeleton />}
+        emptyIcon="mail-open-outline"
         emptyTitle="No broker requests yet"
         emptyMessage="When a broker marks one of your listings as Interested, it appears here."
         renderItem={({item}) => (
           <BrokerLeadCard
             lead={item}
             propertyName={item.property?.name}
-            onPress={() =>
-              item.property &&
-              navigation.navigate('PropertyLeads', {projectId: item.property.id})
-            }
+            // The card is about the broker, so it opens the broker — the listing is
+            // already the developer's own and reachable from My Properties.
+            onPress={() => navigation.navigate('BrokerDetail', {leadId: item.id})}
           />
         )}
       />

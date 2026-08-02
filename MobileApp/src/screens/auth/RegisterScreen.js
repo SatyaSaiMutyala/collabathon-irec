@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useRef, useState} from 'react';
 import {StyleSheet, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
@@ -7,31 +7,111 @@ import {useAppTheme} from '../../theme';
 import {
   AppText,
   AttachBox,
-  AttachPill,
   Button,
   Checkbox,
+  DateField,
   Dropdown,
   Input,
   ScreenContainer,
   SectionHeader,
   SignaturePad,
+  toApiDate,
 } from '../../components';
-import {useAppDispatch, useAppSelector} from '../../store/hooks';
+import {useAppDispatch} from '../../store/hooks';
 import {registerBroker} from '../../store/slices/authSlice';
+import {showSnackbar} from '../../store/slices/uiSlice';
 
 const SUFFIX_OPTIONS = ['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Eng.'];
-const SEGMENT_OPTIONS = ['Residential', 'Commercial', 'Lands', 'Liaisoning', 'All'];
+const SEGMENT_OPTIONS = [
+  'Residential',
+  'Commercial',
+  'Lands',
+  'Liaisoning',
+  'All',
+];
 const ZONE_OPTIONS = ['East', 'West', 'North', 'South', 'Central', 'All'];
 
-/** Parses a "DD/MM/YYYY" string into "YYYY-MM-DD" (the API's expected date format), or null if invalid. */
-const parseDdMmYyyy = value => {
-  const match = value.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!match) {
-    return null;
-  }
-  const [, day, month, year] = match;
-  return `${year}-${month}-${day}`;
+/** Picking "All" covers every other option, so the list has nothing left to offer. */
+const TERMINAL_OPTIONS = ['All'];
+
+/** A RERA certificate that has already lapsed cannot be the one being empanelled against. */
+const TODAY = new Date();
+const MAX_EXPIRY = new Date(
+  TODAY.getFullYear() + 30,
+  TODAY.getMonth(),
+  TODAY.getDate(),
+);
+
+/**
+ * Every field the API can reject, mapped to the form field that shows it.
+ *
+ * Previously only email, password and mobile were mapped, so a 422 on any of the other
+ * twenty fields painted no error anywhere — the request failed and the form looked idle.
+ */
+const SERVER_FIELD_TO_FORM = {
+  name: 'fullNameAsRera',
+  email: 'emailId',
+  password: 'password',
+  mobile: 'mobileNumber',
+  alternate_mobile: 'alternateMobile',
+  residence_address: 'residenceAddress',
+  company_name: 'companyName',
+  office_address: 'officeAddress',
+  company_website: 'companyWebsite',
+  social_media_handle: 'socialMediaHandle',
+  years_of_experience: 'yearsOfExperience',
+  team_size: 'teamSize',
+  pan_card: 'panCard',
+  aadhaar_card: 'aadhaarCard',
+  rera_number: 'reraNumber',
+  rera_certificate_expiry: 'reraCertificateExpiry',
+  gst_number: 'gstNumber',
+  cheque_details: 'chequeDetails',
+  state: 'state',
+  city: 'city',
+  segments: 'segments',
+  zones: 'zones',
+  project_contributions: 'projectContributions',
+  confirm_accuracy: 'confirmAccuracy',
+  photo: 'photoAttachment',
 };
+
+/**
+ * Fields in the order they appear on screen. Submitting jumps to the first one that
+ * failed, so the form is never silently refusing at a field three screens up.
+ *
+ * `focusVia` is for the controls that cannot take keyboard focus — an attachment box, a
+ * calendar field, a checkbox — and names the nearest text input above them, which lands
+ * the user in the right part of the form rather than nowhere.
+ */
+const FIELD_ORDER = [
+  {key: 'fullNameAsRera'},
+  {key: 'mobileNumber'},
+  {key: 'alternateMobile'},
+  {key: 'emailId'},
+  {key: 'password'},
+  {key: 'residenceAddress'},
+  {key: 'photoAttachment', focusVia: 'residenceAddress'},
+  {key: 'companyName'},
+  {key: 'officeAddress'},
+  {key: 'companyWebsite'},
+  {key: 'socialMediaHandle'},
+  {key: 'yearsOfExperience'},
+  {key: 'teamSize'},
+  {key: 'panCard'},
+  {key: 'aadhaarCard'},
+  {key: 'reraNumber'},
+  {key: 'reraCertificateExpiry', focusVia: 'reraNumber'},
+  {key: 'chequeDetails'},
+  {key: 'gstNumber'},
+  {key: 'state'},
+  {key: 'city'},
+  {key: 'segments', focusVia: 'city'},
+  {key: 'zones', focusVia: 'city'},
+  {key: 'projectContributions'},
+  {key: 'confirmAccuracy'},
+  {key: 'signature'},
+];
 
 const initialForm = {
   suffix: '',
@@ -56,7 +136,8 @@ const initialForm = {
   aadhaarAttachment: '',
   reraNumber: '',
   reraCertificateAttachment: '',
-  reraCertificateExpiry: '',
+  // A Date, not a typed string: the calendar cannot produce an unparseable value.
+  reraCertificateExpiry: null,
   chequeDetails: '',
   chequeAttachment: '',
   gstNumber: '',
@@ -78,6 +159,13 @@ const RegisterScreen = ({navigation}) => {
   const [errors, setErrors] = useState({});
   const [isScrollEnabled, setIsScrollEnabled] = useState(true);
 
+  // One ref per text field, so a failed submit can put the cursor in the offending one.
+  // Focusing is also what scrolls it into view — KeyboardAwareScrollView follows focus.
+  const inputRefs = useRef({});
+  const registerRef = key => node => {
+    inputRefs.current[key] = node;
+  };
+
   const update = key => value => setForm(prev => ({...prev, [key]: value}));
 
   const toggleCheckbox = key => () =>
@@ -92,7 +180,9 @@ const RegisterScreen = ({navigation}) => {
   const toggleArrayValue = (key, value) => {
     setForm(prev => {
       const arr = prev[key];
-      const nextArr = arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value];
+      const nextArr = arr.includes(value)
+        ? arr.filter(v => v !== value)
+        : [...arr, value];
       return {...prev, [key]: nextArr};
     });
   };
@@ -102,7 +192,10 @@ const RegisterScreen = ({navigation}) => {
     if (!/^\+?[0-9]{7,15}$/.test(form.mobileNumber.trim())) {
       next.mobileNumber = 'Enter a valid mobile number';
     }
-    if (form.alternateMobile.trim() && !/^\+?[0-9]{7,15}$/.test(form.alternateMobile.trim())) {
+    if (
+      form.alternateMobile.trim() &&
+      !/^\+?[0-9]{7,15}$/.test(form.alternateMobile.trim())
+    ) {
       next.alternateMobile = 'Enter a valid mobile number';
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.emailId.trim())) {
@@ -129,8 +222,8 @@ const RegisterScreen = ({navigation}) => {
     if (!form.reraNumber.trim()) {
       next.reraNumber = 'Enter RERA number';
     }
-    if (!parseDdMmYyyy(form.reraCertificateExpiry)) {
-      next.reraCertificateExpiry = 'Enter date as DD/MM/YYYY';
+    if (!form.reraCertificateExpiry) {
+      next.reraCertificateExpiry = 'Select the RERA certificate expiry date';
     }
     if (!form.chequeDetails.trim()) {
       next.chequeDetails = 'Enter cancelled cheque details';
@@ -142,7 +235,36 @@ const RegisterScreen = ({navigation}) => {
       next.signature = 'Please sign to continue';
     }
     setErrors(next);
-    return Object.keys(next).length === 0;
+    return next;
+  };
+
+  /**
+   * Takes the user to the first thing that is wrong and says what it is.
+   *
+   * This is the whole reason the form "did not submit": validation was refusing, but the
+   * only sign of it was a red line under a field that could be several screens away from
+   * the button. Pressing Submit looked like nothing happened at all.
+   */
+  const reportErrors = (fieldErrors, fallbackMessage) => {
+    const failed = FIELD_ORDER.filter(field => fieldErrors[field.key]);
+    const first = failed[0];
+    const message =
+      (first && fieldErrors[first.key]) ||
+      fallbackMessage ||
+      'Please check the form and try again.';
+    const remaining = Math.max(failed.length - 1, 0);
+
+    dispatch(
+      showSnackbar({
+        message:
+          remaining > 0 ? `${message} · ${remaining} more to fix` : message,
+        tone: 'danger',
+      }),
+    );
+
+    const focusKey =
+      first && (inputRefs.current[first.key] ? first.key : first.focusVia);
+    inputRefs.current[focusKey]?.focus?.();
   };
 
   /** Maps the empanelment form onto the API's register contract. */
@@ -159,13 +281,17 @@ const RegisterScreen = ({navigation}) => {
     office_address: form.officeAddress.trim() || null,
     company_website: form.companyWebsite.trim() || null,
     social_media_handle: form.socialMediaHandle.trim() || null,
-    years_of_experience: form.yearsOfExperience ? Number(form.yearsOfExperience) : null,
+    years_of_experience: form.yearsOfExperience
+      ? Number(form.yearsOfExperience)
+      : null,
     team_size: form.teamSize ? Number(form.teamSize) : null,
 
     pan_card: form.panCard.trim() || null,
     aadhaar_card: form.aadhaarCard.trim() || null,
     rera_number: form.reraNumber.trim() || null,
-    rera_certificate_expiry: parseDdMmYyyy(form.reraCertificateExpiry),
+    rera_certificate_expiry: form.reraCertificateExpiry
+      ? toApiDate(form.reraCertificateExpiry)
+      : null,
     gst_number: form.gstNumber.trim() || null,
     cheque_details: form.chequeDetails.trim() || null,
 
@@ -176,29 +302,58 @@ const RegisterScreen = ({navigation}) => {
     operates_multiple_states: form.operatesMultipleStates,
     project_contributions: form.projectContributions.trim() || null,
     confirm_accuracy: form.confirmAccuracy,
+
+    // The picker hands back a local file:// URI. The transport layer turns this into a
+    // multipart part; sending the URI as a plain string would store a path that only
+    // ever resolved on the device that typed it.
+    photo: form.photoAttachment
+      ? {
+          uri: form.photoAttachment,
+          name: form.photoAttachment.split('/').pop() || 'photo.jpg',
+          type: 'image/jpeg',
+        }
+      : null,
   });
 
   const handleSubmit = async () => {
-    if (!validate()) {
+    const localErrors = validate();
+    if (Object.keys(localErrors).length > 0) {
+      reportErrors(localErrors);
       return;
     }
 
     const result = await dispatch(registerBroker(toPayload()));
 
     if (registerBroker.fulfilled.match(result)) {
+      dispatch(
+        showSnackbar({
+          message:
+            result.payload?.message ?? 'Registration submitted for approval.',
+          tone: 'success',
+        }),
+      );
       navigation.replace('PendingApproval');
       return;
     }
 
-    // Surface server-side validation (e.g. duplicate email) on the right fields.
+    // Every field the server rejected, painted on the field that owns it — the message
+    // is the server's own wording, so a rule that changes in Laravel changes here too
+    // without the app having to be taught about it.
     const serverErrors = result.payload?.errors ?? {};
-    setErrors(prev => ({
-      ...prev,
-      emailId: serverErrors.email?.[0],
-      password: serverErrors.password?.[0],
-      mobileNumber: serverErrors.mobile?.[0],
-      submit: serverErrors.email ? undefined : result.payload?.message,
-    }));
+    const mapped = {};
+    Object.entries(serverErrors).forEach(([apiField, messages]) => {
+      const formField = SERVER_FIELD_TO_FORM[apiField];
+      if (formField) {
+        mapped[formField] = messages?.[0];
+      }
+    });
+
+    const message = result.payload?.message;
+    setErrors({
+      ...mapped,
+      submit: Object.keys(mapped).length === 0 ? message : undefined,
+    });
+    reportErrors(mapped, message);
   };
 
   return (
@@ -210,9 +365,18 @@ const RegisterScreen = ({navigation}) => {
         scrollEnabled={isScrollEnabled}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{paddingBottom: spacing.xxl}}>
-        <View style={{flexDirection: 'row', alignItems: 'center', marginTop: spacing.sm}}>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginTop: spacing.sm,
+          }}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={10}>
-            <Icon name="chevron-back" size={moderateScale(22)} color={colors.textPrimary} />
+            <Icon
+              name="chevron-back"
+              size={moderateScale(22)}
+              color={colors.textPrimary}
+            />
           </TouchableOpacity>
           <AppText variant="h1" style={{marginLeft: spacing.sm}}>
             Register
@@ -241,6 +405,7 @@ const RegisterScreen = ({navigation}) => {
             </View>
             <View style={{flex: 1.4, marginLeft: spacing.xs}}>
               <Input
+                ref={registerRef('fullNameAsRera')}
                 label="Full name (as per RERA)"
                 placeholder="e.g. Ravi Teja"
                 value={form.fullNameAsRera}
@@ -250,6 +415,7 @@ const RegisterScreen = ({navigation}) => {
           </View>
 
           <Input
+            ref={registerRef('mobileNumber')}
             label="Mobile number *"
             placeholder="10-digit mobile"
             leftIcon="call-outline"
@@ -259,6 +425,7 @@ const RegisterScreen = ({navigation}) => {
             error={errors.mobileNumber}
           />
           <Input
+            ref={registerRef('alternateMobile')}
             label="Alternate mobile"
             placeholder="Optional"
             leftIcon="call-outline"
@@ -268,6 +435,7 @@ const RegisterScreen = ({navigation}) => {
             error={errors.alternateMobile}
           />
           <Input
+            ref={registerRef('emailId')}
             label="Email ID *"
             placeholder="you@company.com"
             leftIcon="mail-outline"
@@ -280,6 +448,7 @@ const RegisterScreen = ({navigation}) => {
           />
           {/* Email + password is the login credential once an admin approves. */}
           <Input
+            ref={registerRef('password')}
             label="Password *"
             placeholder="At least 8 characters"
             leftIcon="lock-closed-outline"
@@ -289,6 +458,7 @@ const RegisterScreen = ({navigation}) => {
             error={errors.password}
           />
           <Input
+            ref={registerRef('residenceAddress')}
             label="Residence address *"
             placeholder="Flat / street / area / city / pincode"
             leftIcon="home-outline"
@@ -298,7 +468,10 @@ const RegisterScreen = ({navigation}) => {
             error={errors.residenceAddress}
           />
 
-          <AppText variant="caption" color={colors.textSecondary} style={styles.label}>
+          <AppText
+            variant="caption"
+            color={colors.textSecondary}
+            style={styles.label}>
             Photo attachment
           </AppText>
           <View style={{marginBottom: spacing.sm}}>
@@ -306,6 +479,11 @@ const RegisterScreen = ({navigation}) => {
               uri={form.photoAttachment}
               onPick={update('photoAttachment')}
               onRemove={() => update('photoAttachment')('')}
+              // This is the broker's profile picture, not a document scan: it is shown
+              // in square avatars all over the app, so it is framed square here rather
+              // than centre-cropped later on whatever the user happened to upload.
+              crop
+              label="Profile photo"
               placeholder="Tap to upload a passport-size photo"
             />
           </View>
@@ -324,10 +502,14 @@ const RegisterScreen = ({navigation}) => {
 
           {form.isCompany && (
             <View style={{marginTop: spacing.md}}>
-              <AppText variant="captionMedium" color={colors.primary} style={styles.label}>
+              <AppText
+                variant="captionMedium"
+                color={colors.primary}
+                style={styles.label}>
                 If yes →
               </AppText>
               <Input
+                ref={registerRef('companyName')}
                 label="Company name"
                 placeholder="Firm name"
                 leftIcon="business-outline"
@@ -336,6 +518,7 @@ const RegisterScreen = ({navigation}) => {
                 error={errors.companyName}
               />
               <Input
+                ref={registerRef('officeAddress')}
                 label="Office address *"
                 placeholder="Office location"
                 leftIcon="location-outline"
@@ -355,6 +538,7 @@ const RegisterScreen = ({navigation}) => {
               <View style={{flexDirection: 'row'}}>
                 <View style={{flex: 1, marginRight: spacing.xs}}>
                   <Input
+                    ref={registerRef('companyWebsite')}
                     label="Company website"
                     placeholder="https://..."
                     autoCapitalize="none"
@@ -364,6 +548,7 @@ const RegisterScreen = ({navigation}) => {
                 </View>
                 <View style={{flex: 1, marginLeft: spacing.xs}}>
                   <Input
+                    ref={registerRef('socialMediaHandle')}
                     label="Social media handle"
                     placeholder="Instagram / LinkedIn"
                     autoCapitalize="none"
@@ -376,6 +561,7 @@ const RegisterScreen = ({navigation}) => {
               <View style={{flexDirection: 'row'}}>
                 <View style={{flex: 1, marginRight: spacing.xs}}>
                   <Input
+                    ref={registerRef('yearsOfExperience')}
                     label="Total years of experience"
                     placeholder="e.g. 5"
                     keyboardType="numeric"
@@ -385,6 +571,7 @@ const RegisterScreen = ({navigation}) => {
                 </View>
                 <View style={{flex: 1, marginLeft: spacing.xs}}>
                   <Input
+                    ref={registerRef('teamSize')}
                     label="Team size"
                     placeholder="e.g. 4"
                     keyboardType="numeric"
@@ -396,111 +583,114 @@ const RegisterScreen = ({navigation}) => {
             </View>
           )}
 
-          <View style={{flexDirection: 'row', alignItems: 'flex-end'}}>
-            <View style={{flex: 1, marginRight: spacing.xs}}>
-              <Input
-                label="PAN card *"
-                placeholder="ABCDE1234F"
-                autoCapitalize="characters"
-                value={form.panCard}
-                onChangeText={update('panCard')}
-                error={errors.panCard}
-              />
-            </View>
-            <View style={{marginBottom: spacing.sm}}>
-              <AttachPill
-                uri={form.panCardAttachment}
-                onPick={update('panCardAttachment')}
-                onRemove={() => update('panCardAttachment')('')}
-              />
-            </View>
-          </View>
-
-          <View style={{flexDirection: 'row', alignItems: 'flex-end'}}>
-            <View style={{flex: 1, marginRight: spacing.xs}}>
-              <Input
-                label="Aadhaar card *"
-                placeholder="XXXX XXXX XXXX"
-                keyboardType="number-pad"
-                value={form.aadhaarCard}
-                onChangeText={update('aadhaarCard')}
-                error={errors.aadhaarCard}
-              />
-            </View>
-            <View style={{marginBottom: spacing.sm}}>
-              <AttachPill
-                uri={form.aadhaarAttachment}
-                onPick={update('aadhaarAttachment')}
-                onRemove={() => update('aadhaarAttachment')('')}
-              />
-            </View>
-          </View>
-
-          <View style={{flexDirection: 'row', alignItems: 'flex-end'}}>
-            <View style={{flex: 1, marginRight: spacing.xs}}>
-              <Input
-                label="RERA number *"
-                placeholder="A02400012345"
-                autoCapitalize="characters"
-                value={form.reraNumber}
-                onChangeText={update('reraNumber')}
-                error={errors.reraNumber}
-              />
-            </View>
-            <View style={{marginBottom: spacing.sm}}>
-              <AttachPill
-                uri={form.reraCertificateAttachment}
-                onPick={update('reraCertificateAttachment')}
-                onRemove={() => update('reraCertificateAttachment')('')}
-              />
-            </View>
+          <Input
+            ref={registerRef('panCard')}
+            label="PAN card *"
+            placeholder="ABCDE1234F"
+            autoCapitalize="characters"
+            value={form.panCard}
+            onChangeText={update('panCard')}
+            error={errors.panCard}
+          />
+          <View style={{marginBottom: spacing.sm}}>
+            <AttachBox
+              uri={form.panCardAttachment}
+              onPick={update('panCardAttachment')}
+              onRemove={() => update('panCardAttachment')('')}
+              label="PAN card"
+              placeholder="Attach a photo of your PAN card"
+              height={120}
+            />
           </View>
 
           <Input
+            ref={registerRef('aadhaarCard')}
+            label="Aadhaar card *"
+            placeholder="XXXX XXXX XXXX"
+            keyboardType="number-pad"
+            value={form.aadhaarCard}
+            onChangeText={update('aadhaarCard')}
+            error={errors.aadhaarCard}
+          />
+          <View style={{marginBottom: spacing.sm}}>
+            <AttachBox
+              uri={form.aadhaarAttachment}
+              onPick={update('aadhaarAttachment')}
+              onRemove={() => update('aadhaarAttachment')('')}
+              label="Aadhaar card"
+              placeholder="Attach a photo of your Aadhaar"
+              height={120}
+            />
+          </View>
+
+          <Input
+            ref={registerRef('reraNumber')}
+            label="RERA number *"
+            placeholder="A02400012345"
+            autoCapitalize="characters"
+            value={form.reraNumber}
+            onChangeText={update('reraNumber')}
+            error={errors.reraNumber}
+          />
+          <View style={{marginBottom: spacing.sm}}>
+            <AttachBox
+              uri={form.reraCertificateAttachment}
+              onPick={update('reraCertificateAttachment')}
+              onRemove={() => update('reraCertificateAttachment')('')}
+              label="RERA certificate"
+              placeholder="Attach your RERA certificate"
+              height={120}
+            />
+          </View>
+
+          <DateField
             label="RERA certificate validity / expiry date *"
-            placeholder="DD/MM/YYYY"
-            leftIcon="calendar-outline"
+            placeholder="Tap to pick a date"
             value={form.reraCertificateExpiry}
-            onChangeText={update('reraCertificateExpiry')}
+            onChange={update('reraCertificateExpiry')}
+            // A certificate that expired yesterday is not one to empanel against, so the
+            // calendar simply cannot reach those days.
+            minimumDate={TODAY}
+            maximumDate={MAX_EXPIRY}
             error={errors.reraCertificateExpiry}
           />
 
-          <View style={{flexDirection: 'row', alignItems: 'flex-end'}}>
-            <View style={{flex: 1, marginRight: spacing.xs}}>
-              <Input
-                label="Cancelled cheque *"
-                placeholder="Account number / IFSC"
-                value={form.chequeDetails}
-                onChangeText={update('chequeDetails')}
-                error={errors.chequeDetails}
-              />
-            </View>
-            <View style={{marginBottom: spacing.sm}}>
-              <AttachPill
-                uri={form.chequeAttachment}
-                onPick={update('chequeAttachment')}
-                onRemove={() => update('chequeAttachment')('')}
-              />
-            </View>
+          <Input
+            ref={registerRef('chequeDetails')}
+            label="Cancelled cheque *"
+            placeholder="Account number / IFSC"
+            value={form.chequeDetails}
+            onChangeText={update('chequeDetails')}
+            error={errors.chequeDetails}
+          />
+          <View style={{marginBottom: spacing.sm}}>
+            <AttachBox
+              uri={form.chequeAttachment}
+              onPick={update('chequeAttachment')}
+              onRemove={() => update('chequeAttachment')('')}
+              label="Cancelled cheque"
+              placeholder="Attach the cancelled cheque"
+              height={120}
+            />
           </View>
 
-          <View style={{flexDirection: 'row', alignItems: 'flex-end'}}>
-            <View style={{flex: 1, marginRight: spacing.xs}}>
-              <Input
-                label="GST number (if any)"
-                placeholder="Optional"
-                autoCapitalize="characters"
-                value={form.gstNumber}
-                onChangeText={update('gstNumber')}
-              />
-            </View>
-            <View style={{marginBottom: spacing.sm}}>
-              <AttachPill
-                uri={form.gstAttachment}
-                onPick={update('gstAttachment')}
-                onRemove={() => update('gstAttachment')('')}
-              />
-            </View>
+          <Input
+            ref={registerRef('gstNumber')}
+            label="GST number (if any)"
+            placeholder="Optional"
+            autoCapitalize="characters"
+            value={form.gstNumber}
+            onChangeText={update('gstNumber')}
+          />
+          <View style={{marginBottom: spacing.sm}}>
+            <AttachBox
+              uri={form.gstAttachment}
+              onPick={update('gstAttachment')}
+              onRemove={() => update('gstAttachment')('')}
+              label="GST certificate"
+              placeholder="Attach your GST certificate"
+              height={120}
+            />
           </View>
         </View>
 
@@ -511,10 +701,22 @@ const RegisterScreen = ({navigation}) => {
         <View style={{marginTop: spacing.md}}>
           <View style={{flexDirection: 'row'}}>
             <View style={{flex: 1, marginRight: spacing.xs}}>
-              <Input label="State" placeholder="Telangana" value={form.state} onChangeText={update('state')} />
+              <Input
+                ref={registerRef('state')}
+                label="State"
+                placeholder="Telangana"
+                value={form.state}
+                onChangeText={update('state')}
+              />
             </View>
             <View style={{flex: 1, marginLeft: spacing.xs}}>
-              <Input label="City" placeholder="Hyderabad" value={form.city} onChangeText={update('city')} />
+              <Input
+                ref={registerRef('city')}
+                label="City"
+                placeholder="Hyderabad"
+                value={form.city}
+                onChangeText={update('city')}
+              />
             </View>
           </View>
 
@@ -525,6 +727,7 @@ const RegisterScreen = ({navigation}) => {
             options={SEGMENT_OPTIONS}
             multiSelect
             selected={form.segments}
+            terminalOptions={TERMINAL_OPTIONS}
             onToggleMulti={value => toggleArrayValue('segments', value)}
           />
 
@@ -535,10 +738,12 @@ const RegisterScreen = ({navigation}) => {
             options={ZONE_OPTIONS}
             multiSelect
             selected={form.zones}
+            terminalOptions={TERMINAL_OPTIONS}
             onToggleMulti={value => toggleArrayValue('zones', value)}
           />
 
           <Input
+            ref={registerRef('projectContributions')}
             label="Project contributions (if any)"
             placeholder="Notable projects you've worked on"
             multiline
@@ -563,7 +768,10 @@ const RegisterScreen = ({navigation}) => {
             />
           </View>
 
-          <AppText variant="caption" color={colors.textSecondary} style={styles.label}>
+          <AppText
+            variant="caption"
+            color={colors.textSecondary}
+            style={styles.label}>
             Authorized signature *
           </AppText>
           <View style={{marginBottom: spacing.lg}}>
@@ -584,13 +792,20 @@ const RegisterScreen = ({navigation}) => {
             {errors.submit}
           </AppText>
         )}
-        <Button label="Submit for approval" icon="arrow-forward" iconPosition="right" onPress={handleSubmit} />
+        <Button
+          label="Submit for approval"
+          icon="arrow-forward"
+          iconPosition="right"
+          onPress={handleSubmit}
+        />
 
         <View style={styles.footerRow}>
           <AppText variant="body" color={colors.textSecondary}>
             Already registered?{' '}
           </AppText>
-          <TouchableOpacity onPress={() => navigation.replace('Login')} hitSlop={8}>
+          <TouchableOpacity
+            onPress={() => navigation.replace('Login')}
+            hitSlop={8}>
             <AppText variant="bodyMedium" color={colors.primary}>
               Log In
             </AppText>

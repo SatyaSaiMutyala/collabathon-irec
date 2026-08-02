@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect} from 'react';
-import {ActivityIndicator, TouchableOpacity, View} from 'react-native';
+import {TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../../theme';
@@ -10,6 +10,8 @@ import {
   InfoRow,
   PaginatedList,
   PropertyCard,
+  PropertyCardSkeleton,
+  ProfileDetailSkeleton,
   ScreenContainer,
   StatRow,
 } from '../../components';
@@ -53,9 +55,7 @@ const DeveloperProfileScreen = ({route, navigation}) => {
   if (!developer && detailStatus === 'loading') {
     return (
       <ScreenContainer edges={['top']}>
-        <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
+        <ProfileDetailSkeleton />
       </ScreenContainer>
     );
   }
@@ -88,9 +88,11 @@ const DeveloperProfileScreen = ({route, navigation}) => {
       </View>
 
       <PaginatedList
+        renderSkeleton={() => <PropertyCardSkeleton />}
         list={properties}
         onRefresh={loadFirstPage}
         onEndReached={handleEndReached}
+        emptyIcon="business-outline"
         emptyTitle="No listings yet"
         emptyMessage="This developer has no active properties right now."
         ListHeaderComponent={

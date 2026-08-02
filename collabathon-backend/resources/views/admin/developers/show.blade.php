@@ -43,7 +43,7 @@
                 <img src="{{ Storage::disk('public')->url($developer->logo_path) }}" alt=""
                      class="w-14 h-14 rounded-xl object-cover border border-line-soft shrink-0">
             @else
-                <x-avatar :name="$developer->company_name" size="lg" class="w-14 h-14 shrink-0" />
+                <x-avatar :name="$developer->company_name" :src="$developer->logo_path" size="lg" class="w-14 h-14 shrink-0" />
             @endif
 
             <div class="min-w-0">

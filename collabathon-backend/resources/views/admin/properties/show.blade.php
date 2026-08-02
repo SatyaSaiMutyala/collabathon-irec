@@ -144,7 +144,53 @@
                         {{ ucfirst($property->listing_status) }}
                     </x-badge>
                     <x-badge tone="neutral" size="sm">{{ $property->project_status }}</x-badge>
+
+                    {{-- The developer's half of the gate, beside the admin's half. --}}
+                    @php
+                        $devTone = ['accepted' => 'success', 'pending' => 'warning', 'declined' => 'danger'];
+                        $devLabel = [
+                            'accepted' => 'Developer accepted',
+                            'pending' => 'Awaiting developer',
+                            'declined' => 'Developer declined',
+                        ];
+                    @endphp
+                    <x-badge :tone="$devTone[$property->developer_status] ?? 'neutral'" size="sm" dot>
+                        {{ $devLabel[$property->developer_status] ?? ucfirst($property->developer_status) }}
+                    </x-badge>
                 </div>
+
+                {{-- Visibility is the two keys together, so it is stated once, plainly,
+                     rather than left for the reader to infer from two badges. --}}
+                @if($property->listing_status === 'active' && $property->developer_status === 'accepted')
+                    <p class="flex items-center gap-1.5 text-[12px] text-success mt-2">
+                        <x-icon name="check" class="w-3.5 h-3.5" />
+                        Live — channel partners can see this project
+                        @if($property->developer_responded_at)
+                            <span class="text-ink-3">· accepted {{ $property->developer_responded_at->diffForHumans() }}</span>
+                        @endif
+                    </p>
+                @elseif($property->developer_status === 'pending')
+                    <p class="flex items-center gap-1.5 text-[12px] text-warning mt-2">
+                        <x-icon name="clock" class="w-3.5 h-3.5" />
+                        Hidden from partners — waiting for
+                        {{ $property->developer?->company_name ?? 'the developer' }} to accept it
+                    </p>
+                @elseif($property->developer_status === 'declined')
+                    <p class="flex items-start gap-1.5 text-[12px] text-danger mt-2">
+                        <x-icon name="x" class="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <span>
+                            Declined by the developer.
+                            @if($property->developer_decline_reason)
+                                <span class="text-ink-2">Reason: {{ $property->developer_decline_reason }}</span>
+                            @endif
+                        </span>
+                    </p>
+                @else
+                    <p class="flex items-center gap-1.5 text-[12px] text-ink-3 mt-2">
+                        <x-icon name="clock" class="w-3.5 h-3.5" />
+                        Accepted by the developer, but not published — set the listing Active to go live.
+                    </p>
+                @endif
                 <p class="text-[13px] text-ink-2 mt-1">
                     {{ $property->developer?->company_name ?? 'No developer' }}
                     @if($property->locality || $property->city)
@@ -239,6 +285,32 @@
                     </dl>
                 </x-panel>
             @endforeach
+
+            {{-- Developer terms ----------------------------------------------- --}}
+            @if($detail?->hasTerms())
+                <x-panel :title="$detail->terms_title ?: 'Developer terms'"
+                         :subtitle="$detail->terms_type === 'document' ? 'Document · shown to the developer and to brokers' : 'Typed content · shown to the developer and to brokers'"
+                         :padded="$detail->terms_type === 'text'"
+                         :flush="$detail->terms_type === 'document'">
+                    @if($detail->terms_type === 'document')
+                        <div class="px-5 py-4 flex items-center justify-between gap-3">
+                            <div class="flex items-center gap-2.5 min-w-0">
+                                <x-icon name="download" class="w-4 h-4 text-ink-3 shrink-0" />
+                                <p class="text-[12.5px] text-ink truncate">{{ basename($detail->terms_document_path) }}</p>
+                            </div>
+                            <x-button variant="subtle" size="sm" tag="a" target="_blank"
+                                      href="{{ asset('storage/' . $detail->terms_document_path) }}">
+                                Open
+                            </x-button>
+                        </div>
+                    @else
+                        {{-- Sanitised on write by App\Support\RichText, so the stored markup
+                             is already the allowlist — see the note there on why this is not
+                             re-cleaned per render. --}}
+                        <div class="rich-text text-[13px] text-ink">{!! $detail->terms_content !!}</div>
+                    @endif
+                </x-panel>
+            @endif
 
             {{-- Unit types ---------------------------------------------------- --}}
             <x-panel title="Unit types" :subtitle="$property->unitTypes->count() . ' configured'" flush>

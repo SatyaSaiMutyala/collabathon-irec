@@ -27,9 +27,9 @@ $max = $max ?: 1;
             </div>
             <span class="text-[13px] font-semibold text-ink nums">{{ number_format((float) $r['value']) }}</span>
 
-            {{-- Bar: <=24px thick, 4px rounded data-end, square at the baseline --}}
-            <div class="col-span-2 h-[10px] bg-canvas rounded-[4px] overflow-hidden">
-                <div class="h-full rounded-r-[4px] transition-[filter,width] duration-150"
+            {{-- Bar: <=24px thick, square ends — corners are 0 across the whole UI --}}
+            <div class="col-span-2 h-[10px] bg-canvas overflow-hidden">
+                <div class="h-full transition-[filter,width] duration-150"
                      :class="hot && 'brightness-110'"
                      style="width: {{ round(max($pct, 1.5), 2) }}%; background: {{ $color }}"></div>
             </div>

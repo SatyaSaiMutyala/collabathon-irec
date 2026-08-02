@@ -1,11 +1,23 @@
-package com.collabathon
+package com.app.collabathon
 
+import android.os.Bundle
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
 
 class MainActivity : ReactActivity() {
+
+  /**
+   * The manifest launches this activity under SplashTheme so Android paints the logo
+   * while the process starts. Swapping back to AppTheme here — before super.onCreate
+   * inflates anything — means the splash drawable is not left sitting behind every
+   * screen for the rest of the session.
+   */
+  override fun onCreate(savedInstanceState: Bundle?) {
+    setTheme(R.style.AppTheme)
+    super.onCreate(savedInstanceState)
+  }
 
   /**
    * Returns the name of the main component registered from JavaScript. This is used to schedule

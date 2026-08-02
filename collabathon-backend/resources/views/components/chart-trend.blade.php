@@ -182,7 +182,7 @@ $showEndLabels = count($series) < 2 || $minGap >= 26;
             <template x-for="(s, i) in legend" :key="s.label">
                 <div class="flex items-center justify-between gap-4 py-0.5">
                     <span class="flex items-center gap-1.5 min-w-0">
-                        <span class="w-2 h-2 rounded-full shrink-0" :style="`background:${s.color}`"></span>
+                        <span class="w-2 h-2 shrink-0" :style="`background:${s.color}`"></span>
                         <span class="text-[12px] text-ink-2 truncate" x-text="s.label"></span>
                     </span>
                     <span class="text-[12.5px] font-semibold text-ink nums"
@@ -202,7 +202,7 @@ $showEndLabels = count($series) < 2 || $minGap >= 26;
     <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3 pl-1">
         @foreach($series as $s)
             <span class="flex items-baseline gap-1.5">
-                <span class="w-2.5 h-2.5 rounded-full self-center" style="background: {{ $s['color'] }}"></span>
+                <span class="w-2.5 h-2.5 self-center" style="background: {{ $s['color'] }}"></span>
                 <span class="text-[12px] text-ink-2">{{ $s['label'] }}</span>
                 @unless($showEndLabels)
                     <span class="text-[12px] font-semibold text-ink nums">

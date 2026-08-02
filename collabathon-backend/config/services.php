@@ -4,6 +4,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Firebase Cloud Messaging
+    |--------------------------------------------------------------------------
+    | Path is relative to storage_path(). The service account JSON lives under
+    | storage/app, which is gitignored, so the key is never committed. Absent
+    | file => App\Services\Fcm no-ops instead of throwing.
+    */
+    'fcm' => [
+        'credentials' => env('FCM_CREDENTIALS', 'app/firebase/service-account.json'),
+    ],
+
+
+    /*
+    |--------------------------------------------------------------------------
     | Third Party Services
     |--------------------------------------------------------------------------
     |

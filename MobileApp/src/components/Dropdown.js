@@ -9,7 +9,22 @@ const TRIGGER_HEIGHT = verticalScale(42);
 const ITEM_HEIGHT = verticalScale(44);
 const MAX_VISIBLE_ITEMS = 6;
 
-const Dropdown = ({label, placeholder, displayValue, options, multiSelect = false, selected, onSelectSingle, onToggleMulti, error}) => {
+const Dropdown = ({
+  label,
+  placeholder,
+  displayValue,
+  options,
+  multiSelect = false,
+  selected,
+  onSelectSingle,
+  onToggleMulti,
+  error,
+  /**
+   * Multi-select values that close the list when picked — an option that means
+   * "everything", where carrying on choosing makes no sense.
+   */
+  terminalOptions = [],
+}) => {
   const {colors, radius, spacing} = useAppTheme();
   const [isOpen, setIsOpen] = useState(false);
   const [layout, setLayout] = useState(null);
@@ -26,7 +41,18 @@ const Dropdown = ({label, placeholder, displayValue, options, multiSelect = fals
 
   const handlePress = option => {
     if (multiSelect) {
+      const wasSelected = isSelected(option);
       onToggleMulti(option);
+
+      // A terminal option ends the selection — "All" already covers everything, so there
+      // is nothing left to add and staying open just makes the user dismiss the sheet.
+      //
+      // Only when it is being turned ON: tapping "All" a second time is deselecting it,
+      // and the reason to do that is to pick specific values instead, which needs the
+      // list to stay open.
+      if (!wasSelected && terminalOptions.includes(option)) {
+        setIsOpen(false);
+      }
     } else {
       onSelectSingle(option);
       setIsOpen(false);

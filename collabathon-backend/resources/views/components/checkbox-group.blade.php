@@ -25,7 +25,7 @@
             <label for="{{ $inputId }}" class="flex items-center gap-2 cursor-pointer group">
                 <input id="{{ $inputId }}" name="{{ $name }}[]" type="checkbox" value="{{ $value }}"
                        @checked(in_array((string) $value, $checked, true))
-                       class="w-4 h-4 rounded border-line text-primary accent-primary
+                       class="w-4 h-4 border-line text-primary accent-primary
                               focus:ring-[3px] focus:ring-primary-ring focus:outline-none shrink-0">
                 <span class="text-[12.5px] text-ink-2 group-hover:text-ink transition-colors">{{ $option }}</span>
             </label>

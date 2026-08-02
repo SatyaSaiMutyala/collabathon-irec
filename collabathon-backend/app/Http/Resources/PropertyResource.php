@@ -27,6 +27,16 @@ class PropertyResource extends JsonResource
             'project_type' => $this->project_type,
             'project_status' => $this->project_status,
             'listing_status' => $this->listing_status,
+
+            // The developer-acceptance gate. `is_live` is the answer to the question
+            // both clients actually ask — "can a broker see this?" — so neither has to
+            // re-derive the two-key rule and risk getting it wrong.
+            'developer_status' => $this->developer_status,
+            'developer_responded_at' => $this->developer_responded_at?->toIso8601String(),
+            'developer_decline_reason' => $this->developer_decline_reason,
+            'is_live' => $this->listing_status === 'active'
+                && $this->developer_status === \App\Models\Property::DEV_ACCEPTED,
+
             'tagline' => $this->tagline,
             'cover_image_url' => $this->cover_image_path ? asset('storage/' . $this->cover_image_path) : null,
 

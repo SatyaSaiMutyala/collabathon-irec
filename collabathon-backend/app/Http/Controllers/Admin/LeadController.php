@@ -6,6 +6,7 @@ use App\Http\Concerns\HandlesListQueries;
 use App\Http\Controllers\Controller;
 use App\Models\Developer;
 use App\Models\Lead;
+use App\Services\PushNotifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -29,6 +30,7 @@ class LeadController extends Controller
         $query = Lead::query()
             ->with([
                 'broker:id,name',
+                'broker.brokerProfile:id,user_id,photo_path',
                 'property:id,name',
                 'developer:id,company_name',
             ])
@@ -86,7 +88,7 @@ class LeadController extends Controller
      * the target status rather than nudged incrementally, which is what makes going backwards
      * leave a coherent record instead of a half-updated one.
      */
-    public function update(Request $request, Lead $lead): RedirectResponse
+    public function update(Request $request, Lead $lead, PushNotifier $push): RedirectResponse
     {
         $this->authorize('edit-module', 'leads');
 
@@ -110,6 +112,15 @@ class LeadController extends Controller
             'responded_at' => $responded ? ($lead->responded_at ?? now()) : null,
             'developer_note' => $data['developer_note'] ?? $lead->developer_note,
         ]);
+
+        // The admin can move a lead in either direction; only the two decisions the
+        // broker is actually waiting on are worth a push.
+        match ($status) {
+            Lead::STATUS_ACCEPTED => $push->requestAccepted($lead->refresh()),
+            Lead::STATUS_DECLINED => $push->requestDeclined($lead->refresh()),
+            Lead::STATUS_INTERESTED => $push->requestReceived($lead->refresh()),
+            default => null,
+        };
 
         return back()->with('success', "Lead moved to {$status}.");
     }

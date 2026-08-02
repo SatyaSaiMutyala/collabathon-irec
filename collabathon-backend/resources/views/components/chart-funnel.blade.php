@@ -31,8 +31,8 @@ $top = $stages ? (float) $stages[0]['value'] : 1;
                 </span>
             </div>
             {{-- Track is a lighter step of the same ramp; bar capped at 24px thick --}}
-            <div class="h-[14px] rounded-[4px] bg-canvas overflow-hidden">
-                <div class="h-full rounded-r-[4px] transition-[filter] duration-150"
+            <div class="h-[14px] bg-canvas overflow-hidden">
+                <div class="h-full transition-[filter] duration-150"
                      :class="hot && 'brightness-110'"
                      style="width: {{ round(max($pctOfTop, 1.5), 2) }}%; background: {{ $color }}"></div>
             </div>

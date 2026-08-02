@@ -55,6 +55,11 @@ class User extends Authenticatable
     }
 
     /** Leads this user raised as a broker. */
+    public function deviceTokens(): HasMany
+    {
+        return $this->hasMany(DeviceToken::class);
+    }
+
     public function leads(): HasMany
     {
         return $this->hasMany(Lead::class, 'broker_id');

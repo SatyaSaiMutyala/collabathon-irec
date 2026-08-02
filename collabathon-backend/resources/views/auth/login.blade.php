@@ -82,7 +82,7 @@
 
                     <label class="flex items-center gap-2 select-none cursor-pointer">
                         <input type="checkbox" name="remember" value="1"
-                               class="w-4 h-4 rounded border-line text-primary focus:ring-primary-ring">
+                               class="w-4 h-4 border-line text-primary focus:ring-primary-ring">
                         <span class="text-[12.5px] text-ink-2">Keep me signed in</span>
                     </label>
 

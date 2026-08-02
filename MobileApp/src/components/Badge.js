@@ -5,7 +5,7 @@ import {useAppTheme} from '../theme';
 import AppText from './AppText';
 
 const Badge = ({label, tone = 'neutral'}) => {
-  const {colors, radius} = useAppTheme();
+  const {colors, roundedRadius} = useAppTheme();
 
   const toneStyles = {
     primary: {bg: colors.primarySoft, text: colors.primaryDark},
@@ -21,7 +21,7 @@ const Badge = ({label, tone = 'neutral'}) => {
     <View
       style={[
         styles.container,
-        {backgroundColor: t.bg, borderRadius: radius.pill},
+        {backgroundColor: t.bg, borderRadius: roundedRadius.badge},
       ]}>
       <AppText variant="overline" color={t.text}>
         {label}

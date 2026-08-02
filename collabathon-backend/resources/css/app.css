@@ -12,18 +12,31 @@
         'Segoe UI Symbol', 'Noto Color Emoji';
 
     /* ---------------------------------------------------------------
-       Brand — Apple-website style: black/white/gray + one blue accent.
-       `primary` is the fill weight; `primary-dark` is the text/icon weight.
-       `-soft-dark`/`-ring-dark` are for use on the dark sidebar surface,
-       where the light-mode `-soft`/`-ring` pair is too pale to read.
+       Brand — Collabothon orange over the black shell. Every weight below is the
+       logo hue #FF7800 scaled toward black or white, so the hue angle never drifts.
+
+       The logo hue itself is only 2.65:1 on white, and the views resolve `primary`
+       both ways — `text-primary` on the panel/canvas *and* `bg-primary text-white`.
+       So `primary` is the darkest weight that still reads orange and clears 4.5:1
+       in both directions; the undimmed hue lives in `primary-light` and is used
+       only where it sits on the dark sidebar, which is the one surface bright
+       enough orange can hold. `primary-dark` is the hover/text weight and is now a
+       genuine step *darker* — the monochrome ramp had to go lighter because black
+       cannot be darkened; a hue can.
+       `-soft-dark`/`-ring-dark` are for the dark sidebar surface, where the
+       light-mode `-soft`/`-ring` pair is too pale to read.
+       Ratios (see the pairs the views actually use):
+         text-primary on panel 4.92 · on canvas 4.52 · on primary-soft 4.68
+         white on bg-primary 4.92 · text-primary-dark on white 7.21
+         primary-light on nav 6.36 · nav ink on primary-light 6.36
        --------------------------------------------------------------- */
-    --color-primary: #0071e3;
-    --color-primary-dark: #0058b0;
-    --color-primary-light: #3b9eff;
-    --color-primary-soft: #e8f2fd;
-    --color-primary-ring: #bedcf8;
-    --color-primary-soft-dark: #14395c;
-    --color-primary-ring-dark: #2c5a85;
+    --color-primary: #b55500;
+    --color-primary-dark: #8d4200;
+    --color-primary-light: #ff7800;
+    --color-primary-soft: #fff8f1;
+    --color-primary-ring: #ffcc9e;
+    --color-primary-soft-dark: #421f00;
+    --color-primary-ring-dark: #853e00;
 
     /* Dark neutral surface — sidebar, dark buttons/pills. No alpha anywhere:
        hover/active/text states are solid tokens, not white-on-dark opacity. */
@@ -36,8 +49,14 @@
     --color-nav-text-2: #98989d;
     --color-nav-text-3: #6e6e73;
 
-    /* Opaque modal/drawer/mobile-nav scrim — fully hides content, no blur. */
-    --color-scrim: #1d1d1f;
+    /* Modal/drawer/mobile-nav scrim.
+       Translucent, not opaque: at full opacity the page vanished and a dialog read as
+       floating on a black screen, with no sense of what it was opened from. A light 20%
+       veil is enough to push the dialog forward while the table behind it stays clearly
+       legible — the panel's own shadow and ring do most of the separating.
+       Neutral grey, not the 29/29/31 ink: over a large flat area that 2-point blue lean
+       showed up as a cool cast rather than a dim. */
+    --color-scrim: rgb(29 29 29 / 0.2);
 
     /* Text ink */
     --color-ink: #1d1d1f;
@@ -82,16 +101,49 @@
        Chart palette — validated with the dataviz validator against the
        white panel surface. Do not hand-edit without re-running it.
          chart-1 / chart-2 — categorical pair
-           CVD ΔE 28.0 · normal-vision ΔE 32.3 · both >= 3:1
+           CVD ΔE 21.1 · normal-vision ΔE 25.5 · both >= 3:1
+         chart-2 was gold; replaced when the brand went monochrome. It is a
+         burnt sienna rather than a red so it cannot be mistaken for the
+         reserved danger status colour.
          funnel-1..3 — single-hue ordinal ramp
            monotone L · adjacent ΔL >= 0.06 · light end 2.26:1
        --------------------------------------------------------------- */
     --color-chart-1: #1d5fa8;
-    --color-chart-2: #c08a1e;
+    --color-chart-2: #a1521c;
     --color-funnel-1: #86b0df;
     --color-funnel-2: #3c7bc0;
     --color-funnel-3: #17518f;
     --color-grid: #ecebe6;
+
+    /* ---------------------------------------------------------------
+       Corners — square everywhere. Zeroing the scale here means every
+       named corner utility resolves to 0, so the classes left in the markup
+       are inert rather than needing to be hunted down one by one.
+       The pill variant and arbitrary bracket values do NOT read these tokens,
+       so those are stripped from the markup directly. Note this file is itself
+       scanned for class names — naming those utilities here would regenerate them.
+       --------------------------------------------------------------- */
+    --radius-xs: 0px;
+    --radius-sm: 0px;
+    --radius-md: 0px;
+    --radius-lg: 0px;
+    --radius-xl: 0px;
+    --radius-2xl: 0px;
+    --radius-3xl: 0px;
+    --radius-4xl: 0px;
+
+    /* The exceptions to the square rule, mirroring the four the mobile app carves
+       out in MobileApp/src/theme/metrics.js — keep the two lists in step. These are
+       markers, controls and people that sit *on top of* content rather than being
+       surfaces of their own; squared off, they merge into whatever is behind them.
+       They are their own tokens, not restored scale steps, so the scale above stays
+       0 at every call site and the exceptions stay countable. Reach for these only
+       when a shape is meant to read as detached from the layout, never to round a
+       panel, card, input or menu. */
+    --radius-badge: 9999px;        /* status chips, their dot channel, count bubbles */
+    --radius-notification: 9999px; /* notification tone discs and the unread dot */
+    --radius-control: 9999px;      /* icon-only buttons — bell, menu, close, log out */
+    --radius-avatar: 9999px;       /* initials avatars, in the panel and the sidebar */
 
     /* Elevation — shallow and layered; panels are defined by line, not shadow */
     --shadow-card: 0 1px 2px rgb(20 23 31 / 0.04);
@@ -106,11 +158,11 @@
         text-rendering: optimizeLegibility;
     }
 
-    /* One focus treatment everywhere, keyboard-only. */
+    /* One focus treatment everywhere, keyboard-only. Square, like everything else. */
     :focus-visible {
         outline: 2px solid var(--color-primary-dark);
         outline-offset: 2px;
-        border-radius: 4px;
+        border-radius: 0;
     }
 
     [x-cloak] {
@@ -122,6 +174,36 @@
     /* Columns of numbers align; standalone display figures never use this. */
     .nums {
         font-variant-numeric: tabular-nums;
+    }
+
+    /* ---------------------------------------------------------------
+       Skeleton — the shimmer behind <x-skeleton> and the navigation
+       placeholder. A sweeping highlight, not a pulse: a pulse reads as
+       "disabled", a sweep reads as "arriving".
+       --------------------------------------------------------------- */
+    .skeleton {
+        background-color: var(--color-line-soft);
+        background-image: linear-gradient(
+            90deg,
+            var(--color-line-soft) 0%,
+            var(--color-line) 50%,
+            var(--color-line-soft) 100%
+        );
+        background-size: 200% 100%;
+        animation: skeleton-sweep 1.4s ease-in-out infinite;
+    }
+
+    @keyframes skeleton-sweep {
+        from { background-position: 200% 0; }
+        to { background-position: -200% 0; }
+    }
+
+    /* An indefinite sweep is exactly the kind of motion this setting exists to stop.
+       The block stays, so the layout still holds its place. */
+    @media (prefers-reduced-motion: reduce) {
+        .skeleton {
+            animation: none;
+        }
     }
 
     .scrollbar-slim {
@@ -136,10 +218,85 @@
 
     .scrollbar-slim::-webkit-scrollbar-thumb {
         background: var(--color-line);
-        border-radius: 999px;
+        border-radius: 0;
     }
 
     .scrollbar-slim::-webkit-scrollbar-track {
         background: transparent;
     }
+}
+
+/* -------------------------------------------------------------------------
+   Rich text — the contenteditable surface in the project wizard, and the
+   read-only rendering of stored terms on the project page.
+
+   Tailwind's preflight strips margins and list markers from everything, which
+   is right for a UI and wrong for prose. These put them back for this subtree
+   only, so what an admin types looks like what a broker will read.
+   ------------------------------------------------------------------------- */
+.rich-text:empty::before {
+    content: attr(data-placeholder);
+    color: var(--color-ink-3);
+    pointer-events: none;
+}
+
+.rich-text p { margin: 0 0 0.65em; }
+.rich-text p:last-child { margin-bottom: 0; }
+
+.rich-text h1,
+.rich-text h2,
+.rich-text h3,
+.rich-text h4 {
+    font-weight: 600;
+    color: var(--color-ink);
+    margin: 1em 0 0.4em;
+    line-height: 1.3;
+}
+.rich-text h1 { font-size: 1.35em; }
+.rich-text h2 { font-size: 1.2em; }
+.rich-text h3 { font-size: 1.08em; }
+.rich-text h4 { font-size: 1em; }
+.rich-text :is(h1, h2, h3, h4):first-child { margin-top: 0; }
+
+.rich-text ul,
+.rich-text ol {
+    margin: 0 0 0.65em;
+    padding-left: 1.4em;
+}
+.rich-text ul { list-style: disc; }
+.rich-text ol { list-style: decimal; }
+.rich-text li { margin-bottom: 0.2em; }
+
+.rich-text a {
+    color: var(--color-primary-dark);
+    text-decoration: underline;
+}
+
+.rich-text blockquote {
+    margin: 0 0 0.65em;
+    padding-left: 0.9em;
+    border-left: 2px solid var(--color-line);
+    color: var(--color-ink-2);
+}
+
+.rich-text hr {
+    margin: 1em 0;
+    border: 0;
+    border-top: 1px solid var(--color-line);
+}
+
+.rich-text table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 0 0.65em;
+    font-size: 0.95em;
+}
+.rich-text :is(th, td) {
+    border: 1px solid var(--color-line);
+    padding: 0.4em 0.6em;
+    text-align: left;
+}
+.rich-text th {
+    background: var(--color-canvas);
+    font-weight: 600;
 }

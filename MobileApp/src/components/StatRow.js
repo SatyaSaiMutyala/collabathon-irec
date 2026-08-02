@@ -9,8 +9,12 @@ const StatRow = ({stats}) => {
   const {colors, spacing} = useAppTheme();
 
   const toneColor = tone => {
-    if (tone === 'success') return colors.success;
-    if (tone === 'muted') return colors.textMuted;
+    if (tone === 'success') {
+      return colors.success;
+    }
+    if (tone === 'muted') {
+      return colors.textMuted;
+    }
     return colors.primary;
   };
 

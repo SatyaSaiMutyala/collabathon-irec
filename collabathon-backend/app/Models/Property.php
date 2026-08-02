@@ -27,6 +27,13 @@ class Property extends Model
 {
     use SoftDeletes;
 
+    /** The developer's response to a project the admin assigned them. */
+    public const DEV_PENDING = 'pending';
+
+    public const DEV_ACCEPTED = 'accepted';
+
+    public const DEV_DECLINED = 'declined';
+
     protected function casts(): array
     {
         return [
@@ -38,7 +45,19 @@ class Property extends Model
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
             'land_parcel_acres' => 'decimal:2',
+            'developer_responded_at' => 'datetime',
         ];
+    }
+
+    public function isAcceptedByDeveloper(): bool
+    {
+        return $this->developer_status === self::DEV_ACCEPTED;
+    }
+
+    /** True once both keys are turned: admin published it and the developer owned it. */
+    public function isVisibleToBrokers(): bool
+    {
+        return $this->listing_status === 'active' && $this->isAcceptedByDeveloper();
     }
 
     // ------------------------------------------------------------------ relations
@@ -91,6 +110,25 @@ class Property extends Model
     }
 
     /**
+     * The only scope a broker-facing query may use.
+     *
+     * `active()` alone is NOT sufficient any more — it means "the admin published it",
+     * which says nothing about whether the developer has accepted the assignment. Both
+     * keys have to be turned, and the composite index backs exactly this pair.
+     */
+    public function scopeBrokerVisible(Builder $query): Builder
+    {
+        return $query->where('listing_status', 'active')
+            ->where('developer_status', self::DEV_ACCEPTED);
+    }
+
+    /** Projects waiting on this developer's decision. */
+    public function scopeAwaitingDeveloper(Builder $query): Builder
+    {
+        return $query->where('developer_status', self::DEV_PENDING);
+    }
+
+    /**
      * FULLTEXT search on (name, locality, city). MySQL's minimum token length makes
      * FULLTEXT unreliable for 1–3 character terms, so those fall back to a prefix LIKE,
      * which can still use the name index. A leading-wildcard LIKE is never used —
@@ -128,6 +166,7 @@ class Property extends Model
         return $query
             ->when($filters['developer_id'] ?? null, fn ($q, $v) => $q->where('developer_id', $v))
             ->when($filters['status'] ?? null, fn ($q, $v) => $q->where('listing_status', $v))
+            ->when($filters['developer_status'] ?? null, fn ($q, $v) => $q->where('developer_status', $v))
             ->when($filters['type'] ?? null, fn ($q, $v) => $q->where('project_type', $v))
             ->when($filters['project_status'] ?? null, fn ($q, $v) => $q->where('project_status', $v))
             ->when($filters['city'] ?? null, fn ($q, $v) => $q->where('city', $v))

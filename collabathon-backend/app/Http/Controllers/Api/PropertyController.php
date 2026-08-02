@@ -40,7 +40,7 @@ class PropertyController extends Controller
             ->filter($this->filters($request, [
                 'developer_id', 'type', 'city', 'zone', 'price_min', 'price_max', 'project_status',
             ]))
-            ->active();
+            ->brokerVisible();
 
         // Attach only this broker's own lead, so the card can render "Interested" state.
         if ($user && $user->isBroker()) {
@@ -55,7 +55,9 @@ class PropertyController extends Controller
     /** GET /api/properties/{property} — records a view for brokers. */
     public function show(Request $request, Property $property): JsonResponse
     {
-        abort_unless($property->listing_status === 'active', 404);
+        // 404, not 403: a project the developer has not accepted must not be
+        // discoverable by id either.
+        abort_unless($property->isVisibleToBrokers(), 404);
 
         $property->load(['developer', 'detail', 'unitTypes', 'media']);
 

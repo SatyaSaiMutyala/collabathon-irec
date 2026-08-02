@@ -60,11 +60,20 @@ const TrendChart = ({data, labels, height = 140}) => {
     }
   }
 
+  /**
+   * Ticks carry a stable `id` and are keyed by it, never by `value`: a tick's identity
+   * is its position on the axis, and two positions can legitimately share a label. At
+   * max = 1 the midpoint rounds to 1 as well, which produced duplicate React keys.
+   *
+   * The midpoint is also dropped when it would not read as a distinct step — an axis
+   * labelled 1 / 1 / 0 is worse than one labelled 1 / 0.
+   */
+  const midValue = Math.round(max / 2);
   const axisTicks = [
-    {value: max, y: topPad},
-    {value: Math.round(max / 2), y: topPad + usableHeight / 2},
-    {value: 0, y: topPad + usableHeight},
-  ];
+    {id: 'max', value: max, y: topPad},
+    {id: 'mid', value: midValue, y: topPad + usableHeight / 2},
+    {id: 'zero', value: 0, y: topPad + usableHeight},
+  ].filter(tick => tick.id !== 'mid' || (midValue !== max && midValue !== 0));
 
   return (
     <View>
@@ -72,7 +81,7 @@ const TrendChart = ({data, labels, height = 140}) => {
         <View style={{width: AXIS_WIDTH, height: chartHeight}}>
           {axisTicks.map(tick => (
             <AppText
-              key={tick.value}
+              key={tick.id}
               variant="overline"
               color={colors.textMuted}
               style={{position: 'absolute', top: Math.min(Math.max(tick.y - moderateScale(6), 0), chartHeight - moderateScale(12))}}>
@@ -84,7 +93,7 @@ const TrendChart = ({data, labels, height = 140}) => {
         <View style={{flex: 1, height: chartHeight}} onLayout={e => setWidth(e.nativeEvent.layout.width)}>
         {axisTicks.map(tick => (
           <View
-            key={`grid-${tick.value}`}
+            key={`grid-${tick.id}`}
             style={{
               position: 'absolute',
               left: 0,
@@ -147,7 +156,7 @@ const TrendChart = ({data, labels, height = 140}) => {
                 top: point.y - dotSize / 2,
                 width: dotSize,
                 height: dotSize,
-                borderRadius: dotSize / 2,
+                borderRadius: 0,
                 backgroundColor: isLast ? colors.primary : colors.card,
                 borderWidth: isLast ? 0 : moderateScale(2),
                 borderColor: colors.primary,
@@ -164,7 +173,7 @@ const TrendChart = ({data, labels, height = 140}) => {
               top: Math.max(lastPoint.y - moderateScale(26), 0),
               paddingHorizontal: moderateScale(7),
               paddingVertical: moderateScale(2),
-              borderRadius: moderateScale(8),
+              borderRadius: 0,
               backgroundColor: colors.primary,
             }}>
             <AppText variant="overline" color={colors.textInverse}>
@@ -183,8 +192,11 @@ const TrendChart = ({data, labels, height = 140}) => {
             marginTop: moderateScale(8),
             marginLeft: AXIS_WIDTH,
           }}>
-          {labels.map(label => (
-            <AppText key={label} variant="overline" color={colors.textMuted}>
+          {/* Keyed by position, not text: a series can legitimately repeat a label
+              (two weeks in the same month, the same weekday twice) and a text key
+              would collide the same way the axis ticks did. */}
+          {labels.map((label, index) => (
+            <AppText key={`label-${index}`} variant="overline" color={colors.textMuted}>
               {label}
             </AppText>
           ))}

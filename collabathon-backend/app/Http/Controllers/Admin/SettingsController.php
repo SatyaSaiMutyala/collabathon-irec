@@ -3,10 +3,16 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\BrokerApprovedMail;
 use App\Models\FormField;
 use App\Models\Setting;
+use App\Models\User;
+use App\Support\MailSettings;
 use Illuminate\Http\RedirectResponse;
+use App\Services\Fcm;
+use App\Support\FirebaseCredentials;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
 
 class SettingsController extends Controller
@@ -14,9 +20,93 @@ class SettingsController extends Controller
     public function index(): View
     {
         return view('admin.settings', [
+            'firebase' => [
+                'configured' => FirebaseCredentials::isConfigured(),
+                // Identify the account without exposing it — neither of these can send.
+                'project_id' => FirebaseCredentials::projectId(),
+                'client_email' => FirebaseCredentials::clientEmail(),
+                'uploaded_at' => FirebaseCredentials::uploadedAt(),
+                'path' => FirebaseCredentials::path(),
+            ],
             'fieldGroups' => FormField::orderBy('sort_order')->get()->groupBy('form'),
             'accentColor' => Setting::get('accent_color', '#C9A227'),
+            'mail' => [
+                'configured' => MailSettings::isConfigured(),
+                // The key identifies the account and is safe to show; the secret is the
+                // credential and is never rendered back, only replaced.
+                'api_key' => MailSettings::apiKey(),
+                'masked_key' => MailSettings::maskedApiKey(),
+                'has_secret' => filled(MailSettings::secretKey()),
+                'from_address' => MailSettings::fromAddress(),
+                'from_name' => MailSettings::fromName(),
+            ],
         ]);
+    }
+
+    /**
+     * Save the Mailjet credentials and the sender identity.
+     *
+     * A blank secret means "keep what is stored" — the field cannot be prefilled, because
+     * the value is encrypted and deliberately never sent back to the browser, so requiring
+     * it on every save would force the admin to re-enter it to change a from-name.
+     */
+    public function updateMail(Request $request): RedirectResponse
+    {
+        $this->authorize('edit-module', 'settings');
+
+        $data = $request->validate([
+            'mailjet_api_key' => ['required', 'string', 'max:191'],
+            'mailjet_secret_key' => [MailSettings::isConfigured() ? 'nullable' : 'required', 'string', 'max:191'],
+            'mail_from_address' => ['required', 'email', 'max:191'],
+            'mail_from_name' => ['required', 'string', 'max:191'],
+        ], [
+            'mailjet_secret_key.required' => 'Enter the secret key the first time you connect Mailjet.',
+            'mail_from_address.email' => 'The from address must be a valid address Mailjet has verified.',
+        ]);
+
+        Setting::put(MailSettings::KEY_API, trim($data['mailjet_api_key']));
+        Setting::put(MailSettings::KEY_FROM_ADDRESS, trim($data['mail_from_address']));
+        Setting::put(MailSettings::KEY_FROM_NAME, trim($data['mail_from_name']));
+
+        if (filled($data['mailjet_secret_key'] ?? null)) {
+            MailSettings::putSecret(trim($data['mailjet_secret_key']));
+        }
+
+        return back()->with('status', 'Email settings saved. Send a test to confirm they work.');
+    }
+
+    /**
+     * Send the real approval email to a chosen address.
+     *
+     * Deliberately the same mailable an approved broker receives, not a "this is a test"
+     * stub: the point is to see what they will see, and to prove the template renders as
+     * well as that the credentials authenticate.
+     */
+    public function testMail(Request $request): RedirectResponse
+    {
+        $this->authorize('edit-module', 'settings');
+
+        $data = $request->validate(['test_email' => ['required', 'email']]);
+
+        if (! MailSettings::apply()) {
+            return back()->with('warning', 'Add a Mailjet API key and secret before sending a test.');
+        }
+
+        // A stand-in broker so nothing has to exist in the database to run the test.
+        $sample = new User([
+            'name' => $request->user()->name,
+            'email' => $data['test_email'],
+        ]);
+
+        try {
+            Mail::to($data['test_email'])->send(new BrokerApprovedMail($sample, 'Example-Pass-1234'));
+        } catch (\Throwable $e) {
+            // The SMTP error is the whole value of a test — showing "failed" without it
+            // leaves the admin guessing between a wrong key and an unverified sender.
+            return back()->with('warning', 'Mailjet rejected the send: ' . $e->getMessage());
+        }
+
+        return back()->with('status', "Test email sent to {$data['test_email']}.");
     }
 
     /** Toggle a single form field on/off. */
@@ -49,5 +139,63 @@ class SettingsController extends Controller
         Setting::put('accent_color', $data['accent_color']);
 
         return back()->with('status', 'Theme saved. It applies on the next app launch.');
+    }
+
+    /**
+     * Replace the Firebase service account.
+     *
+     * Gated on manage-team, not edit-module:settings. This key can send as the entire
+     * Firebase project; that is a super-admin bar, above the one for toggling a form
+     * field on the same page.
+     */
+    public function updateFirebase(Request $request): RedirectResponse
+    {
+        $this->authorize('manage-team');
+
+        $request->validate([
+            // No `mimes:json` — browsers report .json inconsistently (application/json,
+            // text/plain, octet-stream), so the real check is parsing it below.
+            'credentials' => ['required', 'file', 'max:16'],
+        ], [
+            'credentials.required' => 'Choose the service account JSON to upload.',
+            'credentials.max' => 'A service account key is a couple of kilobytes — that file is too large to be one.',
+        ]);
+
+        $error = FirebaseCredentials::store($request->file('credentials'));
+
+        return $error === null
+            ? back()->with('success', 'Firebase service account saved. Push notifications are live.')
+            : back()->with('error', $error);
+    }
+
+    /** Removes the key. Push then no-ops and says so in the log, rather than erroring. */
+    public function forgetFirebase(): RedirectResponse
+    {
+        $this->authorize('manage-team');
+
+        FirebaseCredentials::forget();
+
+        return back()->with('warning', 'Firebase service account removed — no push notifications will send.');
+    }
+
+    /**
+     * Proves this server can actually reach FCM, which is the half the file alone cannot
+     * tell you: outbound HTTPS to Google is blocked on plenty of hosts.
+     */
+    public function testFirebase(Fcm $fcm): RedirectResponse
+    {
+        $this->authorize('manage-team');
+
+        if (! $fcm->configured()) {
+            return back()->with('error', 'No service account is saved yet.');
+        }
+
+        // A well-formed but non-existent token: reaching FCM at all proves the OAuth2
+        // exchange worked. FCM rejecting the token is the expected result.
+        $result = $fcm->send(['admin-panel-probe-token'], 'Probe', 'Connectivity check');
+
+        return $result['invalid'] === [] && $result['sent'] === 0
+            ? back()->with('error', 'Could not reach Firebase. Check outbound HTTPS from this server, then see storage/logs.')
+            : back()->with('success', 'Connected to Firebase — push notifications can be sent from this server.');
     }
 }

@@ -1,0 +1,83 @@
+<x-layouts.admin active="approvals" title="Decided Registrations" section="Manage">
+
+    <x-page-header
+        title="Decided Registrations"
+        subtitle="Every approval and rejection on record, with who decided and why. Decisions are append-only — reversing one adds a row rather than editing the old one.">
+        <x-slot:actions>
+            <x-button variant="subtle" tag="a" icon="clock" href="{{ route('admin.approvals') }}">
+                Back to queue
+            </x-button>
+        </x-slot:actions>
+    </x-page-header>
+
+    <div class="grid grid-cols-3 gap-3.5 mb-5">
+        <x-stat-card icon="check" label="Approved" :value="$stats['approved']" />
+        <x-stat-card icon="x" label="Rejected" :value="$stats['rejected']" />
+        <x-stat-card icon="clock" label="Decided (30d)" :value="$stats['last_30d']" />
+    </div>
+
+    <x-data-table
+        :paginator="$decisions"
+        label="decisions"
+        search-placeholder="Search by broker, company or email…"
+        empty-title="No decisions recorded"
+        empty-description="Approved and rejected registrations appear here.">
+
+        <x-slot:filters>
+            <x-filter-select name="outcome"
+                             :options="['approved' => 'Approved', 'rejected' => 'Rejected']"
+                             placeholder="Any outcome" />
+            <x-filter-select name="decided_by" :options="$reviewers" placeholder="Any reviewer" icon="users" />
+        </x-slot:filters>
+
+        <x-slot:head>
+            <x-th>Broker</x-th>
+            <x-th hide="md">Company</x-th>
+            <x-th hide="lg">Decided</x-th>
+            <x-th hide="xl">Reviewer</x-th>
+            <x-th hide="xl">Reason</x-th>
+            <x-th align="right">Outcome</x-th>
+        </x-slot:head>
+
+        @foreach($decisions as $decision)
+            {{-- Decided rows open the same review page: an approved broker's paperwork
+                 still needs to be auditable after the fact. --}}
+            <tr @class(['hover:bg-canvas transition-colors', 'cursor-pointer' => $decision->broker])
+                @if($decision->broker)
+                    x-on:click="window.location = @js(route('admin.approvals.show', $decision->broker))"
+                @endif>
+                <td class="px-4 py-3">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <x-avatar :name="$decision->broker?->name ?? '—'" :src="$decision->broker?->brokerProfile?->photo_path" size="sm" />
+                        <div class="min-w-0">
+                            @if($decision->broker)
+                                <a href="{{ route('admin.approvals.show', $decision->broker) }}"
+                                   class="text-[13px] font-medium text-ink hover:underline truncate block">{{ $decision->broker->name }}</a>
+                                <p class="text-[11.5px] text-ink-3 truncate">{{ $decision->broker->email }}</p>
+                            @else
+                                {{-- The broker row is gone but the decision survives: the
+                                     audit trail is the point of this table. --}}
+                                <p class="text-[13px] font-medium text-ink-3 truncate">Deleted broker</p>
+                            @endif
+                        </div>
+                    </div>
+                </td>
+                <td class="px-4 py-3 text-[12.5px] text-ink-2 hidden md:table-cell">
+                    {{ $decision->broker?->brokerProfile?->company_name ?: '—' }}
+                </td>
+                <td class="px-4 py-3 text-[12.5px] text-ink-3 nums hidden lg:table-cell">
+                    {{ $decision->created_at->format('d M Y') }}
+                </td>
+                <td class="px-4 py-3 text-[12.5px] text-ink-2 hidden xl:table-cell">{{ $decision->decider?->name ?: 'System' }}</td>
+                <td class="px-4 py-3 text-[12.5px] text-ink-3 max-w-[28ch] truncate hidden xl:table-cell">
+                    {{ $decision->reason ?: '—' }}
+                </td>
+                <td class="px-4 py-3 text-right">
+                    <x-badge :tone="$decision->decision === 'approved' ? 'success' : 'danger'" size="sm" dot>
+                        {{ ucfirst($decision->decision) }}
+                    </x-badge>
+                </td>
+            </tr>
+        @endforeach
+    </x-data-table>
+</x-layouts.admin>

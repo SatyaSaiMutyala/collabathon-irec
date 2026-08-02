@@ -3,8 +3,14 @@ import {FlatList, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../../theme';
-import {AppText, ScreenContainer} from '../../components';
-import {useAppDispatch} from '../../store/hooks';
+import {
+  AppText,
+  EmptyState,
+  NotificationRowSkeleton,
+  ScreenContainer,
+  SkeletonList,
+} from '../../components';
+import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {markAllRead} from '../../store/slices/notificationsSlice';
 import {useNotifications} from '../../hooks/useNotifications';
 
@@ -25,7 +31,7 @@ const TONE_ICON_COLOR = {
 };
 
 const NotificationRow = ({item}) => {
-  const {colors, spacing, radius} = useAppTheme();
+  const {colors, spacing, roundedRadius} = useAppTheme();
 
   return (
     <View
@@ -35,16 +41,18 @@ const NotificationRow = ({item}) => {
         borderBottomWidth: 1,
         borderBottomColor: colors.border,
       }}>
+      {/* The tone disc is a quiet marker beside the text, not a focal element —
+          kept small enough that the title stays the first thing read. */}
       <View
         style={{
-          width: moderateScale(38),
-          height: moderateScale(38),
-          borderRadius: radius.pill,
+          width: moderateScale(30),
+          height: moderateScale(30),
+          borderRadius: roundedRadius.notification,
           alignItems: 'center',
           justifyContent: 'center',
           backgroundColor: TONE_ICON_BG[item.tone](colors),
         }}>
-        <Icon name={item.icon} size={moderateScale(18)} color={TONE_ICON_COLOR[item.tone](colors)} />
+        <Icon name={item.icon} size={moderateScale(15)} color={TONE_ICON_COLOR[item.tone](colors)} />
       </View>
 
       <View style={{flex: 1, marginLeft: spacing.sm}}>
@@ -54,7 +62,7 @@ const NotificationRow = ({item}) => {
               style={{
                 width: moderateScale(6),
                 height: moderateScale(6),
-                borderRadius: moderateScale(3),
+                borderRadius: roundedRadius.notification,
                 backgroundColor: colors.primary,
                 marginRight: moderateScale(6),
               }}
@@ -79,6 +87,11 @@ const NotificationsScreen = ({navigation}) => {
   const {colors, spacing} = useAppTheme();
   const dispatch = useAppDispatch();
   const notifications = useNotifications();
+  // Notifications are derived from the leads list, so that list's status is this
+  // screen's status — there is no separate notifications request to wait on.
+  const leadsStatus = useAppSelector(state => state.leads.list.status);
+  const isFirstLoad =
+    (leadsStatus === 'loading' || leadsStatus === 'idle') && notifications.length === 0;
 
   useEffect(() => {
     if (notifications.length > 0) {
@@ -98,6 +111,9 @@ const NotificationsScreen = ({navigation}) => {
         </AppText>
       </View>
 
+      {isFirstLoad ? (
+        <SkeletonList count={6} renderItem={() => <NotificationRowSkeleton />} />
+      ) : (
       <FlatList
         data={notifications}
         keyExtractor={item => item.id}
@@ -105,14 +121,14 @@ const NotificationsScreen = ({navigation}) => {
         contentContainerStyle={{paddingBottom: spacing.xxl}}
         renderItem={({item}) => <NotificationRow item={item} />}
         ListEmptyComponent={
-          <View style={{alignItems: 'center', marginTop: spacing.xxl}}>
-            <Icon name="notifications-off-outline" size={moderateScale(32)} color={colors.textMuted} />
-            <AppText variant="body" color={colors.textMuted} style={{marginTop: spacing.sm}}>
-              Nothing here yet.
-            </AppText>
-          </View>
+          <EmptyState
+            icon="notifications-off-outline"
+            title="No notifications"
+            message="Approvals, new interest and developer decisions land here."
+          />
         }
       />
+      )}
     </ScreenContainer>
   );
 };

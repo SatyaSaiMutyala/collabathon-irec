@@ -6,4 +6,14 @@
         <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
     </style>
 
+    <!--
+      The launch theme. Android paints windowBackground before any of our code runs, so
+      this is what fills the gap between tapping the icon and the JS bundle mounting.
+      MainActivity swaps back to AppTheme in onCreate — leave it in place and the logo
+      stays behind every screen.
+    -->
+    <style name="SplashTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_screen</item>
+    </style>
+
 </resources>

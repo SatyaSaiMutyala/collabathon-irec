@@ -3,14 +3,14 @@ import {StyleSheet, TouchableOpacity, View} from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
-import {useAppTheme} from '../theme';
+import {roundedRadius, useAppTheme} from '../theme';
 import AppText from './AppText';
 import SwipeableImages from './SwipeableImages';
 
 const HERO_HEIGHT = moderateScale(420);
 
 const PropertyHero = ({project, onBack}) => {
-  const {colors, spacing, radius} = useAppTheme();
+  const {colors, spacing} = useAppTheme();
 
   return (
     <View style={styles.heroWrap}>
@@ -33,7 +33,7 @@ const PropertyHero = ({project, onBack}) => {
 
         <View pointerEvents="none" style={styles.heroBottom}>
           <View style={{flexDirection: 'row'}}>
-            <View style={[styles.pill, {backgroundColor: colors.primary, borderRadius: radius.pill}]}>
+            <View style={[styles.pill, {backgroundColor: colors.primary, borderRadius: roundedRadius.badge}]}>
               <AppText variant="captionMedium" color={colors.textInverse}>
                 {project.listingType.toUpperCase()}
               </AppText>
@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
     left: moderateScale(16),
     width: moderateScale(40),
     height: moderateScale(40),
-    borderRadius: moderateScale(20),
+    borderRadius: roundedRadius.control,
     alignItems: 'center',
     justifyContent: 'center',
   },

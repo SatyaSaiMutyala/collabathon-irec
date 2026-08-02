@@ -1,7 +1,9 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {RefreshControl, ScrollView, View} from 'react-native';
 import {useAppTheme} from '../../theme';
+import {firstName} from '../../utils/name';
 import {
+  EmptyState,
   AppText,
   Avatar,
   Card,
@@ -11,13 +13,19 @@ import {
   ScreenContainer,
   StatRow,
   TrendChart,
+  DashboardSkeleton,
 } from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {fetchDashboard} from '../../store/slices/dashboardSlice';
+// The developer's own inventory, not the public view of themselves — the dashboard
+// must surface projects still awaiting their acceptance, and the public endpoint
+// filters exactly those out.
 import {
-  fetchDeveloperProperties,
-  selectDeveloperProperties,
-} from '../../store/slices/developersSlice';
+  fetchMyProperties,
+  fetchMyPropertiesSummary,
+  selectMyProperties,
+  selectMyPropertiesSummary,
+} from '../../store/slices/myPropertiesSlice';
 
 /** Developer home. Figures come from /dashboard as SQL aggregates, not from a list. */
 const DashboardScreen = ({navigation}) => {
@@ -30,16 +38,16 @@ const DashboardScreen = ({navigation}) => {
 
   const stats = useAppSelector(state => state.dashboard.data);
   const status = useAppSelector(state => state.dashboard.status);
-  const properties = useAppSelector(state =>
-    developerId ? selectDeveloperProperties(state, developerId) : null,
-  );
+  const properties = useAppSelector(selectMyProperties);
+  const inventory = useAppSelector(selectMyPropertiesSummary);
 
   const [trendRange, setTrendRange] = useState('week');
 
   const load = useCallback(() => {
     dispatch(fetchDashboard());
     if (developerId) {
-      dispatch(fetchDeveloperProperties({developerId, page: 1, per_page: 5}));
+      dispatch(fetchMyProperties({page: 1, per_page: 5}));
+      dispatch(fetchMyPropertiesSummary());
     }
   }, [dispatch, developerId]);
 
@@ -54,6 +62,17 @@ const DashboardScreen = ({navigation}) => {
   const totalInRange = trendData.reduce((sum, v) => sum + v, 0);
 
   const topProperties = (properties?.items ?? []).slice(0, 2);
+
+  // Skeleton only when there is nothing to show yet. On a refresh the real dashboard
+  // stays put and the RefreshControl carries the feedback — swapping a populated screen
+  // back to a skeleton reads as data loss.
+  if ((status === 'loading' || status === 'idle') && !stats) {
+    return (
+      <ScreenContainer edges={['top']}>
+        <DashboardSkeleton />
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer edges={['top']}>
@@ -79,7 +98,7 @@ const DashboardScreen = ({navigation}) => {
             <Avatar uri={developer?.logo_url} name={developer?.company_name} size="sm" />
             <View style={{marginLeft: spacing.sm, flex: 1}}>
               <AppText variant="caption" color={colors.textMuted}>
-                Hi, {user?.name?.split(' ')[0] ?? 'Developer'}
+                Hi, {firstName(user?.name, 'Developer')}
               </AppText>
               <AppText variant="h3" numberOfLines={1}>
                 {developer?.company_name ?? 'Your Company'}
@@ -94,9 +113,13 @@ const DashboardScreen = ({navigation}) => {
         </View>
 
         <Card style={{paddingVertical: spacing.sm}}>
+          {/* When projects are waiting on this developer, that is the most actionable
+              number on the screen, so it replaces the passive "Properties" count. */}
           <StatRow
             stats={[
-              {value: String(stats?.properties ?? 0), label: 'Properties'},
+              inventory?.pending
+                ? {value: String(inventory.pending), label: 'Awaiting you'}
+                : {value: String(inventory?.live ?? stats?.properties ?? 0), label: 'Live projects'},
               {value: String(stats?.interested ?? 0), label: 'Interested Leads'},
               {value: String(stats?.accepted ?? 0), label: 'Matches'},
             ]}
@@ -164,11 +187,11 @@ const DashboardScreen = ({navigation}) => {
         ))}
 
         {topProperties.length === 0 && (
-          <View style={{alignItems: 'center', marginTop: spacing.xl}}>
-            <AppText variant="body" color={colors.textMuted}>
-              No properties assigned yet.
-            </AppText>
-          </View>
+          <EmptyState
+            icon="business-outline"
+            title="No projects yet"
+            message="Projects the admin assigns to you appear here once you accept them."
+          />
         )}
       </ScrollView>
     </ScreenContainer>

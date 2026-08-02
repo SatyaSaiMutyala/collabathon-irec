@@ -6,9 +6,11 @@ use App\Http\Concerns\HandlesListQueries;
 use App\Http\Controllers\Controller;
 use App\Models\Developer;
 use App\Models\Property;
+use App\Services\PushNotifier;
 use App\Models\PropertyDetail;
 use App\Models\PropertyMedia;
 use App\Models\PropertyUnitType;
+use App\Support\RichText;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -75,19 +77,32 @@ class PropertyController extends Controller
         $query = Property::query()
             ->with('developer:id,company_name')
             ->search($request->query('search'))
-            ->filter($this->filters($request, ['developer_id', 'type', 'project_status', 'city', 'status']));
+            ->filter($this->filters($request, [
+                'developer_id', 'type', 'project_status', 'city', 'status', 'developer_status',
+            ]));
 
         $query = $this->applySort($query, $request, self::SORTABLE);
+
+        // One grouped query for the header tiles rather than four COUNT(*) round trips.
+        $counts = Property::selectRaw('COUNT(*) as total')
+            ->selectRaw("SUM(CASE WHEN listing_status = 'active' THEN 1 ELSE 0 END) as published")
+            ->selectRaw("SUM(CASE WHEN developer_status = 'pending' THEN 1 ELSE 0 END) as awaiting")
+            ->selectRaw("SUM(CASE WHEN developer_status = 'declined' THEN 1 ELSE 0 END) as declined")
+            ->selectRaw("SUM(CASE WHEN listing_status = 'active' AND developer_status = 'accepted' THEN 1 ELSE 0 END) as live")
+            ->first();
 
         return view('admin.properties', [
             'properties' => $this->paginate($query, $request),
             'developers' => Developer::orderBy('company_name')->get(['id', 'company_name']),
             'cities' => Property::query()->distinct()->orderBy('city')->pluck('city')->filter()->values(),
             'totals' => [
-                'all' => Property::count(),
-                'active' => Property::where('listing_status', 'active')->count(),
-                'views' => (int) Property::sum('views_count'),
-                'interests' => (int) Property::sum('interests_count'),
+                'all' => (int) $counts->total,
+                'published' => (int) $counts->published,
+                // "Live" is the only number that means brokers can actually see it:
+                // admin published AND developer accepted.
+                'live' => (int) $counts->live,
+                'awaiting' => (int) $counts->awaiting,
+                'declined' => (int) $counts->declined,
             ],
         ]);
     }
@@ -103,13 +118,13 @@ class PropertyController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, PushNotifier $push): RedirectResponse
     {
         $this->authorize('edit-module', 'properties');
 
         $data = $request->validate($this->rules());
 
-        DB::transaction(function () use ($request, $data) {
+        $property = DB::transaction(function () use ($request, $data) {
             $property = Property::create($this->propertyAttributes($data));
 
             // Uploads live under the property id, so deleting a project takes its files
@@ -129,7 +144,15 @@ class PropertyController extends Controller
 
             $this->syncUnitTypes($request, $property->id);
             $this->syncMedia($request, $data, $property->id);
+
+            return $property;
         });
+
+        // Only for a listing that is actually live — a draft is not news to anyone, and
+        // notifying on save would fire again every time the draft is edited.
+        if ($data['listing_status'] === 'active') {
+            $push->propertyAssigned($property);
+        }
 
         return redirect()
             ->route('admin.properties')
@@ -277,7 +300,12 @@ class PropertyController extends Controller
                 'registration_stamp_duty', 'maintenance_charges', 'floor_rise', 'plc_charges',
                 'payment_schedule', 'sales_office_address', 'site_visit_timings',
                 'sales_contact_name', 'sales_contact_number', 'booking_process',
+                'terms_type', 'terms_title', 'terms_content',
             ]);
+
+            // Not a form value — the editor shows what is already attached so an admin
+            // can tell "no document" from "a document I am about to replace".
+            $values['terms_document_path'] = $detail->terms_document_path;
 
             foreach (self::LIST_FIELDS as $field) {
                 $values[$field] = implode("\n", $detail->{$field} ?? []);
@@ -446,6 +474,15 @@ class PropertyController extends Controller
             'plc_charges' => ['nullable', 'string', 'max:255'],
             'other_charges' => ['nullable', 'string', 'max:5000'],
 
+            // 7 · Developer terms — one artefact per project, supplied either way.
+            'terms_type' => ['nullable', 'in:document,text'],
+            'terms_title' => ['nullable', 'string', 'max:255'],
+            // required_if, so choosing "document" with nothing attached is caught here
+            // rather than saving a project whose terms button opens nothing. On edit the
+            // rule is relaxed by rules() when a document is already stored.
+            'terms_document' => ['nullable', 'file', 'mimes:pdf,doc,docx', 'max:20480'],
+            'terms_content' => ['nullable', 'string', 'max:200000'],
+
             // 8 · Contact & sales info
             'sales_office_address' => ['nullable', 'string', 'max:1000'],
             'site_visit_timings' => ['nullable', 'string', 'max:255'],
@@ -504,6 +541,8 @@ class PropertyController extends Controller
             $attributes[$field] = $this->lines($data[$field] ?? null);
         }
 
+        $attributes += $this->termsAttributes($data, $request, $propertyId, $existing);
+
         if ($file = $request->file('legal_due_diligence')) {
             $attributes['legal_due_diligence_path'] = $this->upload($file, $propertyId);
 
@@ -513,6 +552,39 @@ class PropertyController extends Controller
         } elseif ($existing) {
             // No replacement uploaded — an edit must not blank the stored path.
             $attributes['legal_due_diligence_path'] = $existing->legal_due_diligence_path;
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * The developer terms block — type, title, and whichever of the two payloads applies.
+     *
+     * The unselected payload is kept, not cleared: an admin who flips to "text" to draft
+     * something and flips back must not find the signed PDF gone. `terms_type` is the
+     * single source of which one is live, so keeping both is safe.
+     */
+    private function termsAttributes(array $data, Request $request, int $propertyId, ?PropertyDetail $existing): array
+    {
+        $type = $data['terms_type'] ?? null;
+
+        $attributes = [
+            'terms_type' => $type ?: null,
+            'terms_title' => filled($data['terms_title'] ?? null) ? $data['terms_title'] : null,
+            // Sanitised on the way in, never on the way out: the value is rendered inside
+            // a WebView on two apps, and cleaning at every read is a guarantee that only
+            // holds until someone adds a third reader.
+            'terms_content' => RichText::sanitize($data['terms_content'] ?? null)
+                ?? $existing?->terms_content,
+            'terms_document_path' => $existing?->terms_document_path,
+        ];
+
+        if ($file = $request->file('terms_document')) {
+            $attributes['terms_document_path'] = $this->upload($file, $propertyId);
+
+            if ($existing?->terms_document_path) {
+                Storage::disk('public')->delete($existing->terms_document_path);
+            }
         }
 
         return $attributes;

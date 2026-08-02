@@ -53,7 +53,7 @@ const SwipeableImages = ({images, height, dotsPosition = 'bottom', showDots = tr
               style={{
                 width: index === activeIndex ? moderateScale(14) : moderateScale(6),
                 height: moderateScale(6),
-                borderRadius: moderateScale(3),
+                borderRadius: 0,
                 backgroundColor: index === activeIndex ? colors.white : 'rgba(255,255,255,0.55)',
                 marginHorizontal: moderateScale(2),
               }}

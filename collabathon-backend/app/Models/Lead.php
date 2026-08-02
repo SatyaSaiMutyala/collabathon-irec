@@ -10,9 +10,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * A broker's relationship with one property: viewed → interested → accepted/declined.
  *
- * `contact_unlocked` is the privacy gate — the developer only sees the broker's phone
- * and email once the broker marks "Interested". It is set here, not by the caller, so
- * no endpoint can leak contact details by passing a flag.
+ * `contact_unlocked` records that the broker reached "Interested". Despite the name it
+ * is no longer the privacy gate — that is `revealsContact()` below, which waits for the
+ * developer to accept. The column keeps its original meaning because the dashboards
+ * count it as the interested stage of the funnel; see the note on `revealsContact()`.
+ * It is set server-side, never from a request body, so no endpoint can move the stage
+ * by passing a flag.
  */
 #[Fillable([
     'property_id', 'broker_id', 'developer_id', 'status', 'contact_unlocked',
@@ -54,10 +57,20 @@ class Lead extends Model
 
     // ------------------------------------------------------------------ helpers
 
-    /** Contact is revealed at "interested" and stays revealed for the rest of the flow. */
+    /**
+     * The developer sees the broker's reachable channels only once they have accepted
+     * the request. Interest alone is a knock on the door, not an introduction — until
+     * then the API sends starred placeholders (see App\Support\ContactMask).
+     *
+     * Derived from `status` rather than from `contact_unlocked` on purpose. That column
+     * records the moment the broker expressed interest, and it is summed as the
+     * *interested* figure in Admin\DashboardController, Api\DashboardController and the
+     * admin lead stats. Repointing it at acceptance would silently rewrite every one of
+     * those numbers, so the gate moved and the column did not.
+     */
     public function revealsContact(): bool
     {
-        return $this->contact_unlocked;
+        return $this->status === self::STATUS_ACCEPTED;
     }
 
     // ------------------------------------------------------------------ scopes

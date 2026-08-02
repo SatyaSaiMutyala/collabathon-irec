@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+		Push capability. `development` targets the APNs sandbox, which is what a debug
+		build and the simulator use; the release build has to be re-signed against
+		`production` (Xcode does this automatically when archiving with a distribution
+		profile). Without this key iOS never returns a device token at all.
+	-->
+	<key>aps-environment</key>
+	<string>development</string>
+</dict>
+</plist>

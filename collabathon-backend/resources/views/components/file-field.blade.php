@@ -31,25 +31,40 @@
         </label>
     @endif
 
+    {{-- `relative`, so the absolutely-positioned input below resolves against this label
+         rather than against the page. --}}
     <label for="{{ $id }}"
            @class([
-               'flex items-center gap-2.5 w-full min-h-10 px-3.5 py-2 rounded-lg bg-panel border border-dashed cursor-pointer transition-colors',
+               'relative flex items-center gap-2.5 w-full min-h-10 px-3.5 py-2 rounded-lg bg-panel border border-dashed cursor-pointer transition-colors',
                'border-danger' => $hasError,
                'border-line hover:border-primary hover:bg-canvas' => ! $hasError,
            ])>
         <x-icon :name="$icon" class="w-4 h-4 text-ink-3 shrink-0" />
 
-        <span class="text-[13px] text-ink-3 truncate" x-show="! files.length">
+        {{-- min-w-0 is what makes `truncate` work on a flex child: without it the item's
+             min-width resolves to its content, so a long filename widens the row instead
+             of ellipsing inside it. --}}
+        <span class="text-[13px] text-ink-3 truncate min-w-0" x-show="! files.length">
             {{ $multiple ? 'Choose files…' : 'Choose a file…' }}
         </span>
-        <span class="text-[13px] text-ink truncate" x-show="files.length" x-cloak x-text="files.join(', ')"></span>
+        <span class="text-[13px] text-ink truncate min-w-0" x-show="files.length" x-cloak x-text="files.join(', ')"></span>
 
+        {{-- Transparent and stretched over the label rather than `sr-only`.
+
+             sr-only is `position:absolute` with a 1px box and no positioned ancestor, so
+             the input sat at its static position — below the visible row, and often below
+             the fold. Opening the picker focuses it, and the browser scrolls that 1px box
+             into view: the page jumped ~250px the moment the file dialog appeared.
+
+             Covering the label instead means the focused box is the box the user just
+             clicked, so scrolling it into view is a no-op. It stays a real focusable
+             input, so keyboard and screen-reader access are unchanged. --}}
         <input id="{{ $id }}" name="{{ $name }}" type="file"
                @if($multiple) multiple @endif
                @if($accept) accept="{{ $accept }}" @endif
                @if($required) required @endif
                @change="files = Array.from($event.target.files).map(f => f.name)"
-               class="sr-only"
+               class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                {{ $attributes->except('class') }}>
     </label>
 

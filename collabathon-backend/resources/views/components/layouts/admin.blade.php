@@ -18,6 +18,9 @@ $navGroups = [
     ],
     'Manage' => [
         ['key' => 'approvals', 'icon' => 'user-check', 'label' => 'Broker Approvals', 'route' => route('admin.approvals'), 'count' => $pendingCount],
+        // The roster of brokers already through approval — the queue's output, kept
+        // next to it rather than buried as a tab on a page about outstanding work.
+        ['key' => 'cp', 'icon' => 'users', 'label' => 'CP', 'route' => route('admin.cp')],
         ['key' => 'developers', 'icon' => 'building', 'label' => 'Developers', 'route' => route('admin.developers')],
         ['key' => 'properties', 'icon' => 'list', 'label' => 'Projects', 'route' => route('admin.properties')],
         ['key' => 'leads', 'icon' => 'chart', 'label' => 'Approvals', 'route' => route('admin.leads')],
@@ -87,7 +90,33 @@ $toneClasses = [
 </head>
 {{-- Page itself never scrolls; the sidebar and the main column each own their scroll. --}}
 <body class="h-dvh overflow-hidden bg-canvas font-sans antialiased text-ink"
-      x-data="{ mobileNav: false }">
+      x-data="{ mobileNav: false, navigating: false }"
+      {{--
+          Every admin page is a full document load, so the only way to show that a
+          navigation is in flight is to catch it on the way out. Capture phase, because
+          a row link's own handler may stop propagation before it bubbles to us.
+
+          Skipped for anything that does not replace this document: new tabs, modified
+          clicks, downloads, in-page anchors, and javascript:/mailto:/tel: schemes —
+          flagging those would leave the skeleton stuck up with no navigation coming.
+      --}}
+      x-on:click.capture="
+          const a = $event.target.closest('a');
+          if (!a || $event.defaultPrevented || $event.metaKey || $event.ctrlKey
+              || $event.shiftKey || $event.altKey || $event.button !== 0) return;
+          if (a.target === '_blank' || a.hasAttribute('download')) return;
+          const href = a.getAttribute('href') || '';
+          if (!href || href.startsWith('#') || /^(javascript|mailto|tel):/i.test(href)) return;
+          if (a.href === window.location.href) return;
+          navigating = true;
+      "
+      x-on:submit.capture="
+          if (!$event.defaultPrevented && $event.target.getAttribute('method')?.toLowerCase() !== 'dialog') {
+              navigating = true;
+          }
+      "
+      {{-- Restored from bfcache the document is reused, so clear the flag by hand. --}}
+      x-on:pageshow.window="navigating = false">
 
     <div class="flex h-dvh">
 
@@ -97,8 +126,10 @@ $toneClasses = [
                :class="mobileNav ? 'translate-x-0' : '-translate-x-full'">
 
             <div class="h-[60px] flex items-center gap-2.5 px-5 shrink-0">
-                <div class="w-[30px] h-[30px] rounded-lg bg-primary flex items-center justify-center shrink-0">
-                    <span class="text-white font-bold text-[11.5px] tracking-tight">iR</span>
+                {{-- Brand tile carries the undimmed logo orange with dark ink, the same
+                     pairing as the sidebar's other marks — see components/nav-link. --}}
+                <div class="w-[30px] h-[30px] rounded-lg bg-primary-light flex items-center justify-center shrink-0">
+                    <span class="text-nav font-bold text-[11.5px] tracking-tight">iR</span>
                 </div>
                 <div class="min-w-0">
                     <p class="text-white font-semibold text-[13.5px] leading-tight tracking-[-0.01em]">iREC Admin</p>
@@ -131,7 +162,7 @@ $toneClasses = [
 
             <div class="p-3 shrink-0 border-t border-nav-line">
                 <div class="flex items-center gap-2.5 px-2 py-2 rounded-lg">
-                    <span class="w-8 h-8 rounded-full bg-primary-soft-dark text-primary-light ring-1 ring-inset ring-primary-ring-dark
+                    <span class="w-8 h-8 rounded-avatar bg-primary-soft-dark text-primary-light ring-1 ring-inset ring-primary-ring-dark
                                  inline-flex items-center justify-center text-[12px] font-semibold shrink-0">
                         {{ Str::upper(Str::substr(auth()->user()->name, 0, 1)) }}
                     </span>
@@ -139,10 +170,17 @@ $toneClasses = [
                         <p class="text-[12.5px] font-medium text-nav-text truncate">{{ auth()->user()->name }}</p>
                         <p class="text-[11px] text-nav-text-2 truncate">{{ auth()->user()->email }}</p>
                     </div>
-                    <form method="POST" action="{{ route('logout') }}" class="shrink-0">
+                    <form method="POST" action="{{ route('logout') }}" class="shrink-0"
+                        x-on:submit.prevent="$dispatch('confirm-request', {
+                            title: 'Log out?',
+                            message: 'You will need to sign in again to get back to the admin panel.',
+                            confirmLabel: 'Log out',
+                            tone: 'danger',
+                            form: $el,
+                        })" >
                         @csrf
                         <button type="submit" title="Log out" aria-label="Log out"
-                                class="text-nav-text-2 hover:text-nav-text hover:bg-nav-hover rounded-md p-1.5 transition-colors block">
+                                class="text-nav-text-2 hover:text-nav-text hover:bg-nav-hover rounded-control p-1.5 transition-colors block">
                             <x-icon name="logout" class="w-4 h-4" />
                         </button>
                     </form>
@@ -189,16 +227,16 @@ $toneClasses = [
                                       placeholder:text-ink-3 hover:border-line focus:bg-panel focus:border-primary-ring
                                       focus:outline-none focus:w-[260px] transition-all duration-200">
                         <kbd class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-ink-3 bg-panel border border-line
-                                    rounded px-1.5 py-0.5 font-sans pointer-events-none">⌘K</kbd>
+                                    px-1.5 py-0.5 font-sans pointer-events-none">⌘K</kbd>
                     </label>
 
                     {{-- Notifications --}}
                     <x-dropdown width="w-80">
                         <x-slot:trigger>
                             <button type="button" aria-label="Notifications"
-                                    class="relative text-ink-2 hover:text-ink hover:bg-canvas rounded-lg p-2 transition-colors">
+                                    class="relative text-ink-2 hover:text-ink hover:bg-canvas rounded-control p-2 transition-colors">
                                 <x-icon name="bell" class="w-[18px] h-[18px]" />
-                                <span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-danger ring-2 ring-panel"></span>
+                                <span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-notification bg-danger ring-2 ring-panel"></span>
                             </button>
                         </x-slot:trigger>
 
@@ -209,7 +247,7 @@ $toneClasses = [
                         <div class="max-h-72 overflow-y-auto scrollbar-slim py-1">
                             @foreach($notifications as $note)
                                 <div class="flex items-start gap-2.5 px-3 py-2.5 hover:bg-canvas transition-colors">
-                                    <span class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 {{ $toneClasses[$note['tone']] }}">
+                                    <span class="w-7 h-7 rounded-notification flex items-center justify-center shrink-0 mt-0.5 {{ $toneClasses[$note['tone']] }}">
                                         <x-icon :name="$note['icon']" class="w-3.5 h-3.5" />
                                     </span>
                                     <div class="min-w-0">
@@ -232,7 +270,7 @@ $toneClasses = [
                     <x-dropdown width="w-52">
                         <x-slot:trigger>
                             <button type="button" class="flex items-center gap-2 rounded-lg pl-1 pr-1.5 py-1 hover:bg-canvas transition-colors">
-                                <x-avatar :name="auth()->user()->name" size="sm" />
+                                <x-avatar :name="auth()->user()->name" :src="auth()->user()->avatar_path" size="sm" />
                                 <x-icon name="chevron-down" class="w-3.5 h-3.5 text-ink-3" />
                             </button>
                         </x-slot:trigger>
@@ -246,7 +284,14 @@ $toneClasses = [
                             <x-dropdown-item icon="shield">Security</x-dropdown-item>
                         </div>
                         <div class="pt-1 border-t border-line-soft">
-                            <form method="POST" action="{{ route('logout') }}">
+                            <form method="POST" action="{{ route('logout') }}"
+                                x-on:submit.prevent="$dispatch('confirm-request', {
+                            title: 'Log out?',
+                            message: 'You will need to sign in again to get back to the admin panel.',
+                            confirmLabel: 'Log out',
+                            tone: 'danger',
+                            form: $el,
+                        })" >
                                 @csrf
                                 <x-dropdown-item icon="logout" tone="danger" tag="button" type="submit">Log out</x-dropdown-item>
                             </form>
@@ -255,9 +300,14 @@ $toneClasses = [
                 </div>
             </header>
 
-            <main class="flex-1 min-h-0 overflow-y-auto scrollbar-slim px-5 lg:px-7 py-6">
-                <div class="max-w-[1400px] mx-auto">
-                    {{ $slot }}
+            <main class="flex-1 min-h-0 overflow-y-auto scrollbar-slim">
+                <div x-show="navigating" x-cloak aria-busy="true" aria-live="polite">
+                    <x-page-skeleton />
+                </div>
+                <div x-show="! navigating" class="px-5 lg:px-7 py-6">
+                    <div class="max-w-[1400px] mx-auto">
+                        {{ $slot }}
+                    </div>
                 </div>
             </main>
         </div>

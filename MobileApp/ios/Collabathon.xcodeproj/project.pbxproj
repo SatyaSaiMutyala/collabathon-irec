@@ -13,6 +13,7 @@
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		13B07FC11A68108700A75B9A /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 13B07FB71A68108700A75B9A /* main.m */; };
 		17663272CC6A4FC18A93BEE8 /* Outfit-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AD0A9848A82A46C4BB41F4C0 /* Outfit-Regular.ttf */; };
+		1A0FIREBASE0002C0NF16000002 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 1A0FIREBASE0001C0NF16000001 /* GoogleService-Info.plist */; };
 		23E43335519D4DC1B6A27C2C /* Outfit-Light.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A9220B0FF7444B51A10A0AEA /* Outfit-Light.ttf */; };
 		34F54B5819024319A523805A /* Outfit-Light.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A9220B0FF7444B51A10A0AEA /* Outfit-Light.ttf */; };
 		52DE9943E0FC4965A58371A0 /* Outfit-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 81D9C2760A204F55B6AEF1F7 /* Outfit-SemiBold.ttf */; };
@@ -52,6 +53,7 @@
 		13B07FB71A68108700A75B9A /* main.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = main.m; path = Collabathon/main.m; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = Collabathon/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		14534FEA774B4F02B792D9A2 /* Outfit-Medium.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "Outfit-Medium.ttf"; path = "../src/assets/fonts/Outfit-Medium.ttf"; sourceTree = "<group>"; };
+		1A0FIREBASE0001C0NF16000001 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "Collabathon/GoogleService-Info.plist"; sourceTree = "<group>"; };
 		441B2E0752F29BE34F9F3255 /* Pods-Collabathon-CollabathonTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Collabathon-CollabathonTests.debug.xcconfig"; path = "Target Support Files/Pods-Collabathon-CollabathonTests/Pods-Collabathon-CollabathonTests.debug.xcconfig"; sourceTree = "<group>"; };
 		60598F30D56D438FA725C5ED /* Ionicons.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = Ionicons.ttf; path = "../node_modules/react-native-vector-icons/Fonts/Ionicons.ttf"; sourceTree = "<group>"; };
 		79AB03BEE4325530BC8E4F30 /* Pods-Collabathon.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Collabathon.debug.xcconfig"; path = "Target Support Files/Pods-Collabathon/Pods-Collabathon.debug.xcconfig"; sourceTree = "<group>"; };
@@ -109,6 +111,7 @@
 		13B07FAE1A68108700A75B9A /* Collabathon */ = {
 			isa = PBXGroup;
 			children = (
+				1A0FIREBASE0001C0NF16000001 /* GoogleService-Info.plist */,
 				13B07FAF1A68108700A75B9A /* AppDelegate.h */,
 				13B07FB01A68108700A75B9A /* AppDelegate.mm */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
@@ -290,6 +293,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1A0FIREBASE0002C0NF16000002 /* GoogleService-Info.plist in Resources */,
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				F2813E2162967E3594A3012E /* PrivacyInfo.xcprivacy in Resources */,
@@ -498,7 +502,7 @@
 					"-lc++",
 					"$(inherited)",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.example.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.app.collabathon.CollabathonTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Collabathon.app/Collabathon";
 			};
@@ -522,7 +526,7 @@
 					"-lc++",
 					"$(inherited)",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.example.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.app.collabathon.CollabathonTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Collabathon.app/Collabathon";
 			};
@@ -534,6 +538,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Collabathon/Collabathon.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Collabathon/Info.plist;
@@ -547,7 +552,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.example.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.app.collabathon;
 				PRODUCT_NAME = Collabathon;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -561,6 +566,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Collabathon/Collabathon.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = Collabathon/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -573,7 +579,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.example.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.app.collabathon;
 				PRODUCT_NAME = Collabathon;
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";

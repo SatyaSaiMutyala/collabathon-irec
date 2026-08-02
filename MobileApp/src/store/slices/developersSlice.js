@@ -134,7 +134,21 @@ export const selectDevelopers = state => state.developers.list.items;
 export const selectDevelopersStatus = state => state.developers.list.status;
 export const selectCanLoadMoreDevelopers = state => canLoadMore(state.developers.list);
 export const selectDeveloperById = (state, id) => state.developers.detail.byId[id];
+/**
+ * One shared instance for "this developer has no page loaded yet".
+ *
+ * Calling initialListState() here built a new object on every invocation, so the selector
+ * returned a different reference each time it ran against identical state. React-Redux
+ * flags that in development — "returned a different result when called with the same
+ * parameters" — and it is not only noise: until the first page lands, every unrelated
+ * store update re-rendered the developer profile.
+ *
+ * Frozen because it is shared: a reducer that mutated it would corrupt the empty state
+ * for every developer at once, and freezing turns that into a throw rather than a bug.
+ */
+const EMPTY_PROPERTY_LIST = Object.freeze(initialListState());
+
 export const selectDeveloperProperties = (state, id) =>
-  state.developers.properties[id] ?? initialListState();
+  state.developers.properties[id] ?? EMPTY_PROPERTY_LIST;
 
 export default developersSlice.reducer;

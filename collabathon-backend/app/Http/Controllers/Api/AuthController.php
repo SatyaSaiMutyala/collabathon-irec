@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Models\BrokerProfile;
+use App\Models\DeviceToken;
 use App\Models\User;
+use App\Services\PushNotifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +25,7 @@ use Illuminate\Validation\ValidationException;
 class AuthController extends Controller
 {
     /** Broker self-registration. Creates the user + profile, issues no token. */
-    public function register(Request $request): JsonResponse
+    public function register(Request $request, PushNotifier $push): JsonResponse
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -57,7 +59,21 @@ class AuthController extends Controller
             'operates_multiple_states' => ['boolean'],
             'project_contributions' => ['nullable', 'string'],
             'confirm_accuracy' => ['accepted'],
+
+            // The passport photo the registration form collects. Optional, because the
+            // form lets a broker submit without one — but until this existed the field
+            // was gathered in the app and thrown away, so every broker's profile fell
+            // back to initials no matter what they uploaded.
+            'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ]);
+
+        // Stored before the transaction so a failed insert cannot leave a half-written
+        // row pointing at nothing; an orphaned file is the cheaper failure.
+        $photoPath = $request->hasFile('photo')
+            ? $request->file('photo')->store('broker-photos', 'public')
+            : null;
+
+        $data['photo_path'] = $photoPath;
 
         $user = DB::transaction(function () use ($data) {
             $user = User::create([
@@ -75,7 +91,7 @@ class AuthController extends Controller
                 'years_of_experience', 'team_size', 'pan_card', 'aadhaar_card',
                 'rera_number', 'rera_certificate_expiry', 'gst_number', 'cheque_details',
                 'state', 'city', 'segments', 'zones', 'operates_multiple_states',
-                'project_contributions',
+                'project_contributions', 'photo_path',
             ])->merge([
                 'user_id' => $user->id,
                 'confirm_accuracy' => true,
@@ -84,6 +100,18 @@ class AuthController extends Controller
 
             return $user;
         });
+
+        // Without the relation loaded, UserResource cannot reach the passport photo it
+        // falls back to, so a registration that uploaded one still answered avatar_url
+        // null and the app showed initials for the picture it had just accepted.
+        //
+        // Only the columns the avatar needs: loading the whole row would echo the entire
+        // KYC record — PAN, Aadhaar, cheque and signature paths — back out of an endpoint
+        // whose job is to confirm a submission.
+        $user->load(['brokerProfile' => fn ($query) => $query->select('id', 'user_id', 'photo_path')]);
+
+        // After the transaction: a failed push must not undo a completed registration.
+        $push->brokerRegistered($user);
 
         return response()->json([
             'message' => 'Registration submitted. An admin will review your account before you can sign in.',
@@ -141,6 +169,46 @@ class AuthController extends Controller
             'token' => $user->createToken($data['device_name'] ?? 'mobile')->plainTextToken,
             'data' => new UserResource($user),
         ]);
+    }
+
+    /**
+     * POST /api/auth/device-token — the app hands over its FCM registration token.
+     *
+     * Upsert on the token, not on the user: one person can be signed in on two devices,
+     * and one device can be handed to a different person. Keying on the token means a
+     * re-register moves the row to whoever holds it now, so a push never reaches an
+     * account that was signed out of on that handset.
+     */
+    public function registerDevice(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'token' => ['required', 'string', 'max:255'],
+            'platform' => ['nullable', 'in:ios,android'],
+        ]);
+
+        DeviceToken::updateOrCreate(
+            ['token' => $data['token']],
+            [
+                'user_id' => $request->user()->id,
+                'platform' => $data['platform'] ?? null,
+                'last_used_at' => now(),
+            ],
+        );
+
+        return response()->json(['message' => 'Device registered.']);
+    }
+
+    /** DELETE /api/auth/device-token — called on sign-out, before the token is revoked. */
+    public function forgetDevice(Request $request): JsonResponse
+    {
+        $data = $request->validate(['token' => ['required', 'string', 'max:255']]);
+
+        // Scoped to the caller so one account cannot unregister another's device.
+        DeviceToken::where('token', $data['token'])
+            ->where('user_id', $request->user()->id)
+            ->delete();
+
+        return response()->json(['message' => 'Device forgotten.']);
     }
 
     /** The authenticated principal. */

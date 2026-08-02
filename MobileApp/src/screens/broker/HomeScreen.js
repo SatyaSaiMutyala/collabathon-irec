@@ -3,6 +3,7 @@ import {TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../../theme';
+import {firstName} from '../../utils/name';
 import {
   AppText,
   Avatar,
@@ -12,6 +13,7 @@ import {
   Input,
   LocationPickerSheet,
   PaginatedList,
+  DeveloperCardSkeleton,
   ScreenContainer,
 } from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
@@ -79,7 +81,7 @@ const HomeScreen = ({navigation}) => {
           <Avatar uri={user?.avatar_url} name={user?.name} size="sm" />
           <View style={{marginLeft: spacing.sm, flex: 1}}>
             <AppText variant="caption" color={colors.textMuted}>
-              Hi, {user?.name?.split(' ')[0] ?? 'Broker'}
+              Hi, {firstName(user?.name, 'Broker')}
             </AppText>
             <TouchableOpacity
               activeOpacity={0.75}
@@ -140,9 +142,11 @@ const HomeScreen = ({navigation}) => {
       </View>
 
       <PaginatedList
+        renderSkeleton={() => <DeveloperCardSkeleton />}
         list={list}
         onRefresh={loadFirstPage}
         onEndReached={handleEndReached}
+        emptyIcon="business-outline"
         emptyTitle="No developers found"
         emptyMessage="Try a different search term or clear the city filter."
         renderItem={({item}) => (

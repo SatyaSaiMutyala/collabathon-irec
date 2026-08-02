@@ -1,5 +1,5 @@
 import React from 'react';
-import {StyleSheet, View} from 'react-native';
+import {Image, StyleSheet, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../../theme';
@@ -31,13 +31,16 @@ const WelcomeScreen = ({navigation}) => {
   return (
     <ScreenContainer edges={['top', 'bottom']} style={styles.screen}>
       <View style={{flex: 1, justifyContent: 'center'}}>
-        <View
-          style={[
-            styles.mark,
-            {backgroundColor: colors.primarySoft, borderRadius: radius.lg},
-          ]}>
-          <Icon name="sparkles" size={moderateScale(32)} color={colors.primaryDark} />
-        </View>
+        {/* The mark alone, not the full wordmark: "Collabathon" is already set in
+            display type right below it, and the lockup would say the name twice.
+            Transparent PNG, so it sits on the screen background rather than in a tile. */}
+        <Image
+          source={require('../../assets/images/logo-mark.png')}
+          style={styles.mark}
+          resizeMode="contain"
+          accessibilityRole="image"
+          accessibilityLabel="Collabathon"
+        />
 
         <AppText variant="overline" color={colors.primary} style={{marginTop: spacing.xl}}>
           WELCOME TO
@@ -102,10 +105,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   mark: {
-    width: moderateScale(64),
-    height: moderateScale(64),
-    alignItems: 'center',
-    justifyContent: 'center',
+    // 76:68 is the artwork's own 385:345, so `contain` has nothing to letterbox. A
+    // square box here would have left the mark floating in dead space on both sides.
+    width: moderateScale(76),
+    height: moderateScale(68),
   },
   noteRow: {
     flexDirection: 'row',

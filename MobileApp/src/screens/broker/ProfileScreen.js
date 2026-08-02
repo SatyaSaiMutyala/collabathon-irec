@@ -1,11 +1,21 @@
-import React from 'react';
+import React, {useState} from 'react';
 import {ScrollView, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../../theme';
-import {AppText, Avatar, Badge, Button, Card, ScreenContainer, SectionHeader} from '../../components';
+import {
+  AppText,
+  Avatar,
+  Badge,
+  Button,
+  Card,
+  ConfirmDialog,
+  ScreenContainer,
+  SectionHeader,
+} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {logout} from '../../store/slices/authSlice';
+import {showSnackbar} from '../../store/slices/uiSlice';
 
 const fallback = value => (value && String(value).trim() ? value : '—');
 const yesNo = value => (value ? 'Yes' : 'No');
@@ -31,6 +41,7 @@ const InfoRow = ({icon, label, value, valueColor}) => {
 const ProfileScreen = () => {
   const {colors, spacing} = useAppTheme();
   const dispatch = useAppDispatch();
+  const [confirmLogout, setConfirmLogout] = useState(false);
   // The API returns the user plus their broker_profile; flatten into the shape
   // this screen renders so the field list below stays untouched.
   const user = useAppSelector(state => state.auth.user) ?? {};
@@ -187,9 +198,24 @@ const ProfileScreen = () => {
           variant="outline"
           icon="log-out-outline"
           style={{marginTop: spacing.xl}}
-          onPress={() => dispatch(logout())}
+          onPress={() => setConfirmLogout(true)}
         />
       </ScrollView>
+
+      <ConfirmDialog
+        visible={confirmLogout}
+        icon="log-out-outline"
+        tone="danger"
+        title="Log out?"
+        message="You'll need to sign in again to get back to your account."
+        confirmLabel="Log out"
+        onCancel={() => setConfirmLogout(false)}
+        onConfirm={() => {
+          setConfirmLogout(false);
+          dispatch(logout());
+          dispatch(showSnackbar('Signed out'));
+        }}
+      />
     </ScreenContainer>
   );
 };

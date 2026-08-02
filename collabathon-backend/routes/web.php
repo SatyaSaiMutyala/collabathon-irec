@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\ApprovalController;
 use App\Http\Controllers\Admin\AuthController;
+use App\Http\Controllers\Admin\ChannelPartnerController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DeveloperController;
 use App\Http\Controllers\Admin\LeadController;
@@ -33,10 +35,18 @@ Route::prefix('admin')
 
         Route::get('/approvals', [ApprovalController::class, 'index'])->name('approvals')
             ->middleware("can:view-module,'approvals'");
+        // Declared before `{user}` so "decided" is not read as a broker id.
+        Route::get('/approvals/decided', [ApprovalController::class, 'decided'])->name('approvals.decided')
+            ->middleware("can:view-module,'approvals'");
         Route::get('/approvals/{user}', [ApprovalController::class, 'show'])->name('approvals.show')
             ->middleware("can:view-module,'approvals'");
         Route::post('/approvals/{user}/approve', [ApprovalController::class, 'approve'])->name('approvals.approve');
         Route::post('/approvals/{user}/reject', [ApprovalController::class, 'reject'])->name('approvals.reject');
+        Route::post('/approvals/{user}/password', [ApprovalController::class, 'resetPassword'])
+            ->name('approvals.password');
+
+        Route::get('/cp', [ChannelPartnerController::class, 'index'])->name('cp')
+            ->middleware("can:view-module,'cp'");
 
         Route::get('/developers', [DeveloperController::class, 'index'])->name('developers')
             ->middleware("can:view-module,'developers'");
@@ -71,6 +81,17 @@ Route::prefix('admin')
             ->middleware("can:view-module,'settings'");
         Route::patch('/settings/fields/{field}', [SettingsController::class, 'toggleField'])->name('settings.field');
         Route::patch('/settings/theme', [SettingsController::class, 'updateTheme'])->name('settings.theme');
+        Route::post('/settings/announce', [AnnouncementController::class, 'store'])->name('settings.announce');
+
+        // Uploading a key that can send as the whole Firebase project is a super-admin
+        // action; the controller re-checks, this keeps it off the route for everyone else.
+        Route::middleware('can:manage-team')->group(function () {
+            Route::post('/settings/firebase', [SettingsController::class, 'updateFirebase'])->name('settings.firebase');
+            Route::delete('/settings/firebase', [SettingsController::class, 'forgetFirebase'])->name('settings.firebase.forget');
+            Route::post('/settings/firebase/test', [SettingsController::class, 'testFirebase'])->name('settings.firebase.test');
+        });
+        Route::patch('/settings/mail', [SettingsController::class, 'updateMail'])->name('settings.mail');
+        Route::post('/settings/mail/test', [SettingsController::class, 'testMail'])->name('settings.mail.test');
 
         // ------------------------------------------------------ Super Admin only
         Route::middleware('can:manage-team')->group(function () {

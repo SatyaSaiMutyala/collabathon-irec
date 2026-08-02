@@ -35,7 +35,7 @@ const LocationPickerSheet = ({
               alignSelf: 'center',
               width: moderateScale(36),
               height: moderateScale(4),
-              borderRadius: moderateScale(2),
+              borderRadius: 0,
               backgroundColor: colors.border,
               marginBottom: spacing.md,
             }}

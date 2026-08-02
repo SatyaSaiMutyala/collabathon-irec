@@ -18,7 +18,7 @@ const Checkbox = ({checked, onToggle, label, error}) => {
           style={{
             width: moderateScale(20),
             height: moderateScale(20),
-            borderRadius: moderateScale(4),
+            borderRadius: 0,
             borderWidth: 1.5,
             borderColor: checked ? colors.primary : (error ? colors.danger : colors.border),
             backgroundColor: checked ? colors.primary : colors.background,

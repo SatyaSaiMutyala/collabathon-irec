@@ -23,7 +23,7 @@ $permissions ??= collect();
                         <td class="px-3 py-2.5 text-center">
                             <input type="checkbox" name="{{ $name }}[{{ $module }}][{{ $ability }}]" value="1"
                                    @checked($existing?->{"can_{$ability}"})
-                                   class="w-4 h-4 rounded border-line text-primary focus:ring-primary-ring focus:ring-2">
+                                   class="w-4 h-4 border-line text-primary focus:ring-primary-ring focus:ring-2">
                         </td>
                     @endforeach
                 </tr>

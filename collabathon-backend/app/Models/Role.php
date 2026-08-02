@@ -18,6 +18,7 @@ class Role extends Model
     public const MODULES = [
         'dashboard' => 'Dashboard',
         'approvals' => 'Broker Approvals',
+        'cp' => 'Channel Partners',
         'developers' => 'Developers',
         'properties' => 'Projects',
         'leads' => 'Approvals',

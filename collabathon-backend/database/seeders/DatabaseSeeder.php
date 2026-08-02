@@ -114,16 +114,26 @@ class DatabaseSeeder extends Seeder
     /** @param  array<string,Developer>  $developers */
     private function seedProperties(array $developers): void
     {
+        // City is stated per row, not derived from the locality. Taking the first word of
+        // the locality produced "Al", "Palm" and "Business" as city names, which then
+        // surfaced verbatim in the city filter chips.
         $rows = [
-            ['Azure Bay Residences', 'Skyline Realty Group', 'Dubai Marina', 'Residential', 'active', 1_800_000, 3_200_000, 148, 12],
-            ['The Meridian Tower', 'Meridian Builders', 'Al Reem Island', 'Residential', 'active', 950_000, 1_600_000, 96, 7],
-            ['Palm Coast Villas', 'Palm Coast Developers', 'Palm Jumeirah', 'Villa', 'active', 6_500_000, 11_000_000, 203, 19],
-            ['Horizon Business Bay', 'Horizon Estates', 'Business Bay', 'Commercial', 'draft', 2_100_000, 4_000_000, 0, 0],
-            ['Crescent Gardens', 'Crescent Land Co.', 'Ajman Corniche', 'Plotted Development', 'active', 480_000, 900_000, 61, 4],
-            ['Skyline Heights', 'Skyline Realty Group', 'JLT', 'Residential', 'archived', 1_100_000, 2_000_000, 132, 9],
+            ['Azure Bay Residences', 'Skyline Realty Group', 'Dubai Marina', 'Dubai', 'Residential', 'active', 1_800_000, 3_200_000, 148, 12],
+            ['The Meridian Tower', 'Meridian Builders', 'Al Reem Island', 'Abu Dhabi', 'Residential', 'active', 950_000, 1_600_000, 96, 7],
+            ['Palm Coast Villas', 'Palm Coast Developers', 'Palm Jumeirah', 'Dubai', 'Villa', 'active', 6_500_000, 11_000_000, 203, 19],
+            ['Horizon Business Bay', 'Horizon Estates', 'Business Bay', 'Dubai', 'Commercial', 'draft', 2_100_000, 4_000_000, 0, 0],
+            ['Crescent Gardens', 'Crescent Land Co.', 'Ajman Corniche', 'Ajman', 'Plotted Development', 'active', 480_000, 900_000, 61, 4],
+            ['Skyline Heights', 'Skyline Realty Group', 'JLT', 'Dubai', 'Residential', 'archived', 1_100_000, 2_000_000, 132, 9],
         ];
 
-        foreach ($rows as $i => [$name, $company, $locality, $type, $status, $min, $max, $views, $interests]) {
+        foreach ($rows as $i => [$name, $company, $locality, $city, $type, $status, $min, $max, $views, $interests]) {
+            // Index 1 and 4 stay pending, index 3 is declined, the rest are accepted.
+            $developerStatus = match (true) {
+                in_array($i, [1, 4], true) => 'pending',
+                $i === 3 => 'declined',
+                default => 'accepted',
+            };
+
             $property = Property::updateOrCreate(
                 ['slug' => Str::slug($name)],
                 [
@@ -132,12 +142,20 @@ class DatabaseSeeder extends Seeder
                     'project_type' => $type,
                     'project_status' => $status === 'active' ? 'Under Construction' : 'New Launch',
                     'listing_status' => $status,
+                    // A spread of developer responses so the acceptance gate is
+                    // demoable end-to-end: some live, some sitting in the developer's
+                    // queue, one declined.
+                    'developer_status' => $developerStatus,
+                    'developer_responded_at' => $developerStatus === 'pending' ? null : now()->subDays($i),
+                    'developer_decline_reason' => $developerStatus === 'declined'
+                        ? 'Price band does not match our current release.'
+                        : null,
                     'tagline' => 'Live above the skyline',
                     'description' => "A landmark development in {$locality} offering panoramic views, "
                         . 'private balconies and resort-style amenities.',
                     'rera_number' => 'RERA-PRJ-' . (10000 + $i),
                     'state' => 'UAE',
-                    'city' => explode(' ', $locality)[0],
+                    'city' => $city,
                     'locality' => $locality,
                     'zone' => ['East', 'West', 'North', 'South', 'Central'][$i % 5],
                     'pincode' => '0000' . $i,
@@ -360,7 +378,7 @@ class DatabaseSeeder extends Seeder
 
     private function seedSettings(): void
     {
-        Setting::put('accent_color', '#C9A227');
+        Setting::put('accent_color', '#000000');
         Setting::put('app_name', 'iREC');
 
         $broker = [

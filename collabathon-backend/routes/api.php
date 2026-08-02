@@ -4,6 +4,8 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DeveloperController;
 use App\Http\Controllers\Api\LeadController;
+use App\Http\Controllers\Api\MyPropertyController;
+use App\Http\Controllers\Api\PartnerController;
 use App\Http\Controllers\Api\PropertyController;
 use Illuminate\Support\Facades\Route;
 
@@ -32,10 +34,23 @@ Route::prefix('v1')->group(function () {
         Route::get('dashboard', DashboardController::class);
         Route::post('auth/logout', [AuthController::class, 'logout']);
 
+        // Push registration. Sent right after sign-in and cleared on sign-out.
+        Route::post('auth/device-token', [AuthController::class, 'registerDevice']);
+        Route::delete('auth/device-token', [AuthController::class, 'forgetDevice']);
+
         // Catalogue
         Route::get('developers', [DeveloperController::class, 'index']);
         Route::get('developers/{developer}', [DeveloperController::class, 'show']);
         Route::get('developers/{developer}/properties', [DeveloperController::class, 'properties']);
+
+        // Developer's own inventory — every assignment, including ones still awaiting
+        // their decision. Must sit BEFORE the {property} routes so `my` is not read
+        // as a property id.
+        Route::get('my/properties/summary', [MyPropertyController::class, 'summary']);
+        Route::get('my/properties/filters', [MyPropertyController::class, 'filterOptions']);
+        Route::get('my/properties', [MyPropertyController::class, 'index']);
+        Route::get('my/properties/{property}', [MyPropertyController::class, 'show']);
+        Route::patch('my/properties/{property}/response', [MyPropertyController::class, 'respond']);
 
         Route::get('properties', [PropertyController::class, 'index']);
         Route::get('properties/{property}', [PropertyController::class, 'show']);
@@ -47,5 +62,12 @@ Route::prefix('v1')->group(function () {
         // Leads — scoped to the caller's role inside the controller
         Route::get('leads', [LeadController::class, 'index']);
         Route::patch('leads/{lead}', [LeadController::class, 'respond']);
+
+        // Channel partners — the developer's accepted brokers, one row per broker.
+        // `filters` is declared before `{broker}` so it is not swallowed as an id.
+        Route::get('partners/filters', [PartnerController::class, 'filterOptions']);
+        Route::get('partners', [PartnerController::class, 'index']);
+        Route::get('partners/{broker}', [PartnerController::class, 'show']);
+        Route::get('partners/{broker}/projects', [PartnerController::class, 'projects']);
     });
 });

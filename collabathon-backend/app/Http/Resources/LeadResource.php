@@ -6,9 +6,11 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * The privacy rule is enforced here, at the serialisation boundary: broker contact
- * details are emitted only when the lead has unlocked them (broker marked "Interested").
- * A developer viewing a merely-"viewed" lead gets the name and nothing reachable.
+ * The lead itself. The privacy rule lives one level down in PartnerResource, which is
+ * shared with the partner list so the gate has a single implementation — this class only
+ * decides *which side* of it a given lead is on: `revealsContact()`, i.e. has the
+ * developer accepted. Before that the broker's phone and email come back starred and
+ * their address and links not at all, so the real values never cross the wire.
  */
 class LeadResource extends JsonResource
 {
@@ -17,7 +19,11 @@ class LeadResource extends JsonResource
         return [
             'id' => $this->id,
             'status' => $this->status,
+            // Retained: the broker reached "Interested". Not the contact gate — see the
+            // note on Lead::revealsContact(), which the dashboards depend on.
             'contact_unlocked' => (bool) $this->contact_unlocked,
+            // The gate the UI should read.
+            'contact_visible' => $this->revealsContact(),
 
             'viewed_at' => $this->viewed_at?->toIso8601String(),
             'interested_at' => $this->interested_at?->toIso8601String(),
@@ -27,17 +33,10 @@ class LeadResource extends JsonResource
             'property' => new PropertyResource($this->whenLoaded('property')),
             'developer' => new DeveloperResource($this->whenLoaded('developer')),
 
-            'broker' => $this->whenLoaded('broker', function () {
-                return [
-                    'id' => $this->broker->id,
-                    'name' => $this->broker->name,
-                    'company_name' => $this->broker->brokerProfile?->company_name,
-                    'rera_number' => $this->broker->brokerProfile?->rera_number,
-                    // Gated — never serialised until the broker marks interest.
-                    'mobile' => $this->contact_unlocked ? $this->broker->mobile : null,
-                    'email' => $this->contact_unlocked ? $this->broker->email : null,
-                ];
-            }),
+            'broker' => $this->whenLoaded(
+                'broker',
+                fn () => (new PartnerResource($this->broker))->withContact($this->revealsContact())
+            ),
 
             'created_at' => $this->created_at?->toIso8601String(),
         ];

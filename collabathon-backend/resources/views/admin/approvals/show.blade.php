@@ -7,6 +7,11 @@
         default => 'danger',
     };
 
+    $resetPayload = \Illuminate\Support\Js::from([
+        'name' => $broker->name,
+        'action' => route('admin.approvals.password', $broker),
+    ]);
+
     // Every uploaded document, in the order the mobile app collects them. Paths are
     // frequently null — a registration can reach the queue with none attached — so each
     // row renders either a link or a plain "Not provided".
@@ -42,7 +47,7 @@
                 <img src="{{ Storage::disk('public')->url($profile->photo_path) }}" alt=""
                      class="w-14 h-14 rounded-xl object-cover border border-line-soft shrink-0">
             @else
-                <x-avatar :name="$broker->name" size="lg" class="w-14 h-14 shrink-0" />
+                <x-avatar :name="$broker->name" :src="$profile?->photo_path" size="lg" class="w-14 h-14 shrink-0" />
             @endif
 
             <div class="min-w-0">
@@ -70,6 +75,13 @@
              being revoked, or a rejected one reinstated, rather than decided for the
              first time. --}}
         <div class="flex flex-wrap items-center gap-2.5 shrink-0">
+            {{-- Offered at every status: a broker who cannot sign in to be approved is
+                 as stuck as one who forgot their password after approval. --}}
+            <x-button variant="subtle" icon="lock" tag="button" type="button"
+                      x-on:click="$dispatch('reset-password', {{ $resetPayload }})">
+                Reset password
+            </x-button>
+
             @if($broker->status !== \App\Models\User::STATUS_REJECTED)
                 <x-button variant="outline" icon="x" tag="button" type="button"
                           x-on:click="$dispatch('open-reject')">

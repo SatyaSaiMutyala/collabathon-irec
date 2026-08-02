@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\LeadResource;
 use App\Models\Lead;
 use App\Models\Property;
+use App\Services\PushNotifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -27,24 +28,51 @@ class LeadController extends Controller
         'interested_at' => 'interested_at',
     ];
 
+    /**
+     * What LeadResource needs off the broker's profile, listed rather than selected with
+     * `*` so the identity and banking columns (PAN, Aadhaar, cheque details and every
+     * document path) are never even loaded into memory on a developer-facing request.
+     * GST is in the list on purpose — it is a public business registration, not an ID.
+     */
+    private const BROKER_PROFILE_COLUMNS = 'broker.brokerProfile:id,user_id,company_name,is_company,'
+        . 'rera_number,rera_certificate_expiry,gst_number,years_of_experience,team_size,city,state,'
+        . 'segments,zones,operates_multiple_states,project_contributions,submitted_at,photo_path,'
+        . 'alternate_mobile,company_website,social_media_handle,office_address,residence_address';
+
     /** GET /api/leads — the caller's own leads (broker) or inbox (developer). */
     public function index(Request $request): AnonymousResourceCollection
     {
         $user = $request->user();
 
         $query = Lead::query()
-            ->with(['property:id,name,slug,city,cover_image_path,developer_id', 'developer:id,company_name'])
+            // Price is selected here, not just shaped by the resource: PropertyResource
+            // emits the `price` block unconditionally, so leaving the columns out of the
+            // select produced a well-formed object of nulls that looked like a listing
+            // with no price rather than a column that was never fetched.
+            ->with(['property:id,name,slug,city,state,locality,cover_image_path,project_status,'
+                . 'project_type,price_min,price_max,currency,developer_id'])
             ->search($request->query('search'))
             ->filter($this->filters($request, ['status', 'property_id', 'from', 'to']));
 
         if ($user->isBroker()) {
-            $query->where('broker_id', $user->id);
+            // The broker's own side of the relationship. They get the whole developer,
+            // not just the company name: on an accepted lead this list *is* the partner
+            // directory, and a partner you cannot reach is not much of one. Nothing here
+            // is privileged — DeveloperResource is what /developers/{id} already serves
+            // to any signed-in broker.
+            $query->where('broker_id', $user->id)
+                ->with(['developer' => fn ($q) => $q->select(
+                    'id', 'user_id', 'company_name', 'contact_person', 'mobile', 'email',
+                    'city', 'state', 'rera_number', 'logo_path', 'about',
+                    'cp_payout_percent', 'verified', 'status', 'created_at',
+                )->withCount('properties')]);
         } elseif ($user->isDeveloper()) {
+            $query->with('developer:id,company_name');
             $developerId = $user->developer?->id;
             abort_if($developerId === null, 403, 'No developer profile linked to this account.');
 
             $query->where('developer_id', $developerId)
-                ->with(['broker:id,name,mobile,email', 'broker.brokerProfile:id,user_id,company_name,rera_number']);
+                ->with(['broker:id,name,mobile,email,avatar_path,created_at', self::BROKER_PROFILE_COLUMNS]);
         } else {
             abort(403);
         }
@@ -87,10 +115,12 @@ class LeadController extends Controller
     }
 
     /**
-     * POST /api/properties/{property}/interest — the moment contact details unlock.
-     * `contact_unlocked` is set server-side; the client cannot pass it.
+     * POST /api/properties/{property}/interest — files the request with the developer.
+     * This is the "interested" stage, not the contact reveal: the developer still sees
+     * starred details until they accept. `contact_unlocked` is set server-side and the
+     * client cannot pass it.
      */
-    public function interest(Request $request, Property $property): JsonResponse
+    public function interest(Request $request, Property $property, PushNotifier $push): JsonResponse
     {
         $user = $request->user();
         abort_unless($user->isBroker(), 403);
@@ -118,14 +148,20 @@ class LeadController extends Controller
             return $lead;
         });
 
+        // Only on the transition into "interested" — re-tapping an existing request
+        // must not notify the developer again.
+        if ($lead->wasChanged('status') || $lead->wasRecentlyCreated) {
+            $push->requestReceived($lead);
+        }
+
         return response()->json([
-            'message' => 'Interest recorded. The developer can now see your contact details.',
+            'message' => 'Request sent. The developer sees your contact details once they accept.',
             'data' => new LeadResource($lead),
         ]);
     }
 
     /** PATCH /api/leads/{lead} — developer accepts or declines an interested broker. */
-    public function respond(Request $request, Lead $lead): JsonResponse
+    public function respond(Request $request, Lead $lead, PushNotifier $push): JsonResponse
     {
         $user = $request->user();
         abort_unless($user->isDeveloper(), 403);
@@ -148,7 +184,13 @@ class LeadController extends Controller
             'responded_at' => now(),
         ])->save();
 
-        $lead->load(['property:id,name', 'broker:id,name,mobile,email']);
+        $data['status'] === Lead::STATUS_ACCEPTED
+            ? $push->requestAccepted($lead)
+            : $push->requestDeclined($lead);
+
+        // Reloaded so the response already carries the post-decision view: on accept the
+        // contact comes back real, on decline it stays starred.
+        $lead->load(['property:id,name', 'broker:id,name,mobile,email,avatar_path,created_at', self::BROKER_PROFILE_COLUMNS]);
 
         return response()->json(['data' => new LeadResource($lead)]);
     }

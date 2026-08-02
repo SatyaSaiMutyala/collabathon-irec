@@ -21,9 +21,9 @@ $t = $tones[$tone] ?? $tones['neutral'];
 $s = $sizes[$size] ?? $sizes['md'];
 @endphp
 
-<span {{ $attributes->merge(['class' => "inline-flex items-center rounded-full font-medium ring-1 ring-inset whitespace-nowrap {$t['chip']} $s"]) }}>
+<span {{ $attributes->merge(['class' => "inline-flex items-center font-medium ring-1 ring-inset whitespace-nowrap rounded-badge {$t['chip']} $s"]) }}>
     @if($dot)
-        <span class="w-1.5 h-1.5 rounded-full shrink-0 {{ $t['dot'] }}"></span>
+        <span class="w-1.5 h-1.5 shrink-0 rounded-badge {{ $t['dot'] }}"></span>
     @endif
     {{ $slot }}
 </span>

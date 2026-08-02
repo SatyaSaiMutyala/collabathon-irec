@@ -64,7 +64,9 @@ const LoginScreen = ({navigation}) => {
               onPress={() => navigation.goBack()}
               hitSlop={10}
               style={{alignSelf: 'flex-start', marginBottom: spacing.lg}}>
-              <Icon name="arrow-back" size={moderateScale(22)} color={colors.textPrimary} />
+              {/* iOS uses a chevron for back, not Material's full arrow — this matches
+                  RegisterScreen, DeveloperLoginScreen and PropertyHero. */}
+              <Icon name="chevron-back" size={moderateScale(24)} color={colors.textPrimary} />
             </TouchableOpacity>
           )}
 

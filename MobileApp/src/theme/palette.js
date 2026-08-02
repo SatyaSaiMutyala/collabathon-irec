@@ -30,19 +30,36 @@ export function withAlpha(hex, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+/** Relative luminance, 0 (black) to 1 (white). Used to pick a readable ramp direction. */
+export function luminance(hex) {
+  const [r, g, b] = hexToRgb(hex).map(channel => {
+    const c = channel / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
 export function buildPalette(primary) {
+  // `primaryDark` is the pressed/hover weight. Darkening is the normal move, but a
+  // near-black primary has no room below it — shade() would return the same colour and
+  // the state change would be invisible. Below this threshold the ramp inverts and the
+  // "dark" step goes lighter instead.
+  const isNearBlack = luminance(primary) < 0.12;
+
   return {
     primary,
-    primaryDark: shade(primary, -0.28),
+    primaryDark: isNearBlack ? shade(primary, 0.17) : shade(primary, -0.28),
     primaryLight: shade(primary, 0.28),
     primarySoft: shade(primary, 0.86),
     background: '#FFFFFF',
-    surface: '#FAF8F4',
+    // Neutral greys, not the warm cream these were: that tint was mixed to sit under a
+    // gold accent, and against a black brand it reads as an off-white mistake.
+    surface: '#F5F5F5',
     card: '#FFFFFF',
-    border: '#EAE4D6',
-    textPrimary: '#12141C',
-    textSecondary: '#565D6D',
-    textMuted: '#8A90A0',
+    border: '#DEDEDE',
+    textPrimary: '#111111',
+    textSecondary: '#5A5A5A',
+    textMuted: '#8A8A8A',
     textInverse: '#FFFFFF',
     success: '#1F9254',
     successSoft: '#E6F4EB',
@@ -57,6 +74,6 @@ export function buildPalette(primary) {
   };
 }
 
-/** Default seed theme — premium gold-on-navy real-estate look. Admin can swap `primary`. */
-export const DEFAULT_PRIMARY = '#C9A227';
+/** Default seed theme — monochrome: black accent on white. Admin can swap `primary`. */
+export const DEFAULT_PRIMARY = '#000000';
 export const defaultPalette = buildPalette(DEFAULT_PRIMARY);

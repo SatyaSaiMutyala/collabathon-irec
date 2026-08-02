@@ -1,9 +1,15 @@
 import React, {useEffect} from 'react';
-import {ActivityIndicator, ScrollView, StatusBar, StyleSheet, View} from 'react-native';
+import {ScrollView, StatusBar, StyleSheet, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../../theme';
-import {AppText, Button, PropertyDetailBody, PropertyHero} from '../../components';
+import {
+  AppText,
+  Button,
+  PropertyDetailBody,
+  PropertyDetailSkeleton,
+  PropertyHero,
+} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {
   fetchProperty,
@@ -31,13 +37,14 @@ const ProjectDetailScreen = ({route, navigation}) => {
   }, [dispatch, projectId]);
 
   if (!project) {
-    return (
+    // `idle` counts as loading for the same reason PaginatedList counts it: this screen
+    // renders once before its effect dispatches, and that frame must not read as
+    // "not found".
+    return detailStatus === 'loading' || detailStatus === 'idle' ? (
+      <PropertyDetailSkeleton />
+    ) : (
       <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
-        {detailStatus === 'loading' ? (
-          <ActivityIndicator size="large" color={colors.primary} />
-        ) : (
-          <AppText variant="body">Project not found.</AppText>
-        )}
+        <AppText variant="body">Project not found.</AppText>
       </View>
     );
   }

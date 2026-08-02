@@ -1,6 +1,9 @@
 import {createAsyncThunk, createSlice} from '@reduxjs/toolkit';
 import {authApi} from '../../api/endpoints';
 import {extractError, setAuthToken} from '../../api/client';
+// uiSlice imports nothing back, so this stays a one-way edge — no require cycle.
+import {showSnackbar} from './uiSlice';
+import {unregisterDevice} from '../../services/push';
 
 /**
  * Auth against the Laravel API. Email + password is the login key for both mobile
@@ -28,7 +31,9 @@ export const registerBroker = createAsyncThunk(
   async (payload, {rejectWithValue}) => {
     try {
       const {data} = await authApi.register(payload);
-      return data.data;
+      // The server's own confirmation wording travels with the user, so the screen shows
+      // what the API actually said rather than a copy of it that can drift.
+      return {user: data.data, message: data.message};
     } catch (error) {
       return rejectWithValue(extractError(error));
     }
@@ -37,7 +42,7 @@ export const registerBroker = createAsyncThunk(
 
 export const login = createAsyncThunk(
   'auth/login',
-  async ({email, password, role}, {rejectWithValue}) => {
+  async ({email, password, role}, {dispatch, rejectWithValue}) => {
     try {
       const {data} = await authApi.login({
         email,
@@ -45,6 +50,12 @@ export const login = createAsyncThunk(
         role,
         device_name: 'mobile',
       });
+
+      // Raised here rather than in the screen: RootNavigator swaps the auth stack out
+      // the moment isLoggedIn flips, so the component that asked for the login is gone
+      // before it could show anything.
+      dispatch(showSnackbar({message: `Welcome back, ${data.data?.name ?? ''}`.trim(), tone: 'success'}));
+
       return data;
     } catch (error) {
       const normalised = extractError(error);
@@ -69,6 +80,9 @@ export const fetchMe = createAsyncThunk('auth/me', async (_, {rejectWithValue}) 
 
 export const logout = createAsyncThunk('auth/logout', async () => {
   try {
+    // Before the Sanctum token is revoked — this call needs it. Otherwise the row is
+    // left behind and the next person to sign in on this handset inherits the pushes.
+    await unregisterDevice();
     // Best-effort: revoke server-side, but always clear locally.
     await authApi.logout();
   } catch {
@@ -119,7 +133,7 @@ const authSlice = createSlice({
       .addCase(registerBroker.fulfilled, (state, action) => {
         state.status = 'succeeded';
         state.role = 'broker';
-        state.user = action.payload;
+        state.user = action.payload.user;
         // No token is issued until an admin approves.
         state.registrationStatus = 'pendingApproval';
         state.isLoggedIn = false;

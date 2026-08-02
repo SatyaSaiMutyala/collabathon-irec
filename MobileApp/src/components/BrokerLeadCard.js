@@ -12,10 +12,11 @@ import Button from './Button';
 import Card from './Card';
 
 /**
- * A lead as the developer sees it.
+ * A request as the developer sees it.
  *
- * Contact details are shown when `contact_unlocked` is true — and the server simply
- * does not send mobile/email otherwise, so a locked lead has nothing here to leak.
+ * The phone and email are always rendered, but until the developer accepts, what the
+ * server sent is a starred placeholder — `contact_visible` says which. Nothing is
+ * hidden client-side, so there is no real value sitting in the payload to leak.
  */
 const BrokerLeadCard = ({lead, propertyName, onPress}) => {
   const {colors, spacing} = useAppTheme();
@@ -27,18 +28,40 @@ const BrokerLeadCard = ({lead, propertyName, onPress}) => {
     return null;
   }
 
-  const unlocked = lead.contact_unlocked;
+  const visible = lead.contact_visible;
+  // Driven by the stage, not by the gate: the decision is what opens the gate, so
+  // reading `contact_visible` here would hide the buttons that unlock it.
   const canRespond = lead.status === 'interested';
+  const isRequest = lead.status !== 'viewed';
   const Wrapper = onPress ? TouchableOpacity : View;
 
   const tone = {accepted: 'success', declined: 'danger', interested: 'warning'}[lead.status];
-  const label = {accepted: 'Accepted', declined: 'Rejected', interested: 'Interested'}[lead.status];
+  const label = {accepted: 'Accepted', declined: 'Rejected', interested: 'Requested'}[lead.status];
+
+  const contactRow = (icon, value) =>
+    !!value && (
+      <View style={styles.row}>
+        <Icon
+          name={icon}
+          size={moderateScale(14)}
+          color={visible ? colors.primary : colors.textMuted}
+        />
+        <AppText
+          variant="caption"
+          color={visible ? colors.textSecondary : colors.textMuted}
+          style={{marginLeft: moderateScale(6)}}>
+          {value}
+        </AppText>
+      </View>
+    );
 
   return (
     <Wrapper {...(onPress ? {activeOpacity: 0.85, onPress} : {})}>
       <Card style={{marginBottom: spacing.sm}}>
         <View style={{flexDirection: 'row', alignItems: 'center'}}>
-          <Avatar name={broker.name} size="md" />
+          {/* The passport photo from registration — PartnerResource resolves it from
+              the profile, or the broker's later avatar if they changed it. */}
+          <Avatar uri={broker.photo_url} name={broker.name} size="md" />
           <View style={{flex: 1, marginLeft: spacing.sm}}>
             <AppText variant="bodyMedium" numberOfLines={1}>
               {broker.name}
@@ -61,7 +84,7 @@ const BrokerLeadCard = ({lead, propertyName, onPress}) => {
           {!!label && <Badge label={label} tone={tone} />}
         </View>
 
-        {unlocked ? (
+        {isRequest ? (
           <View
             style={{
               marginTop: spacing.sm,
@@ -69,50 +92,22 @@ const BrokerLeadCard = ({lead, propertyName, onPress}) => {
               borderTopWidth: 1,
               borderTopColor: colors.border,
             }}>
-            {!!broker.mobile && (
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  marginBottom: moderateScale(6),
-                }}>
-                <Icon name="call-outline" size={moderateScale(14)} color={colors.primary} />
-                <AppText
-                  variant="caption"
-                  color={colors.textSecondary}
-                  style={{marginLeft: moderateScale(6)}}>
-                  {broker.mobile}
-                </AppText>
-              </View>
-            )}
-            {!!broker.email && (
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  marginBottom: moderateScale(6),
-                }}>
-                <Icon name="mail-outline" size={moderateScale(14)} color={colors.primary} />
-                <AppText
-                  variant="caption"
-                  color={colors.textSecondary}
-                  style={{marginLeft: moderateScale(6)}}>
-                  {broker.email}
-                </AppText>
-              </View>
-            )}
-            {!!broker.rera_number && (
-              <View style={{flexDirection: 'row', alignItems: 'center'}}>
+            {contactRow('call-outline', broker.mobile)}
+            {contactRow('mail-outline', broker.email)}
+            {contactRow('shield-checkmark-outline', broker.rera_number)}
+
+            {!visible && (
+              <View style={[styles.row, {marginTop: moderateScale(2)}]}>
                 <Icon
-                  name="shield-checkmark-outline"
-                  size={moderateScale(14)}
-                  color={colors.primary}
+                  name="lock-closed-outline"
+                  size={moderateScale(13)}
+                  color={colors.textMuted}
                 />
                 <AppText
                   variant="caption"
-                  color={colors.textSecondary}
-                  style={{marginLeft: moderateScale(6)}}>
-                  {broker.rera_number}
+                  color={colors.textMuted}
+                  style={{marginLeft: moderateScale(6), flex: 1}}>
+                  Last digits hidden until you accept
                 </AppText>
               </View>
             )}
@@ -140,19 +135,27 @@ const BrokerLeadCard = ({lead, propertyName, onPress}) => {
             )}
           </View>
         ) : (
-          <View style={{flexDirection: 'row', alignItems: 'center', marginTop: spacing.sm}}>
-            <Icon name="lock-closed-outline" size={moderateScale(13)} color={colors.textMuted} />
+          <View style={[styles.row, {marginTop: spacing.sm}]}>
+            <Icon name="eye-outline" size={moderateScale(13)} color={colors.textMuted} />
             <AppText
               variant="caption"
               color={colors.textMuted}
-              style={{marginLeft: moderateScale(6)}}>
-              Viewed only — contact hidden until this broker marks interest
+              style={{marginLeft: moderateScale(6), flex: 1}}>
+              Viewed only — this broker has not sent a request
             </AppText>
           </View>
         )}
       </Card>
     </Wrapper>
   );
+};
+
+const styles = {
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: moderateScale(6),
+  },
 };
 
 export default BrokerLeadCard;

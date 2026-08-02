@@ -1,8 +1,9 @@
 import React from 'react';
-import {View} from 'react-native';
+import {TouchableOpacity, View} from 'react-native';
+import {useNavigation} from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
-import {useAppTheme} from '../theme';
+import {roundedRadius, useAppTheme} from '../theme';
 import AppText from './AppText';
 import AttachmentList from './AttachmentList';
 import Badge from './Badge';
@@ -35,6 +36,10 @@ function hasAny(obj, keys) {
 
 const PropertyDetailBody = ({project}) => {
   const {colors, spacing} = useAppTheme();
+  // Pulled from context rather than threaded through as a prop: this component is
+  // rendered by two screens in two different navigators, and both already sit inside
+  // a stack that owns the terms route.
+  const navigation = useNavigation();
   const details = project.details ?? {};
   const {overview, unit, location, specs, approvals, payment, sales} = details;
 
@@ -104,6 +109,54 @@ const PropertyDetailBody = ({project}) => {
             ))}
           </View>
         </Card>
+      )}
+
+      {/* ---------------------------------------------------------------- developer terms */}
+      {!!project.hasTerms && !!project.terms && (
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() =>
+            navigation.navigate('ProjectTerms', {
+              terms: project.terms,
+              projectName: project.name,
+            })
+          }
+          style={{marginTop: spacing.lg}}>
+          <Card style={{flexDirection: 'row', alignItems: 'center'}}>
+            <View
+              style={{
+                width: moderateScale(40),
+                height: moderateScale(40),
+                borderRadius: roundedRadius.statusIcon,
+                backgroundColor: colors.primarySoft,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+              <Icon
+                name={project.terms.type === 'document' ? 'document-text-outline' : 'reader-outline'}
+                size={moderateScale(19)}
+                color={colors.primaryDark}
+              />
+            </View>
+
+            <View style={{flex: 1, marginLeft: spacing.sm}}>
+              <AppText variant="bodyMedium" numberOfLines={1}>
+                {project.terms.title}
+              </AppText>
+              <AppText
+                variant="caption"
+                color={colors.textMuted}
+                numberOfLines={1}
+                style={{marginTop: moderateScale(1)}}>
+                {project.terms.type === 'document'
+                  ? `${(project.terms.documentExtension ?? 'file').toUpperCase()} · tap to read or download`
+                  : project.terms.excerpt || 'Tap to read the full terms'}
+              </AppText>
+            </View>
+
+            <Icon name="chevron-forward" size={moderateScale(18)} color={colors.textMuted} />
+          </Card>
+        </TouchableOpacity>
       )}
 
       {!!project.description && (

@@ -27,7 +27,7 @@ class DeveloperController extends Controller
         $query = Developer::query()
             ->where('status', 'active')
             // withCount, not a loaded relation — one aggregate per page, no N+1.
-            ->withCount(['properties' => fn ($q) => $q->where('listing_status', 'active')])
+            ->withCount(['properties' => fn ($q) => $q->brokerVisible()])
             ->when($request->query('search'), fn ($q, $term) => $q->where('company_name', 'like', $term . '%'))
             ->when($request->query('city'), fn ($q, $city) => $q->where('city', $city));
 
@@ -41,7 +41,7 @@ class DeveloperController extends Controller
     {
         abort_unless($developer->status === 'active', 404);
 
-        $developer->loadCount(['properties' => fn ($q) => $q->where('listing_status', 'active')]);
+        $developer->loadCount(['properties' => fn ($q) => $q->brokerVisible()]);
 
         return response()->json(['data' => new DeveloperResource($developer)]);
     }
@@ -60,7 +60,7 @@ class DeveloperController extends Controller
         // rather than the Builder) — getQuery() unwraps it to the real Eloquent Builder
         // that applySort()'s type hint requires.
         $query = $developer->properties()
-            ->active()
+            ->brokerVisible()
             ->with('developer')
             ->search($request->query('search'))
             ->getQuery();

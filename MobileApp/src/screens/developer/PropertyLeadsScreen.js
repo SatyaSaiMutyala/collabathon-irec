@@ -1,16 +1,26 @@
 import React, {useCallback, useEffect} from 'react';
-import {ActivityIndicator, StatusBar, View} from 'react-native';
+import {StatusBar, View} from 'react-native';
 import {useAppTheme} from '../../theme';
 import {
   AppText,
   BrokerLeadCard,
   PaginatedList,
+  BrokerLeadCardSkeleton,
+  PropertyDetailSkeleton,
   PropertyDetailBody,
   PropertyHero,
+  ProjectDecisionPanel,
 } from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
-import {fetchProperty, selectPropertyById} from '../../store/slices/propertiesSlice';
-import {fetchLeads, fetchNextLeads} from '../../store/slices/leadsSlice';
+// Deliberately the developer's own endpoint, not the broker one: /properties/{id}
+// 404s for a project still awaiting this developer's acceptance, which is exactly the
+// project they most need to open.
+import {fetchMyProperty, selectMyPropertyById} from '../../store/slices/myPropertiesSlice';
+import {
+  fetchNextPropertyLeads,
+  fetchPropertyLeads,
+  selectPropertyLeads,
+} from '../../store/slices/leadsSlice';
 
 /** One listing plus every broker who touched it — viewed and interested alike. */
 const PropertyLeadsScreen = ({route, navigation}) => {
@@ -18,31 +28,32 @@ const PropertyLeadsScreen = ({route, navigation}) => {
   const dispatch = useAppDispatch();
   const {projectId} = route.params;
 
-  const project = useAppSelector(state => selectPropertyById(state, projectId));
-  const detailStatus = useAppSelector(state => state.properties.detail.status);
-  const list = useAppSelector(state => state.leads.list);
+  const project = useAppSelector(state => selectMyPropertyById(state, projectId));
+  const detailStatus = useAppSelector(state => state.myProperties.detail.status);
+  const list = useAppSelector(selectPropertyLeads);
 
   const loadFirstPage = useCallback(() => {
-    dispatch(fetchLeads({page: 1, property_id: projectId}));
+    dispatch(fetchPropertyLeads({propertyId: projectId, page: 1}));
   }, [dispatch, projectId]);
 
   useEffect(() => {
-    dispatch(fetchProperty(projectId));
+    dispatch(fetchMyProperty(projectId));
     loadFirstPage();
   }, [dispatch, projectId, loadFirstPage]);
 
   const handleEndReached = useCallback(() => {
-    dispatch(fetchNextLeads());
+    dispatch(fetchNextPropertyLeads());
   }, [dispatch]);
 
   if (!project) {
-    return (
+    // `idle` counts as loading for the same reason PaginatedList counts it: this screen
+    // renders once before its effect dispatches, and that frame must not read as
+    // "not found".
+    return detailStatus === 'loading' || detailStatus === 'idle' ? (
+      <PropertyDetailSkeleton />
+    ) : (
       <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
-        {detailStatus === 'loading' ? (
-          <ActivityIndicator size="large" color={colors.primary} />
-        ) : (
-          <AppText variant="body">Property not found.</AppText>
-        )}
+        <AppText variant="body">Property not found.</AppText>
       </View>
     );
   }
@@ -51,9 +62,15 @@ const PropertyLeadsScreen = ({route, navigation}) => {
     <View style={{flex: 1, backgroundColor: colors.background}}>
       <StatusBar barStyle="light-content" />
       <PaginatedList
+        renderSkeleton={() => (
+          <View style={{paddingHorizontal: spacing.lg}}>
+            <BrokerLeadCardSkeleton />
+          </View>
+        )}
         list={list}
         onRefresh={loadFirstPage}
         onEndReached={handleEndReached}
+        emptyIcon="people-outline"
         emptyTitle="No broker activity yet"
         emptyMessage="Views and interests on this listing will appear here."
         contentContainerStyle={{paddingBottom: spacing.xxxl}}
@@ -61,6 +78,13 @@ const PropertyLeadsScreen = ({route, navigation}) => {
           <>
             <PropertyHero project={project} onBack={() => navigation.goBack()} />
             <PropertyDetailBody project={project} />
+
+            {/* Closes out the project details: the developer decides here, having just
+                read the sheet above. Everything below is lead activity. */}
+            <View style={{paddingHorizontal: spacing.lg}}>
+              <ProjectDecisionPanel project={project} />
+            </View>
+
             <View style={{paddingHorizontal: spacing.lg}}>
               <AppText variant="h3" style={{marginTop: spacing.xl, marginBottom: spacing.sm}}>
                 Broker Leads ({list.total})
@@ -70,7 +94,10 @@ const PropertyLeadsScreen = ({route, navigation}) => {
         }
         renderItem={({item}) => (
           <View style={{paddingHorizontal: spacing.lg}}>
-            <BrokerLeadCard lead={item} />
+            <BrokerLeadCard
+              lead={item}
+              onPress={() => navigation.navigate('BrokerDetail', {leadId: item.id})}
+            />
           </View>
         )}
       />

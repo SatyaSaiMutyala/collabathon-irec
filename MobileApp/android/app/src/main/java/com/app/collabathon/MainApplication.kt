@@ -1,4 +1,4 @@
-package com.collabathon
+package com.app.collabathon
 
 import android.app.Application
 import com.facebook.react.PackageList

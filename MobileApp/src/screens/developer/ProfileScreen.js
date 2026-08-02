@@ -1,11 +1,21 @@
-import React from 'react';
+import React, {useState} from 'react';
 import {ScrollView, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../../theme';
-import {AppText, Avatar, Badge, Button, Card, ScreenContainer, StatRow} from '../../components';
+import {
+  AppText,
+  Avatar,
+  Badge,
+  Button,
+  Card,
+  ConfirmDialog,
+  ScreenContainer,
+  StatRow,
+} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {logout} from '../../store/slices/authSlice';
+import {showSnackbar} from '../../store/slices/uiSlice';
 
 const InfoRow = ({icon, label, value}) => {
   const {colors, spacing} = useAppTheme();
@@ -25,6 +35,7 @@ const InfoRow = ({icon, label, value}) => {
 const ProfileScreen = () => {
   const {colors, spacing} = useAppTheme();
   const dispatch = useAppDispatch();
+  const [confirmLogout, setConfirmLogout] = useState(false);
   const user = useAppSelector(state => state.auth.user);
   // DeveloperResource's own shape (snake_case). This screen used to read a camelCase
   // mock-data object with a `projects` array; that array has no API equivalent, so the
@@ -92,9 +103,24 @@ const ProfileScreen = () => {
           variant="outline"
           icon="log-out-outline"
           style={{marginTop: spacing.lg}}
-          onPress={() => dispatch(logout())}
+          onPress={() => setConfirmLogout(true)}
         />
       </ScrollView>
+
+      <ConfirmDialog
+        visible={confirmLogout}
+        icon="log-out-outline"
+        tone="danger"
+        title="Log out?"
+        message="You'll need to sign in again to get back to your account."
+        confirmLabel="Log out"
+        onCancel={() => setConfirmLogout(false)}
+        onConfirm={() => {
+          setConfirmLogout(false);
+          dispatch(logout());
+          dispatch(showSnackbar('Signed out'));
+        }}
+      />
     </ScreenContainer>
   );
 };

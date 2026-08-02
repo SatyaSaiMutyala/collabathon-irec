@@ -1,12 +1,17 @@
 @php
     $statusTone = ['active' => 'success', 'draft' => 'warning', 'archived' => 'neutral'];
+
+    // The developer's response to the assignment. `pending` is the state that needs
+    // chasing, so it is the one that gets a warning tone rather than a neutral one.
+    $devTone = ['accepted' => 'success', 'pending' => 'warning', 'declined' => 'danger'];
+    $devLabel = ['accepted' => 'Accepted', 'pending' => 'Awaiting', 'declined' => 'Declined'];
 @endphp
 
 <x-layouts.admin active="properties" title="Projects" section="Manage">
 
     <x-page-header
         title="Projects"
-        subtitle="Every listing on the platform and the developer it belongs to. Brokers only see active listings.">
+        subtitle="Every listing and the developer it belongs to. A project reaches channel partners only once it is Active AND the developer has accepted it.">
         <x-slot:actions>
             {{-- The full project sheet is ~70 fields across nine sections — too much for a
                  modal, so intake lives on its own page. --}}
@@ -18,10 +23,10 @@
 
 
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-5">
-        <x-stat-card icon="list" label="Total listings" :value="$totals['all']" />
-        <x-stat-card icon="check" label="Active" :value="$totals['active']" />
-        <x-stat-card icon="eye" label="Total views" :value="$totals['views']" />
-        <x-stat-card icon="users" label="Total interests" :value="$totals['interests']" />
+        <x-stat-card icon="list" label="Total projects" :value="$totals['all']" />
+        <x-stat-card icon="check" label="Live to partners" :value="$totals['live']" />
+        <x-stat-card icon="clock" label="Awaiting developer" :value="$totals['awaiting']" :good-when-up="false" />
+        <x-stat-card icon="x" label="Declined" :value="$totals['declined']" :good-when-up="false" />
     </div>
 
     <x-data-table
@@ -40,6 +45,9 @@
                              :options="['New Launch', 'Under Construction', 'Ready to Move', 'Nearing Completion']"
                              placeholder="Any stage" />
             <x-filter-select name="status" :options="['draft' => 'Draft', 'active' => 'Active', 'archived' => 'Archived']" placeholder="Any status" />
+            <x-filter-select name="developer_status"
+                             :options="['pending' => 'Awaiting developer', 'accepted' => 'Accepted', 'declined' => 'Declined']"
+                             placeholder="Any developer response" />
         </x-slot:filters>
 
         <x-slot:head>
@@ -51,6 +59,7 @@
             <x-th align="right" sort="views" hide="xl">Views</x-th>
             <x-th align="right" sort="interests" hide="lg">Interested</x-th>
             <x-th>Status</x-th>
+            <x-th>Dev. response</x-th>
             <x-th align="right">Actions</x-th>
         </x-slot:head>
 
@@ -96,6 +105,19 @@
                     <x-badge :tone="$statusTone[$p->listing_status] ?? 'neutral'" size="sm" dot>
                         {{ ucfirst($p->listing_status) }}
                     </x-badge>
+                </td>
+
+                {{-- The developer's half of the gate. "Live" underneath is the only
+                     signal that means a channel partner can actually see this row. --}}
+                <td class="px-4 py-3">
+                    <x-badge :tone="$devTone[$p->developer_status] ?? 'neutral'" size="sm" dot>
+                        {{ $devLabel[$p->developer_status] ?? ucfirst($p->developer_status) }}
+                    </x-badge>
+                    @if($p->listing_status === 'active' && $p->developer_status === 'accepted')
+                        <p class="text-[10.5px] text-success mt-1">Live to partners</p>
+                    @elseif($p->developer_status === 'pending')
+                        <p class="text-[10.5px] text-ink-3 mt-1">Hidden from partners</p>
+                    @endif
                 </td>
 
                 <td class="px-4 py-3 text-right" data-row-actions>

@@ -16,11 +16,11 @@
         <span class="relative inline-flex shrink-0 mt-0.5">
             <input id="{{ $name }}" name="{{ $name }}" type="checkbox" value="1" @checked($isOn)
                    class="peer sr-only" {{ $attributes->except('class') }}>
-            <span class="block w-[38px] h-[21px] rounded-full bg-line p-[2px] transition-colors duration-150
+            <span class="block w-[38px] h-[21px] bg-line p-[2px] transition-colors duration-150
                          peer-checked:bg-primary
                          peer-focus-visible:ring-[3px] peer-focus-visible:ring-primary-ring
                          peer-checked:[&>span]:translate-x-[17px]">
-                <span class="block w-[17px] h-[17px] rounded-full bg-white shadow-sm transition-transform duration-150"></span>
+                <span class="block w-[17px] h-[17px] bg-white shadow-sm transition-transform duration-150"></span>
             </span>
         </span>
 

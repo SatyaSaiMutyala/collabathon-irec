@@ -2,19 +2,9 @@ import React from 'react';
 import {Image, StyleSheet, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
-import {useAppTheme} from '../theme';
+import {roundedRadius, useAppTheme} from '../theme';
 import AppText from './AppText';
-
-const initialsOf = name => {
-  if (!name) {
-    return '?';
-  }
-  const parts = name.trim().split(' ');
-  return parts
-    .slice(0, 2)
-    .map(p => p[0]?.toUpperCase())
-    .join('');
-};
+import {initialsOf} from '../utils/name';
 
 const Avatar = ({uri, name, size = 'md', ringColor, showVerified}) => {
   const {colors, avatarSize} = useAppTheme();
@@ -28,7 +18,7 @@ const Avatar = ({uri, name, size = 'md', ringColor, showVerified}) => {
         {
           width: dim + ringWidth * 2,
           height: dim + ringWidth * 2,
-          borderRadius: (dim + ringWidth * 2) / 2,
+          borderRadius: roundedRadius.avatar,
           borderWidth: ringWidth,
           borderColor: ringColor,
         },
@@ -36,7 +26,7 @@ const Avatar = ({uri, name, size = 'md', ringColor, showVerified}) => {
       {uri ? (
         <Image
           source={{uri}}
-          style={{width: dim, height: dim, borderRadius: dim / 2}}
+          style={{width: dim, height: dim, borderRadius: roundedRadius.avatar}}
         />
       ) : (
         <View
@@ -45,7 +35,7 @@ const Avatar = ({uri, name, size = 'md', ringColor, showVerified}) => {
             {
               width: dim,
               height: dim,
-              borderRadius: dim / 2,
+              borderRadius: roundedRadius.avatar,
               backgroundColor: colors.primarySoft,
             },
           ]}>
@@ -78,7 +68,7 @@ const styles = StyleSheet.create({
     bottom: -moderateScale(1),
     width: moderateScale(16),
     height: moderateScale(16),
-    borderRadius: moderateScale(8),
+    borderRadius: roundedRadius.badge,
     borderWidth: moderateScale(1.5),
     alignItems: 'center',
     justifyContent: 'center',

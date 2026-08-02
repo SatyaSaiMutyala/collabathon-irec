@@ -1,10 +1,13 @@
 import {configureStore} from '@reduxjs/toolkit';
 import authReducer, {sessionExpired} from './slices/authSlice';
 import propertiesReducer from './slices/propertiesSlice';
+import myPropertiesReducer from './slices/myPropertiesSlice';
 import developersReducer from './slices/developersSlice';
 import leadsReducer from './slices/leadsSlice';
+import partnersReducer from './slices/partnersSlice';
 import notificationsReducer from './slices/notificationsSlice';
 import dashboardReducer from './slices/dashboardSlice';
+import uiReducer from './slices/uiSlice';
 import {saveAuthState} from './authPersistence';
 import {setUnauthorizedHandler} from '../api/client';
 
@@ -12,10 +15,13 @@ export const store = configureStore({
   reducer: {
     auth: authReducer,
     properties: propertiesReducer,
+    myProperties: myPropertiesReducer,
     developers: developersReducer,
     leads: leadsReducer,
+    partners: partnersReducer,
     notifications: notificationsReducer,
     dashboard: dashboardReducer,
+    ui: uiReducer,
   },
 });
 

@@ -2,7 +2,7 @@ import React from 'react';
 import {View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
-import {useAppTheme} from '../../theme';
+import {roundedRadius, useAppTheme} from '../../theme';
 import {AppText, Avatar, Badge, Button, Card, ScreenContainer} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {clearAuthError} from '../../store/slices/authSlice';
@@ -22,7 +22,9 @@ const PendingApprovalScreen = ({navigation}) => {
           style={{
             width: moderateScale(96),
             height: moderateScale(96),
-            borderRadius: moderateScale(48),
+            // Rounded, not square: this disc is a marker sitting on the page rather than
+            // a panel, and squared it read as an empty tile behind the icon.
+            borderRadius: roundedRadius.statusIcon,
             backgroundColor: colors.primarySoft,
             alignItems: 'center',
             justifyContent: 'center',

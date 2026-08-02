@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "79166362759",
+    "project_id": "hra-41c32",
+    "storage_bucket": "hra-41c32.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:79166362759:android:6d0d7ad71d0668d3bbd422",
+        "android_client_info": {
+          "package_name": "com.app.collabathon"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBuhFjvs_2NzWseSje5jBjJynOZtoczFgw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

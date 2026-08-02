@@ -45,7 +45,7 @@
     {{-- ============================== Header ============================== --}}
     <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div class="flex items-start gap-3.5 min-w-0">
-            <x-avatar :name="$broker?->name ?? '—'" size="lg" class="w-14 h-14 shrink-0" />
+            <x-avatar :name="$broker?->name ?? '—'" :src="$profile?->photo_path" size="lg" class="w-14 h-14 shrink-0" />
 
             <div class="min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
@@ -55,9 +55,9 @@
                     <x-badge :tone="$toneMap[$lead->status] ?? 'neutral'" size="sm" dot>
                         {{ ucfirst($lead->status) }}
                     </x-badge>
-                    <x-badge :tone="$lead->contact_unlocked ? 'success' : 'neutral'" size="sm">
-                        <x-icon :name="$lead->contact_unlocked ? 'check' : 'lock'" class="w-3 h-3" />
-                        {{ $lead->contact_unlocked ? 'Contact unlocked' : 'Contact locked' }}
+                    <x-badge :tone="$lead->revealsContact() ? 'success' : 'neutral'" size="sm">
+                        <x-icon :name="$lead->revealsContact() ? 'check' : 'lock'" class="w-3 h-3" />
+                        {{ $lead->revealsContact() ? 'Contact unlocked' : 'Contact locked' }}
                     </x-badge>
                 </div>
                 <p class="text-[13px] text-ink-2 mt-1">
@@ -170,18 +170,19 @@
 
                 <div @class([
                     'px-5 py-3 border-t border-line-soft flex items-start gap-2.5',
-                    'bg-success-soft' => $lead->contact_unlocked,
-                    'bg-canvas' => ! $lead->contact_unlocked,
+                    'bg-success-soft' => $lead->revealsContact(),
+                    'bg-canvas' => ! $lead->revealsContact(),
                 ])>
-                    <x-icon :name="$lead->contact_unlocked ? 'check' : 'lock'"
-                            :class="'w-4 h-4 shrink-0 mt-px ' . ($lead->contact_unlocked ? 'text-success' : 'text-ink-3')" />
+                    <x-icon :name="$lead->revealsContact() ? 'check' : 'lock'"
+                            :class="'w-4 h-4 shrink-0 mt-px ' . ($lead->revealsContact() ? 'text-success' : 'text-ink-3')" />
                     <p class="text-[11.5px] text-ink-2 leading-relaxed">
-                        @if($lead->contact_unlocked)
+                        @if($lead->revealsContact())
                             <span class="font-medium text-ink">{{ $lead->developer?->company_name ?? 'The developer' }}
-                            can see these details</span> — unlocked when the broker marked the project interested.
+                            can see these details</span> — unlocked when they accepted the request.
                         @else
                             <span class="font-medium text-ink">Hidden from the developer.</span>
-                            Contact unlocks only once the lead reaches “Interested”.
+                            They see a starred placeholder until they accept the request; this panel is
+                            admin-only and always shows the real values.
                         @endif
                     </p>
                 </div>

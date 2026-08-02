@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The Collabothon mark is drawn on white, so the adaptive icon's background
+         layer has to be white too or the mark's own white gaps read as holes. -->
+    <color name="ic_launcher_background">#FFFFFF</color>
+</resources>

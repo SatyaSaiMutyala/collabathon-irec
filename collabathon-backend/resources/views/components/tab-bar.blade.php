@@ -14,7 +14,7 @@
             {{ $t['label'] }}
             @if(isset($t['count']))
                 <span :class="{{ $model }} === '{{ $t['key'] }}' ? 'bg-primary-soft text-primary-dark' : 'bg-canvas text-ink-3'"
-                      class="min-w-[18px] px-1.5 h-[18px] inline-flex items-center justify-center rounded-full text-[10.5px] font-semibold nums transition-colors">
+                      class="min-w-[18px] px-1.5 h-[18px] inline-flex items-center justify-center rounded-badge text-[10.5px] font-semibold nums transition-colors">
                     {{ $t['count'] }}
                 </span>
             @endif

@@ -11,7 +11,7 @@ function formatPrice(value) {
 }
 
 const PropertyCard = ({project, onPress, showDots = true, priceVariant = 'h1'}) => {
-  const {colors, radius, spacing} = useAppTheme();
+  const {colors, radius, roundedRadius, spacing} = useAppTheme();
 
   return (
     <TouchableOpacity activeOpacity={0.9} onPress={onPress} style={{marginBottom: spacing.md}}>
@@ -28,13 +28,13 @@ const PropertyCard = ({project, onPress, showDots = true, priceVariant = 'h1'}) 
             style={StyleSheet.absoluteFillObject}
           />
 
-          <View style={[styles.statusPill, {backgroundColor: colors.primary, borderRadius: radius.pill}]}>
+          <View style={[styles.statusPill, {backgroundColor: colors.primary, borderRadius: roundedRadius.badge}]}>
             <AppText variant="captionMedium" color={colors.textInverse}>
               {project.listingType.toUpperCase()}
             </AppText>
           </View>
 
-          <View style={[styles.metaPill, {backgroundColor: colors.overlaySoft, borderRadius: radius.pill}]}>
+          <View style={[styles.metaPill, {backgroundColor: colors.overlaySoft, borderRadius: roundedRadius.badge}]}>
             <AppText variant="overline" color={colors.textInverse}>
               {project.postedDaysAgo === 0 ? 'TODAY' : `${project.postedDaysAgo} DAYS AGO`}
             </AppText>
@@ -60,7 +60,7 @@ const PropertyCard = ({project, onPress, showDots = true, priceVariant = 'h1'}) 
               <AppText variant="caption" color={colors.textInverse}>
                 📍 {project.location}
               </AppText>
-              <View style={[styles.photoBadge, {backgroundColor: colors.overlaySoft, borderRadius: radius.pill}]}>
+              <View style={[styles.photoBadge, {backgroundColor: colors.overlaySoft, borderRadius: roundedRadius.badge}]}>
                 <AppText variant="captionMedium" color={colors.textInverse}>
                   {project.photoCount}
                 </AppText>

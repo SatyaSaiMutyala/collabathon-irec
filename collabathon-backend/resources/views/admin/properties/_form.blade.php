@@ -53,7 +53,8 @@
               'video_url', 'virtual_tour_url', 'payment_schedule_file', 'payment_schedule'],
         7 => ['payment_plan_options', 'booking_amount', 'cp_commission_percent', 'special_incentives',
               'cashback_schemes', 'registration_stamp_duty', 'maintenance_charges', 'floor_rise',
-              'plc_charges', 'other_charges'],
+              'plc_charges', 'other_charges',
+              'terms_type', 'terms_title', 'terms_document', 'terms_content'],
         8 => ['sales_office_address', 'site_visit_timings', 'sales_contact_name', 'sales_contact_number', 'booking_process'],
         9 => ['rera_certificate', 'legal_due_diligence', 'awards'],
     ];
@@ -556,7 +557,7 @@
                                                 <span class="peer-checked:hidden">Remove</span>
                                             </span>
                                             <span class="absolute top-1.5 right-1.5 hidden peer-checked:grid place-items-center
-                                                         w-5 h-5 rounded-full bg-danger text-white">
+                                                         w-5 h-5 bg-danger text-white">
                                                 <x-icon name="x" class="w-3 h-3" />
                                             </span>
                                         </label>
@@ -619,6 +620,59 @@
                         <x-field label="Other charges" name="other_charges" type="textarea" rows="4"
                                  placeholder="Club membership — AED 25,000&#10;Legal — AED 5,000&#10;Infrastructure development — AED 40,000"
                                  hint="One per line — itemised where possible." />
+
+                        {{-- Developer terms ------------------------------------------------
+                             One artefact per project, shown to the developer and to every
+                             broker in the app. Two ways in because both happen: a signed PDF
+                             the developer already has, or terms typed here. `terms_type`
+                             decides which one is live — the other is kept, not cleared, so
+                             switching to draft some text does not throw away the PDF. --}}
+                        <div class="border-t border-line-soft pt-4"
+                             x-data="{ termsType: @js(old('terms_type', data_get($formRecord ?? null, 'terms_type') ?? '')) }">
+                            <div class="flex items-baseline justify-between gap-3 mb-1">
+                                <h3 class="text-[13.5px] font-medium text-ink">Developer terms</h3>
+                                <span class="text-[11.5px] text-ink-3">Visible to the developer and to brokers</span>
+                            </div>
+                            <p class="text-[12px] text-ink-3 mb-3 max-w-[68ch] leading-relaxed">
+                                The terms document for this project. Attach the signed copy, or type the
+                                terms in directly — whichever you pick is what the app shows.
+                            </p>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-[12.5px] font-medium text-ink-2 mb-1.5">Terms format</label>
+                                    <select name="terms_type" x-model="termsType"
+                                            class="w-full h-9 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink
+                                                   focus:border-primary-ring focus:outline-none transition-colors">
+                                        <option value="">No terms for this project</option>
+                                        <option value="document">Upload a document</option>
+                                        <option value="text">Type the content</option>
+                                    </select>
+                                    @error('terms_type')
+                                        <p class="text-[11.5px] text-danger mt-1.5">{{ $message }}</p>
+                                    @enderror
+                                </div>
+
+                                <div x-show="termsType" x-cloak>
+                                    <x-field label="Title shown in the app" name="terms_title"
+                                             placeholder="e.g. Channel Partner Agreement"
+                                             hint="Leave blank to use “Developer terms”." />
+                                </div>
+                            </div>
+
+                            <div x-show="termsType === 'document'" x-cloak class="mt-3">
+                                <x-file-field label="Terms document" name="terms_document"
+                                              accept=".pdf,.doc,.docx"
+                                              :current="data_get($formRecord ?? null, 'terms_document_path')"
+                                              hint="PDF, DOC or DOCX, up to 20 MB. Brokers can read it in the app and download it." />
+                            </div>
+
+                            <div x-show="termsType === 'text'" x-cloak class="mt-3">
+                                <x-rich-text-field name="terms_content" label="Terms content"
+                                                   placeholder="Commission structure, payout schedule, obligations…"
+                                                   hint="Formatting is preserved in the app." />
+                            </div>
+                        </div>
                     </section>
 
                     {{-- 8 · Contact & Sales Info ---------------------------------------- --}}

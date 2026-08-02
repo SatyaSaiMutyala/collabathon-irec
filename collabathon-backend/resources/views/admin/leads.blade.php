@@ -65,7 +65,7 @@
                     x-on:click="window.location = @js(route('admin.leads.show', $lead))">
                     <td class="px-4 py-3">
                         <div class="flex items-center gap-2.5 min-w-0">
-                            <x-avatar :name="$lead->broker?->name ?? '—'" size="sm" />
+                            <x-avatar :name="$lead->broker?->name ?? '—'" :src="$lead->broker?->brokerProfile?->photo_path" size="sm" />
                             <a href="{{ route('admin.leads.show', $lead) }}"
                                class="text-[13px] font-medium text-ink hover:text-primary transition-colors truncate">
                                 {{ $lead->broker?->name ?? 'Deleted broker' }}
@@ -80,7 +80,9 @@
                     </td>
 
                     <td class="px-4 py-3 hidden lg:table-cell">
-                        @if($lead->contact_unlocked)
+                        {{-- What the *developer* can see, which is now gated on acceptance —
+                             not on the contact_unlocked column, which still marks interest. --}}
+                        @if($lead->revealsContact())
                             <span class="inline-flex items-center gap-1.5 text-[12px] text-success">
                                 <x-icon name="check" class="w-3.5 h-3.5" /> Unlocked
                             </span>

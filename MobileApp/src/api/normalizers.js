@@ -149,6 +149,13 @@ export function normalizeProperty(api) {
     type: api.project_type,
     listingType: api.project_status,
     listingStatus: api.listing_status,
+
+    // The developer-acceptance gate. `isLive` is the server's own answer to "can a
+    // partner see this?", so no screen re-derives the two-key rule.
+    developerStatus: api.developer_status,
+    developerRespondedAt: api.developer_responded_at,
+    developerDeclineReason: api.developer_decline_reason,
+    isLive: api.is_live ?? false,
     price: price.min ?? 0,
     priceUnit: price.max && price.max !== price.min ? `– ${price.max.toLocaleString()}` : '',
     currency,
@@ -165,6 +172,26 @@ export function normalizeProperty(api) {
     attachmentCount: media.plans.length + media.documents.length + media.tours.length,
 
     commissionPercent: detail.cp_commission_percent ?? 0,
+
+    /**
+     * The developer's terms for this project, when there are any.
+     *
+     * `hasTerms` is the server's own flag rather than a check on which field happens to
+     * be populated — a project switched from document to text still has the old file on
+     * record, and only the API knows which one is live.
+     */
+    hasTerms: detail.has_terms ?? false,
+    terms: detail.terms
+      ? {
+          type: detail.terms.type,
+          title: detail.terms.title,
+          documentUrl: detail.terms.document_url,
+          documentName: detail.terms.document_name,
+          documentExtension: detail.terms.document_extension,
+          content: detail.terms.content,
+          excerpt: detail.terms.excerpt,
+        }
+      : null,
     bedrooms: bedroomsFromLabel(primaryUnit.label) ?? units.length,
     bathrooms: bedroomsFromLabel(primaryUnit.label) ?? units.length,
     areaSqft: primaryUnit.carpet_area_sqft ?? 0,
