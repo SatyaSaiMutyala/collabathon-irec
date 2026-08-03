@@ -39,6 +39,13 @@ const initialState = {
    * reload just because it came back into view.
    */
   propertyLeads: initialListState(),
+  /**
+   * Every status-changed lead, for the Notifications screen — kept apart from `list`
+   * for the same reason as `accepted`: `list` is filtered per screen (e.g. `interested`
+   * only), and Notifications needs the unfiltered feed without stomping on whichever
+   * filter the inbox/requests screen last set.
+   */
+  notifications: initialListState(),
   respondStatus: 'idle', // idle | loading | succeeded | failed
   respondError: null,
 };
@@ -115,6 +122,23 @@ export const fetchNextAcceptedLeads = createAsyncThunk(
   },
 );
 
+/**
+ * The unfiltered lead feed the Notifications screen renders — every status, not just
+ * `interested`, since a broker needs to hear about `accepted`/`declined` too and a
+ * developer about `viewed`.
+ */
+export const fetchNotificationLeads = createAsyncThunk(
+  'leads/fetchNotifications',
+  async ({page = 1, ...filters} = {}, {rejectWithValue}) => {
+    try {
+      const {data} = await leadsApi.list({page, ...filters});
+      return data;
+    } catch (error) {
+      return rejectWithValue(extractError(error));
+    }
+  },
+);
+
 /** Developer accepts or declines an interested broker. */
 export const respondToLead = createAsyncThunk(
   'leads/respond',
@@ -185,6 +209,20 @@ const leadsSlice = createSlice({
         listRejected(state.propertyLeads, action);
       })
 
+      .addCase(fetchNotificationLeads.pending, (state, action) => {
+        listPending(state.notifications, action);
+        const {page, ...filters} = action.meta.arg ?? {};
+        if ((page ?? 1) === 1) {
+          state.notifications.params = filters;
+        }
+      })
+      .addCase(fetchNotificationLeads.fulfilled, (state, action) => {
+        listFulfilled(state.notifications, action);
+      })
+      .addCase(fetchNotificationLeads.rejected, (state, action) => {
+        listRejected(state.notifications, action);
+      })
+
       .addCase(respondToLead.pending, state => {
         state.respondStatus = 'loading';
         state.respondError = null;
@@ -194,7 +232,7 @@ const leadsSlice = createSlice({
         // Patch the row in place so the list reflects the decision without a refetch.
         // Both the inbox and a listing's broker list can raise this, and the same lead
         // may sit in either, so every list is patched rather than guessing which.
-        [state.list, state.propertyLeads, state.accepted].forEach(list => {
+        [state.list, state.propertyLeads, state.accepted, state.notifications].forEach(list => {
           const index = list.items.findIndex(lead => lead.id === action.payload.id);
           if (index !== -1) {
             list.items[index] = {...list.items[index], ...action.payload};

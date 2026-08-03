@@ -12,6 +12,7 @@ import {
 } from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {markAllRead} from '../../store/slices/notificationsSlice';
+import {fetchNotificationLeads} from '../../store/slices/leadsSlice';
 import {useNotifications} from '../../hooks/useNotifications';
 
 const TONE_ICON_BG = {
@@ -87,11 +88,15 @@ const NotificationsScreen = ({navigation}) => {
   const {colors, spacing} = useAppTheme();
   const dispatch = useAppDispatch();
   const notifications = useNotifications();
-  // Notifications are derived from the leads list, so that list's status is this
-  // screen's status — there is no separate notifications request to wait on.
-  const leadsStatus = useAppSelector(state => state.leads.list.status);
-  const isFirstLoad =
-    (leadsStatus === 'loading' || leadsStatus === 'idle') && notifications.length === 0;
+  // Notifications are derived from their own unfiltered lead fetch (leads.notifications),
+  // kept apart from the inbox/requests screens' filtered `leads.list` — see leadsSlice.
+  const leadsStatus = useAppSelector(state => state.leads.notifications.status);
+  const isFirstLoad = leadsStatus === 'idle' || (leadsStatus === 'loading' && notifications.length === 0);
+
+  useEffect(() => {
+    dispatch(fetchNotificationLeads());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (notifications.length > 0) {

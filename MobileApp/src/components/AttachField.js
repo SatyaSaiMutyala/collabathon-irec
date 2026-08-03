@@ -5,70 +5,71 @@ import {launchCamera, launchImageLibrary} from 'react-native-image-picker';
 import ImagePicker from 'react-native-image-crop-picker';
 import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../theme';
+import ActionSheet from './ActionSheet';
 import AppText from './AppText';
 
 /** A profile photo is displayed in a square avatar everywhere, so it is cropped square. */
 const AVATAR_CROP_SIZE = 800;
 
+const CROP_OPTIONS = {
+  width: AVATAR_CROP_SIZE,
+  height: AVATAR_CROP_SIZE,
+  cropping: true,
+  cropperCircleOverlay: false,
+  // The frame is fixed to the square the avatar will actually be, so what the user
+  // frames is exactly what gets stored — no second, invisible crop on the server.
+  freeStyleCropEnabled: false,
+  mediaType: 'photo',
+  compressImageQuality: 0.85,
+  forceJpg: true,
+  cropperToolbarTitle: 'Crop your photo',
+  cropperChooseText: 'Use photo',
+  cropperCancelText: 'Cancel',
+};
+
 /**
- * Picks an image, optionally through a crop step.
- *
+ * Cancelling a picker is a normal outcome, not a failure — the crop library rejects on
+ * cancel, so only genuine errors are surfaced.
+ */
+function runCrop(promise, onPicked) {
+  promise
+    .then(image => image?.path && onPicked(image.path))
+    .catch(error => {
+      if (error?.code !== 'E_PICKER_CANCELLED') {
+        Alert.alert('Could not use that photo', error?.message ?? 'Please try another image.');
+      }
+    });
+}
+
+/**
  * `crop` is opt-in per field rather than global: a passport photo becomes an avatar and
  * has to be square, but forcing a PAN card or a cancelled cheque through a square cropper
  * would make the user cut off the part of the document that matters.
- *
- * Cancelling a picker is a normal outcome, not a failure — the library rejects on cancel,
- * so only genuine errors are surfaced.
  */
-function pickImage(onPicked, {crop = false} = {}) {
+function pickFromCamera(onPicked, crop) {
   if (!crop) {
-    const handleResponse = response => {
+    launchCamera({mediaType: 'photo', quality: 0.7}, response => {
       const uri = response?.assets?.[0]?.uri;
       if (uri) {
         onPicked(uri);
       }
-    };
-    Alert.alert('Attach Photo', 'Choose an option', [
-      {text: 'Take Photo', onPress: () => launchCamera({mediaType: 'photo', quality: 0.7}, handleResponse)},
-      {
-        text: 'Choose from Library',
-        onPress: () => launchImageLibrary({mediaType: 'photo', quality: 0.7}, handleResponse),
-      },
-      {text: 'Cancel', style: 'cancel'},
-    ]);
+    });
     return;
   }
+  runCrop(ImagePicker.openCamera(CROP_OPTIONS), onPicked);
+}
 
-  const cropOptions = {
-    width: AVATAR_CROP_SIZE,
-    height: AVATAR_CROP_SIZE,
-    cropping: true,
-    cropperCircleOverlay: false,
-    // The frame is fixed to the square the avatar will actually be, so what the user
-    // frames is exactly what gets stored — no second, invisible crop on the server.
-    freeStyleCropEnabled: false,
-    mediaType: 'photo',
-    compressImageQuality: 0.85,
-    forceJpg: true,
-    cropperToolbarTitle: 'Crop your photo',
-    cropperChooseText: 'Use photo',
-    cropperCancelText: 'Cancel',
-  };
-
-  const run = promise =>
-    promise
-      .then(image => image?.path && onPicked(image.path))
-      .catch(error => {
-        if (error?.code !== 'E_PICKER_CANCELLED') {
-          Alert.alert('Could not use that photo', error?.message ?? 'Please try another image.');
-        }
-      });
-
-  Alert.alert('Profile photo', 'Choose an option', [
-    {text: 'Take Photo', onPress: () => run(ImagePicker.openCamera(cropOptions))},
-    {text: 'Choose from Library', onPress: () => run(ImagePicker.openPicker(cropOptions))},
-    {text: 'Cancel', style: 'cancel'},
-  ]);
+function pickFromLibrary(onPicked, crop) {
+  if (!crop) {
+    launchImageLibrary({mediaType: 'photo', quality: 0.7}, response => {
+      const uri = response?.assets?.[0]?.uri;
+      if (uri) {
+        onPicked(uri);
+      }
+    });
+    return;
+  }
+  runCrop(ImagePicker.openPicker(CROP_OPTIONS), onPicked);
 }
 
 /**
@@ -167,6 +168,7 @@ export const AttachBox = ({
 }) => {
   const {colors, radius, spacing} = useAppTheme();
   const [isViewing, setIsViewing] = useState(false);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
 
   return (
     <View>
@@ -204,7 +206,7 @@ export const AttachBox = ({
           </View>
         </View>
       ) : (
-        <TouchableOpacity activeOpacity={0.85} onPress={() => pickImage(onPick, {crop})}>
+        <TouchableOpacity activeOpacity={0.85} onPress={() => setIsPickerOpen(true)}>
           <View
             style={{
               borderWidth: 1.5,
@@ -235,6 +237,16 @@ export const AttachBox = ({
         label={label}
         visible={isViewing}
         onClose={() => setIsViewing(false)}
+      />
+
+      <ActionSheet
+        visible={isPickerOpen}
+        onClose={() => setIsPickerOpen(false)}
+        title={label ?? 'Attach Photo'}
+        options={[
+          {key: 'camera', icon: 'camera-outline', label: 'Take Photo', onPress: () => pickFromCamera(onPick, crop)},
+          {key: 'library', icon: 'image-outline', label: 'Choose from Library', onPress: () => pickFromLibrary(onPick, crop)},
+        ]}
       />
     </View>
   );

@@ -97,7 +97,7 @@ const STATUS_CONFIG = {
  */
 export function useNotifications() {
   const role = useAppSelector(state => state.auth.role);
-  const leads = useAppSelector(state => state.leads.list.items);
+  const leads = useAppSelector(state => state.leads.notifications.items);
   const readIds = useAppSelector(state => state.notifications.readIds);
 
   const config = STATUS_CONFIG[role] ?? {};

@@ -1,4 +1,4 @@
-import React, {useEffect, useRef} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {Animated, Easing, View} from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import {moderateScale} from 'react-native-size-matters';
@@ -24,6 +24,9 @@ const Skeleton = ({
 }) => {
   const {colors} = useAppTheme();
   const progress = useRef(new Animated.Value(0)).current;
+  // The native driver only accepts numeric transform values, never percentage strings —
+  // so the sweep's travel distance has to come from the block's actual measured width.
+  const [measuredWidth, setMeasuredWidth] = useState(0);
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -44,11 +47,12 @@ const Skeleton = ({
   // instead of appearing mid-block.
   const translateX = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: ['-100%', '100%'],
+    outputRange: [-measuredWidth, measuredWidth],
   });
 
   return (
     <View
+      onLayout={event => setMeasuredWidth(event.nativeEvent.layout.width)}
       style={[
         {width, height, borderRadius: radius, backgroundColor: colors.surface, overflow: 'hidden'},
         style,
