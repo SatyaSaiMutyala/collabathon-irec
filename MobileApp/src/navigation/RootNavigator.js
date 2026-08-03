@@ -112,12 +112,27 @@ const RootNavigator = () => {
   }, [dispatch]);
 
   // Registration follows the session, not the mount: a device belongs to whoever is
-  // signed in on it, so signing in claims it and signing out releases it. Failures are
-  // swallowed — a denied permission or an offline device must not block the app.
+  // signed in on it, so signing in claims it and signing out releases it.
+  //
+  // try/catch, not `.catch()`. `registerDevice()` reaches Firebase through `getApp()`,
+  // which throws *synchronously* when no native default app is configured — so it can
+  // fail before it ever returns a promise, and a trailing `.catch` never runs. That
+  // throw happened inside the effect, on the exact tick `isLoggedIn` flipped, which is
+  // why signing in took the whole app down rather than just losing notifications.
+  // Nothing here is worth interrupting a sign-in for: a denied permission, an offline
+  // device or an unconfigured Firebase project all mean "no push", not "no app".
   useEffect(() => {
-    if (isLoggedIn) {
-      registerDevice().catch(() => {});
+    if (!isLoggedIn) {
+      return;
     }
+
+    (async () => {
+      try {
+        await registerDevice();
+      } catch {
+        // Intentionally silent — see above.
+      }
+    })();
   }, [isLoggedIn]);
 
   // Tap handling is attached once, for the life of the app. It has to survive the stack

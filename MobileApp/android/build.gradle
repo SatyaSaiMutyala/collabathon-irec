@@ -4,7 +4,15 @@ buildscript {
         minSdkVersion = 23
         compileSdkVersion = 34
         targetSdkVersion = 34
-        ndkVersion = "26.1.10909125"
+        // 26.1.10909125 is what the RN 0.75 template pins, but that install is a broken
+        // 4 KB stub with no source.properties — AGP rejects it outright. 27.3 is present
+        // and complete, and the only module compiling C++ here is react-native-screens,
+        // whose native surface is small with newArchEnabled=false.
+        //
+        // If a native compile does fail on 27.x, install the pinned one instead:
+        //   sdkmanager --install "ndk;26.1.10909125"
+        // and put this back.
+        ndkVersion = "27.3.13750724"
         kotlinVersion = "1.9.24"
     }
     repositories {

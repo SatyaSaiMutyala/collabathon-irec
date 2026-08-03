@@ -7,7 +7,6 @@ import {
   getToken,
   onMessage,
   onNotificationOpenedApp,
-  registerDeviceForRemoteMessages,
   requestPermission,
   setBackgroundMessageHandler,
 } from '@react-native-firebase/messaging';
@@ -81,11 +80,12 @@ export async function registerDevice() {
 
   await ensureChannel();
 
-  // On iOS the FCM token is only issued after APNs hands one over. Without this the
-  // first getToken() after a fresh install rejects rather than waiting.
-  if (Platform.OS === 'ios') {
-    await registerDeviceForRemoteMessages(messaging());
-  }
+  // No registerDeviceForRemoteMessages() here. On iOS the FCM token is only issued once
+  // APNs hands one over, but RNFirebase registers for that itself unless
+  // `messaging_ios_auto_register_for_remote_messages` is turned off in firebase.json —
+  // there is no firebase.json in this project, so it is on. Calling it anyway is a no-op
+  // that logs "Usage of messaging().registerDeviceForRemoteMessages() is not required"
+  // on every sign-in. If auto-registration is ever disabled, this has to come back.
 
   const token = await getToken(messaging());
   if (!token) {
@@ -122,7 +122,16 @@ export async function unregisterDevice() {
  *   the message's data payload — the caller decides where that navigates.
  */
 export function attachPushHandlers(onOpen) {
-  const app = messaging();
+  // `messaging()` resolves through getApp(), which throws synchronously when no native
+  // Firebase app is configured. This runs from an effect at startup, so letting it throw
+  // would take the app down over notifications — see the note at the registerDevice call
+  // site in RootNavigator.
+  let app;
+  try {
+    app = messaging();
+  } catch {
+    return () => {};
+  }
 
   // 1. Foreground. FCM deliberately does not draw anything while the app is open, so
   //    notifee draws it — otherwise a message arriving mid-session is invisible.
@@ -170,7 +179,16 @@ export function attachPushHandlers(onOpen) {
  * no component tree to hang it off, and Firebase warns if it is missing.
  */
 export function registerBackgroundHandler() {
-  setBackgroundMessageHandler(messaging(), async () => {
+  // Runs at module scope in index.js, before React exists — an unconfigured Firebase app
+  // would throw here and the process would die with no screen ever drawn.
+  let app;
+  try {
+    app = messaging();
+  } catch {
+    return;
+  }
+
+  setBackgroundMessageHandler(app, async () => {
     // The `notification` block on the payload means the OS already drew the banner.
     // Nothing to do here — this exists so the runtime has a handler to call.
   });

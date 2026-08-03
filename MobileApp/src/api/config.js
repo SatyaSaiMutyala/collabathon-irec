@@ -31,9 +31,10 @@ const DEV_PORT = 8000;
 // The __DEV__ branch resolves to exactly the same loopback URL a hardcoded string gave,
 // so debug builds are unchanged — but a release build has to reach the real API, and a
 // literal here silently shipped 127.0.0.1 to production.
-export const API_BASE_URL = __DEV__
-  ? `http://${DEV_HOST}:${DEV_PORT}/api/v1`
-  : 'https://api.irec.ae/api/v1';
+// Every endpoint in api/endpoints.js is written relative — '/auth/login', '/leads' — so
+// the version prefix belongs here. Without it those resolve to /auth/login on the host
+// root, which Laravel answers with a 404 the client reports as "cannot reach the server".
+export const API_BASE_URL = 'https://brown-hedgehog-768805.hostingersite.com/api/v1';
 
 /** Matches the server-side cap in HandlesListQueries. */
 export const DEFAULT_PAGE_SIZE = 20;
