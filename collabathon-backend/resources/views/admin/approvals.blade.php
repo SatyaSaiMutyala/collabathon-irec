@@ -1,7 +1,7 @@
-<x-layouts.admin active="approvals" title="Broker Approvals" section="Manage">
+<x-layouts.admin active="approvals" title="Pending Approvals" section="Manage">
 
     <x-page-header
-        title="Broker Approvals"
+        title="Pending Approvals"
         subtitle="Brokers cannot sign in to the mobile app until an admin approves their registration. Approving issues their access immediately.">
         <x-slot:actions>
             {{-- The decision history lives on its own page: this one is work outstanding,

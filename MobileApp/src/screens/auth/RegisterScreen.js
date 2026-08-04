@@ -1,5 +1,5 @@
 import React, {useRef, useState} from 'react';
-import {StyleSheet, TouchableOpacity, View} from 'react-native';
+import {Linking, StyleSheet, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
 import {KeyboardAwareScrollView} from 'react-native-keyboard-aware-scroll-view';
@@ -20,6 +20,9 @@ import {
 import {useAppDispatch} from '../../store/hooks';
 import {registerBroker} from '../../store/slices/authSlice';
 import {showSnackbar} from '../../store/slices/uiSlice';
+
+// TODO: placeholder — swap for the real hosted terms & conditions page.
+const TERMS_URL = 'https://collabathon.app/terms';
 
 const SUFFIX_OPTIONS = ['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Eng.'];
 const SEGMENT_OPTIONS = [
@@ -66,7 +69,6 @@ const SERVER_FIELD_TO_FORM = {
   rera_number: 'reraNumber',
   rera_certificate_expiry: 'reraCertificateExpiry',
   gst_number: 'gstNumber',
-  cheque_details: 'chequeDetails',
   state: 'state',
   city: 'city',
   segments: 'segments',
@@ -99,10 +101,12 @@ const FIELD_ORDER = [
   {key: 'yearsOfExperience'},
   {key: 'teamSize'},
   {key: 'panCard'},
+  {key: 'panCardAttachment', focusVia: 'panCard'},
   {key: 'aadhaarCard'},
+  {key: 'aadhaarAttachment', focusVia: 'aadhaarCard'},
   {key: 'reraNumber'},
   {key: 'reraCertificateExpiry', focusVia: 'reraNumber'},
-  {key: 'chequeDetails'},
+  {key: 'reraCertificateAttachment', focusVia: 'reraNumber'},
   {key: 'gstNumber'},
   {key: 'state'},
   {key: 'city'},
@@ -138,8 +142,6 @@ const initialForm = {
   reraCertificateAttachment: '',
   // A Date, not a typed string: the calendar cannot produce an unparseable value.
   reraCertificateExpiry: null,
-  chequeDetails: '',
-  chequeAttachment: '',
   gstNumber: '',
   gstAttachment: '',
   state: '',
@@ -205,7 +207,10 @@ const RegisterScreen = ({navigation}) => {
       next.password = 'Password must be at least 8 characters';
     }
     if (!form.residenceAddress.trim()) {
-      next.residenceAddress = 'Enter your residence address';
+      next.residenceAddress = 'Enter your address of communication';
+    }
+    if (!form.photoAttachment) {
+      next.photoAttachment = 'Attach a profile photo';
     }
     if (form.isCompany && !form.companyName.trim()) {
       next.companyName = 'Enter company name';
@@ -216,8 +221,14 @@ const RegisterScreen = ({navigation}) => {
     if (!form.panCard.trim()) {
       next.panCard = 'Enter PAN card number';
     }
+    if (!form.panCardAttachment) {
+      next.panCardAttachment = 'Attach a copy of the PAN card';
+    }
     if (!form.aadhaarCard.trim()) {
       next.aadhaarCard = 'Enter Aadhaar number';
+    }
+    if (!form.aadhaarAttachment) {
+      next.aadhaarAttachment = 'Attach a copy of the Aadhaar card';
     }
     if (!form.reraNumber.trim()) {
       next.reraNumber = 'Enter RERA number';
@@ -225,8 +236,8 @@ const RegisterScreen = ({navigation}) => {
     if (!form.reraCertificateExpiry) {
       next.reraCertificateExpiry = 'Select the RERA certificate expiry date';
     }
-    if (!form.chequeDetails.trim()) {
-      next.chequeDetails = 'Enter cancelled cheque details';
+    if (!form.reraCertificateAttachment) {
+      next.reraCertificateAttachment = 'Attach the RERA certificate';
     }
     if (!form.confirmAccuracy) {
       next.confirmAccuracy = 'Please confirm to continue';
@@ -293,7 +304,6 @@ const RegisterScreen = ({navigation}) => {
       ? toApiDate(form.reraCertificateExpiry)
       : null,
     gst_number: form.gstNumber.trim() || null,
-    cheque_details: form.chequeDetails.trim() || null,
 
     state: form.state.trim() || null,
     city: form.city.trim() || null,
@@ -385,7 +395,13 @@ const RegisterScreen = ({navigation}) => {
         <AppText
           variant="caption"
           color={colors.textSecondary}
-          style={{marginTop: spacing.xxs, marginBottom: spacing.xl}}>
+          style={{
+            // Aligned under "Register", not the back chevron — matches the icon's
+            // width plus the gap before "Register" in the row above.
+            marginLeft: moderateScale(22) + spacing.sm,
+            marginTop: spacing.xxs,
+            marginBottom: spacing.xl,
+          }}>
           Broker / CP / Agent — empanelment form
         </AppText>
 
@@ -459,7 +475,7 @@ const RegisterScreen = ({navigation}) => {
           />
           <Input
             ref={registerRef('residenceAddress')}
-            label="Residence address *"
+            label="Address of communication *"
             placeholder="Flat / street / area / city / pincode"
             leftIcon="home-outline"
             multiline
@@ -472,7 +488,7 @@ const RegisterScreen = ({navigation}) => {
             variant="caption"
             color={colors.textSecondary}
             style={styles.label}>
-            Photo attachment
+            Take a photo
           </AppText>
           <View style={{marginBottom: spacing.sm}}>
             <AttachBox
@@ -485,6 +501,7 @@ const RegisterScreen = ({navigation}) => {
               crop
               label="Profile photo"
               placeholder="Tap to upload a passport-size photo"
+              error={errors.photoAttachment}
             />
           </View>
         </View>
@@ -494,11 +511,13 @@ const RegisterScreen = ({navigation}) => {
         {/* Step 2 — Professional info */}
         <SectionHeader step={2} title="Professional info" />
         <View style={{marginTop: spacing.md}}>
-          <Checkbox
-            checked={form.isCompany}
-            onToggle={toggleCheckbox('isCompany')}
-            label="Registering as a Company? (check if yes)"
-          />
+          <View style={{marginBottom: spacing.sm}}>
+            <Checkbox
+              checked={form.isCompany}
+              onToggle={toggleCheckbox('isCompany')}
+              label="Registering as a Company? (check if yes)"
+            />
+          </View>
 
           {form.isCompany && (
             <View style={{marginTop: spacing.md}}>
@@ -531,7 +550,7 @@ const RegisterScreen = ({navigation}) => {
                 <Checkbox
                   checked={form.sameAsResidenceAddress}
                   onToggle={toggleCheckbox('sameAsResidenceAddress')}
-                  label="Same as residence address"
+                  label="Same as address of communication"
                 />
               </View>
 
@@ -600,6 +619,7 @@ const RegisterScreen = ({navigation}) => {
               label="PAN card"
               placeholder="Attach a photo of your PAN card"
               height={120}
+              error={errors.panCardAttachment}
             />
           </View>
 
@@ -620,6 +640,7 @@ const RegisterScreen = ({navigation}) => {
               label="Aadhaar card"
               placeholder="Attach a photo of your Aadhaar"
               height={120}
+              error={errors.aadhaarAttachment}
             />
           </View>
 
@@ -640,6 +661,7 @@ const RegisterScreen = ({navigation}) => {
               label="RERA certificate"
               placeholder="Attach your RERA certificate"
               height={120}
+              error={errors.reraCertificateAttachment}
             />
           </View>
 
@@ -654,25 +676,6 @@ const RegisterScreen = ({navigation}) => {
             maximumDate={MAX_EXPIRY}
             error={errors.reraCertificateExpiry}
           />
-
-          <Input
-            ref={registerRef('chequeDetails')}
-            label="Cancelled cheque *"
-            placeholder="Account number / IFSC"
-            value={form.chequeDetails}
-            onChangeText={update('chequeDetails')}
-            error={errors.chequeDetails}
-          />
-          <View style={{marginBottom: spacing.sm}}>
-            <AttachBox
-              uri={form.chequeAttachment}
-              onPick={update('chequeAttachment')}
-              onRemove={() => update('chequeAttachment')('')}
-              label="Cancelled cheque"
-              placeholder="Attach the cancelled cheque"
-              height={120}
-            />
-          </View>
 
           <Input
             ref={registerRef('gstNumber')}
@@ -696,8 +699,8 @@ const RegisterScreen = ({navigation}) => {
 
         <View style={[styles.divider, {backgroundColor: colors.border}]} />
 
-        {/* Step 3 — Business info */}
-        <SectionHeader step={3} title="Business info" />
+        {/* Step 3 — More business info */}
+        <SectionHeader step={3} title="More business info" />
         <View style={{marginTop: spacing.md}}>
           <View style={{flexDirection: 'row'}}>
             <View style={{flex: 1, marginRight: spacing.xs}}>
@@ -755,7 +758,7 @@ const RegisterScreen = ({navigation}) => {
             <Checkbox
               checked={form.operatesMultipleStates}
               onToggle={toggleCheckbox('operatesMultipleStates')}
-              label="Multiple states — operates in more than one state"
+              label="Operate more than 1 state"
             />
           </View>
 
@@ -763,7 +766,9 @@ const RegisterScreen = ({navigation}) => {
             <Checkbox
               checked={form.confirmAccuracy}
               onToggle={toggleCheckbox('confirmAccuracy')}
-              label="I confirm the above details are accurate and understand my account needs Admin approval before I can sign in."
+              label="I agree to "
+              linkLabel="terms and condition"
+              onLinkPress={() => Linking.openURL(TERMS_URL)}
               error={errors.confirmAccuracy}
             />
           </View>

@@ -5,7 +5,14 @@ import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../theme';
 import AppText from './AppText';
 
-const Checkbox = ({checked, onToggle, label, error}) => {
+/**
+ * `linkLabel` + `onLinkPress` carve a tappable span out of the label — e.g. "I agree to
+ * terms and condition" where only "terms and condition" opens something. It is nested
+ * `Text` inside `Text`, not a second `TouchableOpacity` laid over the row: RN gives a
+ * nested `Text`'s own `onPress` first claim on taps that land on it, so it opens the
+ * link instead of also toggling the box underneath.
+ */
+const Checkbox = ({checked, onToggle, label, linkLabel, onLinkPress, error}) => {
   const {colors, spacing} = useAppTheme();
 
   return (
@@ -30,6 +37,11 @@ const Checkbox = ({checked, onToggle, label, error}) => {
         </View>
         <AppText variant="body" color={colors.textSecondary} style={{marginLeft: spacing.sm, flex: 1}}>
           {label}
+          {!!linkLabel && (
+            <AppText variant="bodyMedium" color={colors.primary} onPress={onLinkPress}>
+              {linkLabel}
+            </AppText>
+          )}
         </AppText>
       </TouchableOpacity>
       {error && (

@@ -8,6 +8,20 @@ const SignaturePad = ({onChange, onDrawStart, onDrawEnd, error, height = 130}) =
   const {colors, radius} = useAppTheme();
   const [strokes, setStrokes] = useState([]);
   const currentStroke = useRef([]);
+  const padRef = useRef(null);
+  // `locationX/locationY` on Android's PanResponder is unreliable — it is sometimes
+  // reported relative to an ancestor further up the tree than this view (a known RN
+  // issue), which is exactly why every stroke started near a corner no matter where the
+  // touch actually landed. `pageX/pageY` (screen-absolute) minus this view's own
+  // screen-absolute position is what's actually reliable, so the pad measures its own
+  // position on layout and uses that instead.
+  const padOffset = useRef({x: 0, y: 0});
+
+  const measurePad = () => {
+    padRef.current?.measureInWindow((x, y) => {
+      padOffset.current = {x, y};
+    });
+  };
 
   const panResponder = useMemo(
     () =>
@@ -19,12 +33,24 @@ const SignaturePad = ({onChange, onDrawStart, onDrawEnd, error, height = 130}) =
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: e => {
           onDrawStart?.();
-          const point = {x: e.nativeEvent.locationX, y: e.nativeEvent.locationY};
+          // Re-measure defensively: `onLayout` never re-fires from scrolling alone, so
+          // if the pad scrolled into view since the last layout this keeps the offset
+          // from going stale. Async, so it only protects the rest of *this* stroke, not
+          // the very first point — the common case (pad already settled, not mid-scroll)
+          // is unaffected since padOffset is already correct by then.
+          measurePad();
+          const point = {
+            x: e.nativeEvent.pageX - padOffset.current.x,
+            y: e.nativeEvent.pageY - padOffset.current.y,
+          };
           currentStroke.current = [point];
           setStrokes(prev => [...prev, [point]]);
         },
         onPanResponderMove: e => {
-          const point = {x: e.nativeEvent.locationX, y: e.nativeEvent.locationY};
+          const point = {
+            x: e.nativeEvent.pageX - padOffset.current.x,
+            y: e.nativeEvent.pageY - padOffset.current.y,
+          };
           currentStroke.current = [...currentStroke.current, point];
           setStrokes(prev => {
             const next = prev.slice();
@@ -56,6 +82,8 @@ const SignaturePad = ({onChange, onDrawStart, onDrawEnd, error, height = 130}) =
   return (
     <View>
       <View
+        ref={padRef}
+        onLayout={measurePad}
         {...panResponder.panHandlers}
         style={{
           height: moderateScale(height),

@@ -31,26 +31,36 @@ const WelcomeScreen = ({navigation}) => {
   return (
     <ScreenContainer edges={['top', 'bottom']} style={styles.screen}>
       <View style={{flex: 1, justifyContent: 'center'}}>
-        {/* The mark alone, not the full wordmark: "Collabathon" is already set in
-            display type right below it, and the lockup would say the name twice.
-            Transparent PNG, so it sits on the screen background rather than in a tile. */}
-        <Image
-          source={require('../../assets/images/logo-mark.png')}
-          style={styles.mark}
-          resizeMode="contain"
-          accessibilityRole="image"
-          accessibilityLabel="Collabathon"
-        />
+        <View style={{alignItems: 'center'}}>
+          {/* The mark alone, not the full wordmark: "Collabathon" is already set in
+              display type right below it, and the lockup would say the name twice.
+              Transparent PNG, so it sits on the screen background rather than in a tile. */}
+          <Image
+            source={require('../../assets/images/logo-mark.png')}
+            style={styles.mark}
+            resizeMode="contain"
+            accessibilityRole="image"
+            accessibilityLabel="Collabathon"
+          />
 
-        <AppText variant="overline" color={colors.primary} style={{marginTop: spacing.xl}}>
-          WELCOME TO
-        </AppText>
-        <AppText variant="display" style={{marginTop: spacing.xxs}}>
-          Collabathon
-        </AppText>
-        <AppText variant="body" color={colors.textSecondary} style={{marginTop: spacing.xs}}>
-          Where developers and channel partners work the same inventory, in one place.
-        </AppText>
+          <AppText
+            variant="overline"
+            color={colors.primary}
+            align="center"
+            style={{marginTop: spacing.xl}}>
+            WELCOME TO
+          </AppText>
+          <AppText variant="display" align="center" style={{marginTop: spacing.xxs}}>
+            Collabathon
+          </AppText>
+          <AppText
+            variant="body"
+            color={colors.textSecondary}
+            align="center"
+            style={{marginTop: spacing.xs}}>
+            Where developers and channel partners work the same inventory, in one place.
+          </AppText>
+        </View>
 
         <View style={{marginTop: spacing.xxl}}>
           {ROLE_NOTES.map(note => (

@@ -17,7 +17,7 @@ $navGroups = [
         ['key' => 'dashboard', 'icon' => 'dashboard', 'label' => 'Dashboard', 'route' => route('admin.dashboard')],
     ],
     'Manage' => [
-        ['key' => 'approvals', 'icon' => 'user-check', 'label' => 'Broker Approvals', 'route' => route('admin.approvals'), 'count' => $pendingCount],
+        ['key' => 'approvals', 'icon' => 'user-check', 'label' => 'Pending Approvals', 'route' => route('admin.approvals'), 'count' => $pendingCount],
         // The roster of brokers already through approval — the queue's output, kept
         // next to it rather than buried as a tab on a page about outstanding work.
         ['key' => 'cp', 'icon' => 'users', 'label' => 'CP', 'route' => route('admin.cp')],

@@ -28,7 +28,7 @@
         <x-slot:filters>
             <x-filter-select name="city" :options="$cities" placeholder="All cities" />
             <x-filter-select name="state" :options="$states" placeholder="All states" />
-            <x-filter-select name="segment" :options="$segments" placeholder="All segments" />
+            <x-filter-select name="segment" :options="$segments" placeholder="All categories" />
             <x-filter-select name="type"
                              :options="['company' => 'Company', 'individual' => 'Individual']"
                              placeholder="Any type" />
@@ -38,7 +38,7 @@
             <x-th sort="name">Partner</x-th>
             <x-th hide="lg">Contact</x-th>
             <x-th hide="md">RERA</x-th>
-            <x-th hide="xl">Segments</x-th>
+            <x-th hide="xl">Categories</x-th>
             <x-th sort="city" hide="lg">Location</x-th>
             <x-th sort="created_at" hide="xl">Joined</x-th>
             <x-th align="right">Projects</x-th>

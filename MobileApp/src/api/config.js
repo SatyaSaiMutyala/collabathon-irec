@@ -15,7 +15,7 @@ import {Platform} from 'react-native';
  * `php artisan serve --host=0.0.0.0` so the device can reach it directly. Leave it null
  * to use loopback. It is machine-specific: do not commit a value you did not set.
  */
-const LAN_HOST = null;
+const LAN_HOST = '192.168.1.2';
 
 const DEV_HOST =
   LAN_HOST ??
@@ -34,7 +34,11 @@ const DEV_PORT = 8000;
 // Every endpoint in api/endpoints.js is written relative — '/auth/login', '/leads' — so
 // the version prefix belongs here. Without it those resolve to /auth/login on the host
 // root, which Laravel answers with a 404 the client reports as "cannot reach the server".
-export const API_BASE_URL = 'https://brown-hedgehog-768805.hostingersite.com/api/v1';
+// export const API_BASE_URL = 'https://brown-hedgehog-768805.hostingersite.com/api/v1';
+
+// LOCAL DEV — pointed at `php artisan serve --host=0.0.0.0` on this machine (192.168.1.2).
+// Uncomment the line above and delete this one to go back to the live server.
+export const API_BASE_URL = `http://${DEV_HOST}:${DEV_PORT}/api/v1`;
 
 /** Matches the server-side cap in HandlesListQueries. */
 export const DEFAULT_PAGE_SIZE = 20;
