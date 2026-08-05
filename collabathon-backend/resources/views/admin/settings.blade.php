@@ -17,6 +17,9 @@ $tabs = [
     ['key' => 'forms',     'label' => 'Form fields'],
     ['key' => 'locations', 'label' => 'Locations'],
     ['key' => 'project-types', 'label' => 'Project types'],
+    ['key' => 'unit-types', 'label' => 'Unit types'],
+    ['key' => 'amenities', 'label' => 'Amenities'],
+    ['key' => 'measurement-units', 'label' => 'Measurement units'],
     ['key' => 'brand',     'label' => 'Branding'],
     ['key' => 'email',     'label' => 'Email'],
     ['key' => 'access',    'label' => 'Access'],
@@ -394,6 +397,418 @@ $openTab = in_array(request()->query('tab'), array_column($tabs, 'key'), true)
                             ones untouched.
                         </p>
                     </div>
+                </x-panel>
+            </div>
+        </div>
+
+        {{-- ---------------------------- Unit types ------------------------------
+             Master data for the unit rows on the project intake form. Same shape as
+             Project types: one PATCH form per row, so a Save touches only that row and
+             the panel needs no client-side dirty tracking. Form ids are prefixed
+             `unit-form-` so they cannot collide with the project-type forms above. --}}
+        <div x-show="tab === 'unit-types'" x-cloak class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+
+            <x-panel title="Unit types" flush class="xl:col-span-2">
+                <x-slot:actions>
+                    <span class="text-[11.5px] text-ink-3 nums">{{ $unitTypes->count() }} total</span>
+                </x-slot:actions>
+
+                <div class="overflow-x-auto scrollbar-slim">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-line-soft">
+                                <th scope="col" class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3">Name</th>
+                                <th scope="col" class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3 w-[90px]">Active</th>
+                                <th scope="col" class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3 w-[80px]">Order</th>
+                                <th scope="col" class="px-4 py-2.5 w-[120px]"><span class="sr-only">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            @forelse($unitTypes as $unit)
+                                <tr class="hover:bg-canvas transition-colors align-middle">
+                                    <form method="POST" action="{{ route('admin.settings.unit-types.update', $unit) }}"
+                                          id="unit-form-{{ $unit->id }}">
+                                        @csrf @method('PATCH')
+                                    </form>
+
+                                    <td class="px-4 py-2.5">
+                                        <input form="unit-form-{{ $unit->id }}" name="name" value="{{ $unit->name }}"
+                                               required maxlength="96"
+                                               class="w-full h-9 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink
+                                                      focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
+                                        @if($unit->usage_count)
+                                            <p class="text-[11px] text-ink-3 mt-1">
+                                                {{ $unit->usage_count }} {{ Str::plural('unit row', $unit->usage_count) }} —
+                                                renaming updates {{ $unit->usage_count === 1 ? 'it' : 'them' }} too
+                                            </p>
+                                        @endif
+                                    </td>
+
+                                    <td class="px-4 py-2.5">
+                                        {{-- Paired hidden input so "off" posts 0 rather than dropping the key. --}}
+                                        <input form="unit-form-{{ $unit->id }}" type="hidden" name="is_active" value="0">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input form="unit-form-{{ $unit->id }}" type="checkbox" name="is_active" value="1"
+                                                   @checked($unit->is_active)
+                                                   class="w-4 h-4 rounded border-line text-primary focus:ring-primary-ring">
+                                            <span class="text-[12px] text-ink-2">On</span>
+                                        </label>
+                                    </td>
+
+                                    <td class="px-4 py-2.5">
+                                        <input form="unit-form-{{ $unit->id }}" name="sort_order" type="number" min="0" max="65535"
+                                               value="{{ $unit->sort_order }}"
+                                               class="w-full h-9 px-2 rounded-lg bg-panel border border-line text-[13px] text-ink nums
+                                                      focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
+                                    </td>
+
+                                    <td class="px-4 py-2.5">
+                                        <div class="flex items-center justify-end gap-1.5">
+                                            <x-button variant="subtle" size="sm" tag="button" type="submit"
+                                                      form="unit-form-{{ $unit->id }}">Save</x-button>
+
+                                            @php
+                                                $unitDelete = \Illuminate\Support\Js::from([
+                                                    'title' => 'Delete this unit type?',
+                                                    'message' => $unit->usage_count
+                                                        ? "“{$unit->name}” is used on {$unit->usage_count} unit row"
+                                                            . ($unit->usage_count === 1 ? '' : 's')
+                                                            . ' and cannot be deleted — turn it off instead.'
+                                                        : "“{$unit->name}” will no longer be offered on the project form.",
+                                                    'confirmLabel' => 'Delete type',
+                                                    'tone' => 'danger',
+                                                ]);
+                                            @endphp
+                                            <form method="POST" action="{{ route('admin.settings.unit-types.destroy', $unit) }}"
+                                                  x-on:submit.prevent="$dispatch('confirm-request', { ...{{ $unitDelete }}, form: $el })">
+                                                @csrf @method('DELETE')
+                                                <button type="submit" class="text-ink-3 hover:text-danger p-1.5 rounded-md transition-colors"
+                                                        aria-label="Delete {{ $unit->name }}">
+                                                    <x-icon name="x" class="w-3.5 h-3.5" />
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="px-4 py-8 text-[12.5px] text-ink-3 text-center">
+                                        No unit types yet. Add one so the project form's unit rows have something to offer.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </x-panel>
+
+            <div class="space-y-4">
+                <x-panel title="Add a unit type" padded class="self-start">
+                    <form method="POST" action="{{ route('admin.settings.unit-types.store') }}" class="space-y-3.5">
+                        @csrf
+                        <x-field label="Name" name="name" input-id="unit-type-name"
+                                 placeholder="e.g. 6BHK" required maxlength="96" />
+
+                        <input type="hidden" name="is_active" value="0">
+                        <x-switch-field label="Offer on the project form" name="is_active" input-id="unit-type-active"
+                                        :checked="true"
+                                        hint="Turn off to retire a type without touching projects already using it." />
+
+                        <div class="pt-1">
+                            <x-button variant="primary" tag="button" type="submit" icon="plus" class="w-full">
+                                Add unit type
+                            </x-button>
+                        </div>
+                    </form>
+                </x-panel>
+
+                <x-panel title="How this works" padded class="self-start">
+                    <p class="text-[12.5px] text-ink-2 leading-relaxed">
+                        These are the options in the <span class="font-medium text-ink">Unit type</span> dropdown on
+                        each unit row in step 3 of the project form.
+                    </p>
+                    <p class="text-[12.5px] text-ink-2 leading-relaxed mt-3">
+                        Projects store the <span class="font-medium text-ink">name</span>, not a reference, so renaming
+                        a type updates every unit row using it in the same save. A type still in use cannot be deleted —
+                        turn it off instead, and it stays valid where it already appears.
+                    </p>
+                </x-panel>
+            </div>
+        </div>
+
+        {{-- ---------------------------- Measurement units -----------------------
+             Master data for the "Project extent metric" dropdown on the intake form. Same shape as
+             Project types: one PATCH form per row, so a Save touches only that row and
+             the panel needs no client-side dirty tracking. Form ids are prefixed
+             `metric-form-` so they cannot collide with the other panels' forms. --}}
+        <div x-show="tab === 'measurement-units'" x-cloak class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+
+            <x-panel title="Measurement units" flush class="xl:col-span-2">
+                <x-slot:actions>
+                    <span class="text-[11.5px] text-ink-3 nums">{{ $measurementUnits->count() }} total</span>
+                </x-slot:actions>
+
+                <div class="overflow-x-auto scrollbar-slim">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-line-soft">
+                                <th scope="col" class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3">Name</th>
+                                <th scope="col" class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3 w-[90px]">Active</th>
+                                <th scope="col" class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3 w-[80px]">Order</th>
+                                <th scope="col" class="px-4 py-2.5 w-[120px]"><span class="sr-only">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            @forelse($measurementUnits as $metric)
+                                <tr class="hover:bg-canvas transition-colors align-middle">
+                                    <form method="POST" action="{{ route('admin.settings.measurement-units.update', $unit) }}"
+                                          id="metric-form-{{ $metric->id }}">
+                                        @csrf @method('PATCH')
+                                    </form>
+
+                                    <td class="px-4 py-2.5">
+                                        <input form="metric-form-{{ $metric->id }}" name="name" value="{{ $metric->name }}"
+                                               required maxlength="96"
+                                               class="w-full h-9 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink
+                                                      focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
+                                        @if($metric->usage_count)
+                                            <p class="text-[11px] text-ink-3 mt-1">
+                                                {{ $metric->usage_count }} {{ Str::plural('project', $metric->usage_count) }} —
+                                                renaming updates {{ $metric->usage_count === 1 ? 'it' : 'them' }} too
+                                            </p>
+                                        @endif
+                                    </td>
+
+                                    <td class="px-4 py-2.5">
+                                        {{-- Paired hidden input so "off" posts 0 rather than dropping the key. --}}
+                                        <input form="metric-form-{{ $metric->id }}" type="hidden" name="is_active" value="0">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input form="metric-form-{{ $metric->id }}" type="checkbox" name="is_active" value="1"
+                                                   @checked($metric->is_active)
+                                                   class="w-4 h-4 rounded border-line text-primary focus:ring-primary-ring">
+                                            <span class="text-[12px] text-ink-2">On</span>
+                                        </label>
+                                    </td>
+
+                                    <td class="px-4 py-2.5">
+                                        <input form="metric-form-{{ $metric->id }}" name="sort_order" type="number" min="0" max="65535"
+                                               value="{{ $metric->sort_order }}"
+                                               class="w-full h-9 px-2 rounded-lg bg-panel border border-line text-[13px] text-ink nums
+                                                      focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
+                                    </td>
+
+                                    <td class="px-4 py-2.5">
+                                        <div class="flex items-center justify-end gap-1.5">
+                                            <x-button variant="subtle" size="sm" tag="button" type="submit"
+                                                      form="metric-form-{{ $metric->id }}">Save</x-button>
+
+                                            @php
+                                                $metricDelete = \Illuminate\Support\Js::from([
+                                                    'title' => 'Delete this measurement unit?',
+                                                    'message' => $metric->usage_count
+                                                        ? "“{$metric->name}” is used by {$metric->usage_count} project"
+                                                            . ($metric->usage_count === 1 ? '' : 's')
+                                                            . ' and cannot be deleted — turn it off instead.'
+                                                        : "“{$metric->name}” will no longer be offered on the project form.",
+                                                    'confirmLabel' => 'Delete unit',
+                                                    'tone' => 'danger',
+                                                ]);
+                                            @endphp
+                                            <form method="POST" action="{{ route('admin.settings.measurement-units.destroy', $unit) }}"
+                                                  x-on:submit.prevent="$dispatch('confirm-request', { ...{{ $metricDelete }}, form: $el })">
+                                                @csrf @method('DELETE')
+                                                <button type="submit" class="text-ink-3 hover:text-danger p-1.5 rounded-md transition-colors"
+                                                        aria-label="Delete {{ $metric->name }}">
+                                                    <x-icon name="x" class="w-3.5 h-3.5" />
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="px-4 py-8 text-[12.5px] text-ink-3 text-center">
+                                        No measurement units yet. Add one so the extent metric dropdown has something to offer.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </x-panel>
+
+            <div class="space-y-4">
+                <x-panel title="Add a measurement unit" padded class="self-start">
+                    <form method="POST" action="{{ route('admin.settings.measurement-units.store') }}" class="space-y-3.5">
+                        @csrf
+                        <x-field label="Name" name="name" input-id="metric-name"
+                                 placeholder="e.g. Sq. yards" required maxlength="96" />
+
+                        <input type="hidden" name="is_active" value="0">
+                        <x-switch-field label="Offer on the project form" name="is_active" input-id="metric-active"
+                                        :checked="true"
+                                        hint="Turn off to retire a type without touching projects already using it." />
+
+                        <div class="pt-1">
+                            <x-button variant="primary" tag="button" type="submit" icon="plus" class="w-full">
+                                Add measurement unit
+                            </x-button>
+                        </div>
+                    </form>
+                </x-panel>
+
+                <x-panel title="How this works" padded class="self-start">
+                    <p class="text-[12.5px] text-ink-2 leading-relaxed">
+                        These are the options in the <span class="font-medium text-ink">Project extent metric</span>
+                        dropdown in step 3 of the project form.
+                    </p>
+                    <p class="text-[12.5px] text-ink-2 leading-relaxed mt-3">
+                        Projects store the <span class="font-medium text-ink">name</span>, not a reference, so renaming
+                        a unit updates every project using it in the same save. A unit still in use cannot be deleted —
+                        turn it off instead, and it stays valid where it already appears.
+                    </p>
+                </x-panel>
+            </div>
+        </div>
+
+        {{-- ---------------------------- Amenities -------------------------------
+             Master data for the amenity checkboxes on the project intake form. Same
+             shape as Unit types: one PATCH form per row, so a Save touches only that
+             row and the panel needs no client-side dirty tracking. Form ids are
+             prefixed `amenity-form-` so they cannot collide with the panels above. --}}
+        <div x-show="tab === 'amenities'" x-cloak class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+
+            <x-panel title="Amenities" flush class="xl:col-span-2">
+                <x-slot:actions>
+                    <span class="text-[11.5px] text-ink-3 nums">
+                        {{ $amenities->where('is_active', true)->count() }} of {{ $amenities->count() }} offered
+                    </span>
+                </x-slot:actions>
+
+                <div class="overflow-x-auto scrollbar-slim">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-line-soft">
+                                <th scope="col" class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3">Name</th>
+                                <th scope="col" class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3 w-[90px]">Active</th>
+                                <th scope="col" class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3 w-[80px]">Order</th>
+                                <th scope="col" class="px-4 py-2.5 w-[120px]"><span class="sr-only">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            @forelse($amenities as $amenity)
+                                <tr class="hover:bg-canvas transition-colors align-middle">
+                                    <form method="POST" action="{{ route('admin.settings.amenities.update', $amenity) }}"
+                                          id="amenity-form-{{ $amenity->id }}">
+                                        @csrf @method('PATCH')
+                                    </form>
+
+                                    <td class="px-4 py-2.5">
+                                        <input form="amenity-form-{{ $amenity->id }}" name="name" value="{{ $amenity->name }}"
+                                               required maxlength="96"
+                                               class="w-full h-9 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink
+                                                      focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
+                                        @if($amenity->usage_count)
+                                            <p class="text-[11px] text-ink-3 mt-1">
+                                                {{ $amenity->usage_count }} {{ Str::plural('project', $amenity->usage_count) }} —
+                                                renaming updates {{ $amenity->usage_count === 1 ? 'it' : 'them' }} too
+                                            </p>
+                                        @endif
+                                    </td>
+
+                                    <td class="px-4 py-2.5">
+                                        {{-- Paired hidden input so "off" posts 0 rather than dropping the key. --}}
+                                        <input form="amenity-form-{{ $amenity->id }}" type="hidden" name="is_active" value="0">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input form="amenity-form-{{ $amenity->id }}" type="checkbox" name="is_active" value="1"
+                                                   @checked($amenity->is_active)
+                                                   class="w-4 h-4 rounded border-line text-primary focus:ring-primary-ring">
+                                            <span class="text-[12px] text-ink-2">On</span>
+                                        </label>
+                                    </td>
+
+                                    <td class="px-4 py-2.5">
+                                        <input form="amenity-form-{{ $amenity->id }}" name="sort_order" type="number" min="0" max="65535"
+                                               value="{{ $amenity->sort_order }}"
+                                               class="w-full h-9 px-2 rounded-lg bg-panel border border-line text-[13px] text-ink nums
+                                                      focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
+                                    </td>
+
+                                    <td class="px-4 py-2.5">
+                                        <div class="flex items-center justify-end gap-1.5">
+                                            <x-button variant="subtle" size="sm" tag="button" type="submit"
+                                                      form="amenity-form-{{ $amenity->id }}">Save</x-button>
+
+                                            @php
+                                                $amenityDelete = \Illuminate\Support\Js::from([
+                                                    'title' => 'Delete this amenity?',
+                                                    'message' => $amenity->usage_count
+                                                        ? "“{$amenity->name}” is listed on {$amenity->usage_count} project"
+                                                            . ($amenity->usage_count === 1 ? '' : 's')
+                                                            . ' and cannot be deleted — turn it off instead.'
+                                                        : "“{$amenity->name}” will no longer be offered on the project form.",
+                                                    'confirmLabel' => 'Delete amenity',
+                                                    'tone' => 'danger',
+                                                ]);
+                                            @endphp
+                                            <form method="POST" action="{{ route('admin.settings.amenities.destroy', $amenity) }}"
+                                                  x-on:submit.prevent="$dispatch('confirm-request', { ...{{ $amenityDelete }}, form: $el })">
+                                                @csrf @method('DELETE')
+                                                <button type="submit" class="text-ink-3 hover:text-danger p-1.5 rounded-md transition-colors"
+                                                        aria-label="Delete {{ $amenity->name }}">
+                                                    <x-icon name="x" class="w-3.5 h-3.5" />
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="px-4 py-8 text-[12.5px] text-ink-3 text-center">
+                                        No amenities yet. Add one so the project form has something to offer.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </x-panel>
+
+            <div class="space-y-4">
+                <x-panel title="Add an amenity" padded class="self-start">
+                    <form method="POST" action="{{ route('admin.settings.amenities.store') }}" class="space-y-3.5">
+                        @csrf
+                        <x-field label="Name" name="name" input-id="amenity-name"
+                                 placeholder="e.g. Co-working Lounge" required maxlength="96" />
+
+                        <input type="hidden" name="is_active" value="0">
+                        <x-switch-field label="Offer on the project form" name="is_active" input-id="amenity-active"
+                                        :checked="true"
+                                        hint="Turn off to retire an amenity without touching projects already listing it." />
+
+                        <div class="pt-1">
+                            <x-button variant="primary" tag="button" type="submit" icon="plus" class="w-full">
+                                Add amenity
+                            </x-button>
+                        </div>
+                    </form>
+                </x-panel>
+
+                <x-panel title="How this works" padded class="self-start">
+                    <p class="text-[12.5px] text-ink-2 leading-relaxed">
+                        These are the checkboxes under <span class="font-medium text-ink">Amenities</span> in step 4
+                        of the project form. <span class="font-medium text-ink">Order</span> sets the reading order of
+                        the grid, so it is worth keeping the common ones near the top.
+                    </p>
+                    <p class="text-[12.5px] text-ink-2 leading-relaxed mt-3">
+                        Projects store the <span class="font-medium text-ink">name</span>, not a reference, so renaming
+                        an amenity updates every project listing it in the same save. One still in use cannot be
+                        deleted — turn it off instead, and it stays valid where it already appears.
+                    </p>
+                    <p class="text-[12.5px] text-ink-2 leading-relaxed mt-3">
+                        Anything typed into the project form's <span class="font-medium text-ink">Other amenities</span>
+                        box is saved on that project but never added here. Add it above to offer it as a checkbox.
+                    </p>
                 </x-panel>
             </div>
         </div>

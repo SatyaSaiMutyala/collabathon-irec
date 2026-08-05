@@ -85,7 +85,7 @@
     <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div class="flex items-start gap-3.5 min-w-0">
             @if($profile?->photo_path)
-                <img src="{{ Storage::disk('public')->url($profile->photo_path) }}" alt=""
+                <img src="{{ asset('storage/' . $profile->photo_path) }}" alt=""
                      class="w-14 h-14 rounded-xl object-cover border border-line-soft shrink-0">
             @else
                 <x-avatar :name="$broker->name" :src="$profile?->photo_path" size="lg" class="w-14 h-14 shrink-0" />
@@ -246,7 +246,7 @@
                                 </div>
 
                                 @if(filled($doc['path']))
-                                    <a href="{{ Storage::disk('public')->url($doc['path']) }}"
+                                    <a href="{{ asset('storage/' . $doc['path']) }}"
                                        target="_blank" rel="noopener noreferrer"
                                        class="shrink-0 inline-flex items-center gap-1 text-[11.5px] font-medium
                                               text-primary-dark hover:underline">

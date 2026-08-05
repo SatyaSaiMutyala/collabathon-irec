@@ -9,10 +9,15 @@
     'name' => null,
     'rows' => 3,         // textarea only
     'toggle' => false,   // password inputs: render a show/hide eye button
+    // Overrides the DOM id only — the posted field name always stays $name. Needed where
+    // two forms on one page post the same field: the settings page has several "name"
+    // inputs, and duplicate ids make every <label for="name"> focus the first one.
+    'inputId' => null,
 ])
 
 @php
 $id = $name ?? 'f-' . \Illuminate\Support\Str::slug($label ?? uniqid());
+$domId = $inputId ?? $id;
 
 /**
  * Value precedence: old() after a failed submit, then an explicit :value, then $formRecord.
@@ -43,7 +48,7 @@ $inputClass = 'w-full h-10 rounded-lg bg-panel border text-[13.5px] text-ink pla
 
 <div {{ $attributes->only('class') }}>
     @if($label)
-        <label for="{{ $id }}" class="flex items-center gap-1 text-[12.5px] font-medium text-ink mb-1.5">
+        <label for="{{ $domId }}" class="flex items-center gap-1 text-[12.5px] font-medium text-ink mb-1.5">
             {{ $label }}
             @if($required)<span class="text-danger" aria-hidden="true">*</span>@endif
         </label>
@@ -56,10 +61,10 @@ $inputClass = 'w-full h-10 rounded-lg bg-panel border text-[13.5px] text-ink pla
 
         @if($toggle)
             {{-- Alpine owns `type` here so the value stays in one input across toggles. --}}
-            <input id="{{ $id }}" name="{{ $id }}" :type="reveal ? 'text' : 'password'" type="password"
+            <input id="{{ $domId }}" name="{{ $id }}" :type="reveal ? 'text' : 'password'" type="password"
                 placeholder="{{ $placeholder }}" value="{{ $currentValue }}"
                 @if($required) required @endif
-                @if($hasError) aria-invalid="true" aria-describedby="{{ $id }}-error" @endif
+                @if($hasError) aria-invalid="true" aria-describedby="{{ $domId }}-error" @endif
                 {{ $attributes->except('class')->merge(['class' => $inputClass . ' ' . ($icon ? 'pl-9' : 'pl-3.5') . ' pr-10 font-mono tracking-tight']) }}>
 
             <button type="button" @click="reveal = ! reveal" tabindex="-1"
@@ -69,20 +74,20 @@ $inputClass = 'w-full h-10 rounded-lg bg-panel border text-[13.5px] text-ink pla
                 <x-icon name="x" class="w-4 h-4" x-show="reveal" x-cloak />
             </button>
         @elseif($type === 'textarea')
-            <textarea id="{{ $id }}" name="{{ $id }}" rows="{{ $rows }}" placeholder="{{ $placeholder }}"
+            <textarea id="{{ $domId }}" name="{{ $id }}" rows="{{ $rows }}" placeholder="{{ $placeholder }}"
                 @if($required) required @endif
-                @if($hasError) aria-invalid="true" aria-describedby="{{ $id }}-error" @endif
+                @if($hasError) aria-invalid="true" aria-describedby="{{ $domId }}-error" @endif
                 {{ $attributes->except('class')->merge(['class' => str_replace('h-10', 'h-auto py-2.5', $inputClass) . ' px-3.5 resize-y']) }}>{{ $currentValue }}</textarea>
         @else
-            <input id="{{ $id }}" name="{{ $id }}" type="{{ $type }}" placeholder="{{ $placeholder }}" value="{{ $currentValue }}"
+            <input id="{{ $domId }}" name="{{ $id }}" type="{{ $type }}" placeholder="{{ $placeholder }}" value="{{ $currentValue }}"
                 @if($required) required @endif
-                @if($hasError) aria-invalid="true" aria-describedby="{{ $id }}-error" @endif
+                @if($hasError) aria-invalid="true" aria-describedby="{{ $domId }}-error" @endif
                 {{ $attributes->except('class')->merge(['class' => $inputClass . ' ' . ($icon ? 'pl-9 pr-3.5' : 'px-3.5')]) }}>
         @endif
     </div>
 
     @error($id)
-        <p id="{{ $id }}-error" class="flex items-start gap-1.5 text-[11.5px] text-danger mt-1.5">
+        <p id="{{ $domId }}-error" class="flex items-start gap-1.5 text-[11.5px] text-danger mt-1.5">
             <x-icon name="x" class="w-3.5 h-3.5 shrink-0 mt-px" />
             <span>{{ $message }}</span>
         </p>

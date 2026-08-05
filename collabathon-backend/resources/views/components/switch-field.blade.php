@@ -1,4 +1,7 @@
-@props(['label', 'name', 'hint' => null, 'checked' => false])
+@props(['label', 'name', 'hint' => null, 'checked' => false,
+    // DOM id only; the posted name stays \$name. See the note in field.blade.php.
+    'inputId' => null,
+])
 
 {{-- x-toggle is Alpine-only and submits nothing. This is the form-bound variant: a real
      checkbox, visually hidden, driving the track/knob through `peer-checked`. The paired
@@ -12,9 +15,9 @@
 <div {{ $attributes->only('class') }}>
     <input type="hidden" name="{{ $name }}" value="0">
 
-    <label for="{{ $name }}" class="flex items-start gap-3 cursor-pointer">
+    <label for="{{ $inputId ?? $name }}" class="flex items-start gap-3 cursor-pointer">
         <span class="relative inline-flex shrink-0 mt-0.5">
-            <input id="{{ $name }}" name="{{ $name }}" type="checkbox" value="1" @checked($isOn)
+            <input id="{{ $inputId ?? $name }}" name="{{ $name }}" type="checkbox" value="1" @checked($isOn)
                    class="peer sr-only" {{ $attributes->except('class') }}>
             <span class="block w-[38px] h-[21px] bg-line p-[2px] transition-colors duration-150
                          peer-checked:bg-primary

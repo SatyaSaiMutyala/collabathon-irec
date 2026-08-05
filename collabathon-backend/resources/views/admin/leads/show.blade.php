@@ -197,10 +197,14 @@
                         'Type' => $property?->project_type,
                         'Stage' => $property?->project_status,
                         'Location' => $property ? collect([$property->locality, $property->city])->filter()->implode(', ') : null,
-                        'Price range' => $property?->price_min !== null
-                            ? $property->currency . ' ' . number_format((float) $property->price_min)
-                              . ' – ' . number_format((float) $property->price_max)
-                            : null,
+                        // Upper end is optional since intake collapsed to "Starting from".
+                        'Price' => match (true) {
+                            $property?->price_min === null => null,
+                            $property->price_max === null => 'From ' . $property->currency . ' '
+                                . number_format((float) $property->price_min),
+                            default => $property->currency . ' ' . number_format((float) $property->price_min)
+                                . ' – ' . number_format((float) $property->price_max),
+                        },
                         'Listing status' => $property ? ucfirst($property->listing_status) : null,
                     ] as $label => $value)
                         <div class="px-5 py-3 flex items-start gap-4">

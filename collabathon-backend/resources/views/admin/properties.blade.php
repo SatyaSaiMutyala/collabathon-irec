@@ -95,7 +95,15 @@
                 </td>
 
                 <td class="px-4 py-3 text-[12.5px] text-ink-2 nums whitespace-nowrap hidden md:table-cell">
-                    {{ $p->currency }} {{ number_format($p->price_min / 1_000_000, 2) }}M – {{ number_format($p->price_max / 1_000_000, 2) }}M
+                    {{-- price_max is no longer collected, so a band only renders when one is
+                         actually on record; otherwise this reads as the entry price it is. --}}
+                    @if($p->price_min === null)
+                        —
+                    @elseif($p->price_max === null)
+                        From {{ $p->currency }} {{ number_format($p->price_min / 1_000_000, 2) }}M
+                    @else
+                        {{ $p->currency }} {{ number_format($p->price_min / 1_000_000, 2) }}M – {{ number_format($p->price_max / 1_000_000, 2) }}M
+                    @endif
                 </td>
 
                 <td class="px-4 py-3 text-right text-[12.5px] text-ink-2 nums hidden xl:table-cell">{{ number_format($p->views_count) }}</td>

@@ -4,13 +4,17 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Concerns\HandlesListQueries;
 use App\Http\Controllers\Controller;
+use App\Models\Amenity;
+use App\Models\Country;
 use App\Models\Developer;
+use App\Models\MeasurementUnit;
 use App\Models\ProjectType;
 use App\Models\Property;
 use App\Services\PushNotifier;
 use App\Models\PropertyDetail;
 use App\Models\PropertyMedia;
 use App\Models\PropertyUnitType;
+use App\Models\UnitType;
 use App\Support\RichText;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -48,7 +52,6 @@ class PropertyController extends Controller
         'master_plan' => 'master_plan',
         'brochure' => 'brochure',
         'price_list' => 'price_list',
-        'rera_certificate' => 'rera_certificate',
         'payment_schedule_file' => 'payment_schedule',
     ];
 
@@ -60,18 +63,11 @@ class PropertyController extends Controller
 
     /** Free-text areas the sheet describes as lists — stored one item per JSON array entry. */
     private const LIST_FIELDS = [
-        'connectivity_highlights', 'nearby_infrastructure',
-        'approving_authorities', 'bank_approvals', 'other_charges', 'awards',
-    ];
-
-    /**
-     * The amenity checkboxes, enumerated on the client's field sheet. Lives here rather than
-     * in the Blade so the edit form can split a saved list back into "known" and "other"
-     * against the same source the form was built from.
-     */
-    public const AMENITY_OPTIONS = [
-        'Clubhouse', 'Swimming Pool', 'Gym', "Kids' Play Area", 'Sports Court', 'Garden',
-        'Jogging Track', 'Security/CCTV', 'Power Backup', 'Lift', 'Rainwater Harvesting', 'EV Charging',
+        'connectivity_highlights', 'nearby_infrastructure', 'other_charges',
+        // approving_authorities, bank_approvals and awards came off this list with the
+        // Timeline and Compliance steps. They must not be re-added while nothing collects
+        // them: detailAttributes() writes every entry here on every save, so an
+        // uncollected field would be blanked on each edit rather than simply left alone.
     ];
 
     public function index(Request $request): View
@@ -117,8 +113,11 @@ class PropertyController extends Controller
         $this->authorize('edit-module', 'properties');
 
         return view('admin.properties.create', [
+            'locationTree' => $this->locationTree(),
+            'unitTypeOptions' => UnitType::optionsFor(),
+            'extentMetricOptions' => MeasurementUnit::optionsFor(),
             'developers' => Developer::orderBy('company_name')->get(['id', 'company_name']),
-            'amenityOptions' => self::AMENITY_OPTIONS,
+            'amenityOptions' => Amenity::optionsFor(),
         ] + $this->projectTypeData(old('project_type')));
     }
 
@@ -211,9 +210,14 @@ class PropertyController extends Controller
         $property->load(['detail', 'unitTypes', 'media']);
 
         return view('admin.properties.edit', [
+            'locationTree' => $this->locationTree($property),
+            'unitTypeOptions' => UnitType::optionsFor($property->unitTypes->pluck('label')),
+            'extentMetricOptions' => MeasurementUnit::optionsFor($property->extent_metric),
             'property' => $property,
             'developers' => Developer::orderBy('company_name')->get(['id', 'company_name']),
-            'amenityOptions' => self::AMENITY_OPTIONS,
+            // Retired amenities this project already lists stay on the grid, checked —
+            // see Amenity::optionsFor().
+            'amenityOptions' => Amenity::optionsFor($property->detail?->amenities),
             // Flat map of form-field name => current value; see toFormValues().
             'formRecord' => $this->toFormValues($property),
         ] + $this->projectTypeData(old('project_type', $property->project_type)));
@@ -306,21 +310,18 @@ class PropertyController extends Controller
         $values = $property->only([
             'developer_id', 'name', 'project_type', 'project_status', 'listing_status',
             'tagline', 'description', 'rera_number',
-            'state', 'city', 'locality', 'full_address', 'landmark', 'pincode', 'zone',
+            'country', 'state', 'city', 'locality', 'full_address', 'landmark', 'pincode', 'zone',
             'latitude', 'longitude', 'maps_link',
-            'price_min', 'price_max', 'price_per_sqft', 'currency',
-            'total_units', 'towers', 'floors_per_tower', 'flats_per_floor',
+            'price_min', 'price_max', 'extent_metric', 'currency',
+            'total_units', 'towers', 'floors_per_tower',
             'land_parcel_acres', 'total_project_area_sqft', 'open_space_percent',
-            'construction_progress', 'green_certification', 'vastu_compliant',
+            'green_certification', 'vastu_compliant',
         ]);
 
-        foreach (['launch_date', 'possession_date'] as $date) {
-            $values[$date] = $property->{$date}?->format('Y-m-d');
-        }
+        $values['possession_date'] = $property->possession_date?->format('Y-m-d');
 
         if ($detail) {
             $values += $detail->only([
-                'construction_specifications', 'amenities_size', 'amenities_count', 'parking_details',
                 'booking_amount', 'cp_commission_percent', 'special_incentives', 'cashback_schemes',
                 'registration_stamp_duty', 'maintenance_charges', 'floor_rise', 'plc_charges',
                 'payment_schedule', 'sales_office_address', 'site_visit_timings',
@@ -336,11 +337,17 @@ class PropertyController extends Controller
                 $values[$field] = implode("\n", $detail->{$field} ?? []);
             }
 
-            // Amenities split back into the checkbox grid plus whatever was typed as extra.
-            $known = collect(self::AMENITY_OPTIONS);
-            $saved = collect($detail->amenities ?? []);
-            $values['amenities'] = $saved->intersect($known)->values()->all();
-            $values['amenities_extra'] = $saved->diff($known)->implode(', ');
+            // Only the checkboxes are editable now, so only those are repopulated. Any
+            // amenity saved outside that list is preserved on save — see amenities().
+            //
+            // Matched against the whole catalogue, not just the amenities currently
+            // offered: one retired in Settings must stay a ticked checkbox here rather
+            // than drop off the form, and Amenity::optionsFor() puts it back on the grid
+            // for exactly this reason.
+            $values['amenities'] = collect($detail->amenities ?? [])
+                ->intersect(collect(Amenity::catalogue()))
+                ->values()
+                ->all();
             $values['payment_plan_options'] = $detail->payment_plan_options ?? [];
         }
 
@@ -416,6 +423,7 @@ class PropertyController extends Controller
             'rera_number' => ['nullable', 'string', 'max:64'],
 
             // 2 · Location details
+            'country' => ['nullable', 'string', 'max:96'],
             'state' => ['nullable', 'string', 'max:96'],
             'city' => ['required', 'string', 'max:96'],
             'locality' => ['nullable', 'string', 'max:128'],
@@ -430,15 +438,16 @@ class PropertyController extends Controller
             'nearby_infrastructure' => ['nullable', 'string', 'max:5000'],
 
             // 3 · Configuration & pricing
-            'currency' => ['required', 'in:AED,INR,USD'],
+            'currency' => ['required', 'in:INR'],
             'price_min' => ['required', 'integer', 'min:0'],
-            'price_max' => ['required', 'integer', 'gte:price_min'],
-            'price_per_sqft' => ['nullable', 'integer', 'min:0'],
+            // No longer collected by the form — the price band collapsed to a single
+            // "Starting from". Kept nullable rather than dropped so existing records and
+            // the API contract are unaffected, and so a ceiling can be reintroduced later.
+            'price_max' => ['nullable', 'integer', 'gte:price_min'],
+            'extent_metric' => ['nullable', 'string', 'max:96'],
             'total_units' => ['nullable', 'integer', 'min:0'],
             'towers' => ['nullable', 'integer', 'min:0', 'max:65535'],
             'floors_per_tower' => ['nullable', 'integer', 'min:0', 'max:65535'],
-            'flats_per_floor' => ['nullable', 'integer', 'min:0', 'max:65535'],
-            'parking_details' => ['nullable', 'string', 'max:255'],
             'unit_types' => ['nullable', 'array', 'max:25'],
             'unit_types.*.label' => ['nullable', 'string', 'max:64'],
             'unit_types.*.carpet_area_sqft' => ['nullable', 'integer', 'min:0'],
@@ -456,29 +465,21 @@ class PropertyController extends Controller
             'land_parcel_acres' => ['nullable', 'numeric', 'min:0'],
             'total_project_area_sqft' => ['nullable', 'integer', 'min:0'],
             'open_space_percent' => ['nullable', 'integer', 'min:0', 'max:100'],
-            'construction_specifications' => ['nullable', 'string', 'max:20000'],
             'amenities' => ['nullable', 'array', 'max:60'],
             'amenities.*' => ['string', 'max:96'],
-            'amenities_extra' => ['nullable', 'string', 'max:1000'],
-            'amenities_size' => ['nullable', 'string', 'max:255'],
-            'amenities_count' => ['nullable', 'integer', 'min:0', 'max:65535'],
             'green_certification' => ['nullable', 'string', 'max:64'],
             'vastu_compliant' => ['nullable', 'boolean'],
 
-            // 5 · Timeline & legal
-            'launch_date' => ['nullable', 'date'],
-            // Mandatory only for the types flagged in Settings — RERA requires a
+            // possession_date is collected in step 1, under the project type that reveals
+            // it. Mandatory only for the types flagged in Settings — RERA requires a
             // completion date for built units, not for land-only types.
             'possession_date' => [
                 Rule::requiredIf(fn () => (bool) ProjectType::where('name', request('project_type'))
                     ->value('requires_possession_date')),
                 'nullable', 'date',
             ],
-            'construction_progress' => ['nullable', 'integer', 'min:0', 'max:100'],
-            'approving_authorities' => ['nullable', 'string', 'max:5000'],
-            'bank_approvals' => ['nullable', 'string', 'max:5000'],
 
-            // 6 · Media & marketing assets
+            // 5 · Media & marketing assets
             'cover_image' => ['nullable', 'image', 'max:4096'],
             'gallery' => ['nullable', 'array', 'max:30'],
             'gallery.*' => ['image', 'max:5120'],
@@ -519,15 +520,48 @@ class PropertyController extends Controller
             'sales_contact_name' => ['nullable', 'string', 'max:255'],
             'sales_contact_number' => ['nullable', 'string', 'max:32'],
             'booking_process' => ['nullable', 'string', 'max:5000'],
-
-            // 9 · Compliance & trust signals
-            'rera_certificate' => $anyDoc,
-            'legal_due_diligence' => ['nullable', 'file', 'mimes:pdf', 'max:20480'],
-            'awards' => ['nullable', 'string', 'max:5000'],
         ];
     }
 
     // ------------------------------------------------------------------ mapping
+
+    /**
+     * The country → state → city cascade for the location step, shaped as
+     * ['India' => ['Telangana' => ['Hyderabad', …], …], …].
+     *
+     * Read from the master list an admin maintains in Settings → Locations, eager-loaded
+     * two levels deep so the whole tree is three queries rather than one per state.
+     *
+     * A project being edited has its saved triple folded in even when that city has since
+     * been removed from the list. Without it the select would fall back to its first option
+     * and quietly re-save a different city than the one on record.
+     *
+     * @return array<string, array<string, list<string>>>
+     */
+    private function locationTree(?Property $property = null): array
+    {
+        $tree = Country::with(['states' => fn ($q) => $q->orderBy('name')->with(['cities' => fn ($c) => $c->orderBy('name')])])
+            ->orderBy('name')
+            ->get()
+            ->mapWithKeys(fn (Country $country) => [
+                $country->name => $country->states
+                    ->mapWithKeys(fn ($state) => [$state->name => $state->cities->pluck('name')->all()])
+                    ->all(),
+            ])
+            ->all();
+
+        if ($property && filled($property->country) && filled($property->state) && filled($property->city)) {
+            $tree[$property->country] ??= [];
+            $tree[$property->country][$property->state] ??= [];
+
+            if (! in_array($property->city, $tree[$property->country][$property->state], true)) {
+                $tree[$property->country][$property->state][] = $property->city;
+                sort($tree[$property->country][$property->state]);
+            }
+        }
+
+        return $tree;
+    }
 
     /** Columns that live on `properties` — the ones listings filter and sort on. */
     private function propertyAttributes(array $data): array
@@ -537,17 +571,20 @@ class PropertyController extends Controller
             // rera_registered_at / rera_valid_till are no longer collected — the columns
             // stay so existing records keep their dates, but the form owns neither.
             'tagline', 'description', 'rera_number',
-            'state', 'city', 'locality', 'full_address', 'landmark', 'pincode', 'zone',
+            'country', 'state', 'city', 'locality', 'full_address', 'landmark', 'pincode', 'zone',
             'latitude', 'longitude', 'maps_link',
-            'price_min', 'price_max', 'price_per_sqft', 'currency',
-            'total_units', 'towers', 'floors_per_tower', 'flats_per_floor',
+            'price_min', 'price_max', 'extent_metric', 'currency',
+            'total_units', 'towers', 'floors_per_tower',
             'land_parcel_acres', 'total_project_area_sqft', 'open_space_percent',
-            'launch_date', 'possession_date', 'green_certification',
+            'possession_date', 'green_certification',
         ];
 
+        // launch_date and construction_progress are no longer collected. Leaving
+        // construction_progress in the returned array would reset it to 0 on every edit,
+        // so it is simply absent — the column default covers new rows and existing
+        // records keep the figure they already hold.
         return array_intersect_key($data, array_flip($columns)) + [
             'slug' => Str::slug($data['name']) . '-' . Str::lower(Str::random(5)),
-            'construction_progress' => $data['construction_progress'] ?? 0,
             'vastu_compliant' => (bool) ($data['vastu_compliant'] ?? false),
         ];
     }
@@ -556,7 +593,6 @@ class PropertyController extends Controller
     private function detailAttributes(array $data, Request $request, int $propertyId, ?PropertyDetail $existing = null): array
     {
         $columns = [
-            'construction_specifications', 'amenities_size', 'amenities_count', 'parking_details',
             'booking_amount', 'cp_commission_percent', 'special_incentives', 'cashback_schemes',
             'registration_stamp_duty', 'maintenance_charges', 'floor_rise', 'plc_charges',
             'payment_schedule', 'sales_office_address', 'site_visit_timings',
@@ -565,7 +601,7 @@ class PropertyController extends Controller
 
         $attributes = array_intersect_key($data, array_flip($columns)) + [
             'property_id' => $propertyId,
-            'amenities' => $this->amenities($data),
+            'amenities' => $this->amenities($data, $existing),
             'payment_plan_options' => $data['payment_plan_options'] ?? null,
         ];
 
@@ -575,16 +611,8 @@ class PropertyController extends Controller
 
         $attributes += $this->termsAttributes($data, $request, $propertyId, $existing);
 
-        if ($file = $request->file('legal_due_diligence')) {
-            $attributes['legal_due_diligence_path'] = $this->upload($file, $propertyId);
-
-            if ($existing?->legal_due_diligence_path) {
-                Storage::disk('public')->delete($existing->legal_due_diligence_path);
-            }
-        } elseif ($existing) {
-            // No replacement uploaded — an edit must not blank the stored path.
-            $attributes['legal_due_diligence_path'] = $existing->legal_due_diligence_path;
-        }
+        // legal_due_diligence went with the Compliance step. Nothing writes the column
+        // now, so a record that already has a report keeps it and the file stays on disk.
 
         return $attributes;
     }
@@ -622,14 +650,25 @@ class PropertyController extends Controller
         return $attributes;
     }
 
-    /** Checkbox selections plus anything typed into "other amenities". */
-    private function amenities(array $data): ?array
+    /**
+     * The amenity checkboxes, plus anything already saved that the grid cannot represent.
+     *
+     * The "other amenities" free-text field is gone, so the checkboxes are the only input.
+     * Rebuilding the list from them alone would drop every custom amenity a project already
+     * carries the first time someone edits an unrelated field — the form would silently
+     * delete data it never showed. Values outside the catalogue are therefore carried over
+     * from the stored row.
+     *
+     * Note this is the catalogue, not the offered set: a retired amenity *is* rendered as a
+     * checkbox on a project that has it, so unticking it has to remove it. Carrying it over
+     * would make that checkbox impossible to clear.
+     */
+    private function amenities(array $data, ?PropertyDetail $existing = null): ?array
     {
-        $extra = collect(explode(',', (string) ($data['amenities_extra'] ?? '')))
-            ->map(fn ($item) => trim($item))
-            ->filter();
+        $custom = collect($existing?->amenities ?? [])
+            ->diff(collect(Amenity::catalogue()));
 
-        $all = collect($data['amenities'] ?? [])->concat($extra)->unique()->values()->all();
+        $all = collect($data['amenities'] ?? [])->concat($custom)->unique()->values()->all();
 
         return $all ?: null;
     }

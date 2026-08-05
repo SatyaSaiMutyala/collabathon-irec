@@ -42,12 +42,26 @@
         <x-icon :name="$icon" class="w-4 h-4 text-ink-3 shrink-0" />
 
         {{-- min-w-0 is what makes `truncate` work on a flex child: without it the item's
-             min-width resolves to its content, so a long filename widens the row instead
+             min-width resolves to its content, so a long placeholder widens the row instead
              of ellipsing inside it. --}}
         <span class="text-[13px] text-ink-3 truncate min-w-0" x-show="! files.length">
             {{ $multiple ? 'Choose files…' : 'Choose a file…' }}
         </span>
-        <span class="text-[13px] text-ink truncate min-w-0" x-show="files.length" x-cloak x-text="files.join(', ')"></span>
+
+        {{-- The picked filename wraps rather than ellipsing. Half these fields sit in a
+             two-column grid, and `truncate` cut a real name — "Screenshot 2026-08-05 at
+             7.40.40 PM.png" — down to "Screenshot 2026-08-0…", which tells the user
+             nothing about which file they just chose. The control is a growable dropzone,
+             so a second line costs less than the lost information. `break-words`, not
+             `break-all`: it wraps at the spaces a screenshot name already has, and only
+             breaks mid-word for a name that has none — `WhatsApp_Image_2026-08-05.jpeg`
+             would otherwise overflow the row.
+
+             A multi-file pick names the first and counts the rest: joining twenty gallery
+             filenames turned the row into a paragraph. The full list stays on the title. --}}
+        <span class="text-[13px] text-ink min-w-0 break-words leading-snug" x-show="files.length" x-cloak
+              x-bind:title="files.join(', ')"
+              x-text="files.length > 1 ? files[0] + ' + ' + (files.length - 1) + ' more' : files[0]"></span>
 
         {{-- Transparent and stretched over the label rather than `sr-only`.
 
@@ -75,7 +89,7 @@
             <x-icon name="check" class="w-3.5 h-3.5 text-success shrink-0" />
             <span class="truncate">
                 On file:
-                <a href="{{ Storage::disk('public')->url($current) }}" target="_blank" rel="noopener"
+                <a href="{{ asset('storage/' . $current) }}" target="_blank" rel="noopener"
                    class="text-ink-2 hover:text-ink underline decoration-line underline-offset-2">
                     {{ basename($current) }}
                 </a>

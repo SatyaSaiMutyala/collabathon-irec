@@ -59,7 +59,7 @@ return new class extends Migration
             $table->unsignedBigInteger('price_min')->nullable();
             $table->unsignedBigInteger('price_max')->nullable();
             $table->unsignedInteger('price_per_sqft')->nullable();
-            $table->string('currency', 8)->default('AED');
+            $table->string('currency', 8)->default('INR');
 
             // Scale
             $table->unsignedInteger('total_units')->nullable();

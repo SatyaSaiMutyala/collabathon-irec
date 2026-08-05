@@ -24,16 +24,21 @@
      * depends on it. Explicitly shared as null on create so nothing can leak in.
      */
     \Illuminate\Support\Facades\View::share('formRecord', $formRecord ?? null);
+    /*
+     * Seven steps, not nine. "Timeline & legal" and "Compliance & trust signals" were
+     * dropped — the columns behind them stay on the model and in the API so existing
+     * records keep what they hold, but nothing collects them any more. possession_date
+     * was the one field in those two steps that is still wanted; it already lived in
+     * step 1 under the project type that reveals it, so it was unaffected.
+     */
     $steps = [
         1 => ['label' => 'Project basics',   'icon' => 'building',    'hint' => 'Identity, RERA and the owning developer'],
         2 => ['label' => 'Location',         'icon' => 'map-pin',     'hint' => 'Address, zone and connectivity'],
         3 => ['label' => 'Configuration',    'icon' => 'list',        'hint' => 'Unit types, areas and pricing'],
         4 => ['label' => 'Specifications',   'icon' => 'sparkles',    'hint' => 'Land, build quality and amenities'],
-        5 => ['label' => 'Timeline & legal', 'icon' => 'clock',       'hint' => 'Dates, approvals and bank tie-ups'],
-        6 => ['label' => 'Media',            'icon' => 'palette',     'hint' => 'Gallery, plans and brochures'],
-        7 => ['label' => 'Commercial terms', 'icon' => 'chart',       'hint' => 'Payment plans, charges and CP payout'],
-        8 => ['label' => 'Contact & sales',  'icon' => 'phone',       'hint' => 'Sales office and booking process'],
-        9 => ['label' => 'Compliance',       'icon' => 'shield',      'hint' => 'Certificates and trust signals'],
+        5 => ['label' => 'Media',            'icon' => 'palette',     'hint' => 'Gallery, plans and brochures'],
+        6 => ['label' => 'Commercial terms', 'icon' => 'chart',       'hint' => 'Payment plans, charges and CP payout'],
+        7 => ['label' => 'Contact & sales',  'icon' => 'phone',       'hint' => 'Sales office and booking process'],
     ];
 
     // A failed submit lands back here — open the first step that actually has an error
@@ -44,22 +49,19 @@
         1 => ['name', 'developer_id', 'project_type', 'possession_date', 'project_status',
               'tagline', 'description',
               'logo', 'rera_number', 'listing_status'],
-        2 => ['state', 'city', 'locality', 'full_address', 'landmark', 'pincode', 'zone',
+        2 => ['country', 'state', 'city', 'locality', 'full_address', 'landmark', 'pincode', 'zone',
               'latitude', 'longitude', 'maps_link', 'connectivity_highlights', 'nearby_infrastructure'],
-        3 => ['price_min', 'price_max', 'price_per_sqft', 'currency', 'total_units', 'towers',
-              'floors_per_tower', 'flats_per_floor', 'parking_details', 'unit_types', 'unit_plans'],
+        3 => ['price_min', 'price_max', 'extent_metric', 'currency', 'total_units', 'towers',
+              'floors_per_tower', 'unit_types', 'unit_plans'],
         4 => ['land_parcel_acres', 'total_project_area_sqft', 'open_space_percent',
-              'construction_specifications', 'amenities', 'amenities_extra', 'amenities_size',
-              'amenities_count', 'green_certification', 'vastu_compliant'],
-        5 => ['launch_date', 'construction_progress', 'approving_authorities', 'bank_approvals'],
-        6 => ['cover_image', 'gallery', 'site_layout', 'master_plan', 'brochure', 'price_list',
+              'amenities', 'green_certification', 'vastu_compliant'],
+        5 => ['cover_image', 'gallery', 'site_layout', 'master_plan', 'brochure', 'price_list',
               'video_url', 'virtual_tour_url', 'payment_schedule_file', 'payment_schedule'],
-        7 => ['payment_plan_options', 'booking_amount', 'cp_commission_percent', 'special_incentives',
+        6 => ['payment_plan_options', 'booking_amount', 'cp_commission_percent', 'special_incentives',
               'cashback_schemes', 'registration_stamp_duty', 'maintenance_charges', 'floor_rise',
               'plc_charges', 'other_charges',
               'terms_type', 'terms_title', 'terms_document', 'terms_content'],
-        8 => ['sales_office_address', 'site_visit_timings', 'sales_contact_name', 'sales_contact_number', 'booking_process'],
-        9 => ['rera_certificate', 'legal_due_diligence', 'awards'],
+        7 => ['sales_office_address', 'site_visit_timings', 'sales_contact_name', 'sales_contact_number', 'booking_process'],
     ];
 
     $initialStep = 1;
@@ -312,13 +314,17 @@
 
                         <x-field label="Heading" name="tagline" placeholder="Short marketing line" />
 
-                        <x-field label="RERA registration number" name="rera_number" placeholder="e.g. RERA-DXB-24817" />
+                        {{-- Paired on one row: both are short, single-value identity fields, and
+                             stacking them left a full-width text input above a full-width
+                             dashed dropzone with the description wedged between them. --}}
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <x-field label="RERA registration number" name="rera_number" placeholder="e.g. RERA-DXB-24817" />
+                            <x-file-field label="Project logo / branding" name="logo" accept="image/*" :current="$property?->logo_path"
+                                          hint="PNG or JPG, up to 2 MB." />
+                        </div>
 
                         <x-field label="Project description" name="description" type="textarea" rows="4"
                                  placeholder="Detailed overview of the project" />
-
-                        <x-file-field label="Project logo / branding" name="logo" accept="image/*" :current="$property?->logo_path"
-                                      hint="PNG or JPG, up to 2 MB." />
                     </section>
 
                     {{-- 2 · Location Details -------------------------------------------- --}}
@@ -326,11 +332,62 @@
                         <x-wizard-heading :step="2" :of="count($steps)" title="Location details"
                                           subtitle="Where the project sits, and what it is close to." />
 
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <x-field label="State / Emirate" name="state" placeholder="e.g. Dubai" />
-                            <x-field label="City" name="city" placeholder="e.g. Dubai" icon="map-pin" required />
-                            <x-field label="Locality / area" name="locality" placeholder="e.g. Dubai Marina" />
+                        {{-- Country → state → city, driven by the list an admin maintains in
+                             Settings → Locations. Free text let three spellings of one city
+                             into the data, which then split every city filter in the app.
+
+                             Each level narrows the next, and changing a parent clears the
+                             children rather than leaving a city that no longer belongs to the
+                             selected state. On a new project the seeded default is preselected;
+                             on an edit the saved triple wins, and PropertyController::locationTree()
+                             has already folded it in even if Settings no longer lists it. --}}
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3"
+                             x-data="locationPicker(
+                                 @js($locationTree ?? []),
+                                 @js(old('country', data_get($formRecord ?? null, 'country') ?: 'India')),
+                                 @js(old('state', data_get($formRecord ?? null, 'state') ?: 'Telangana')),
+                                 @js(old('city', data_get($formRecord ?? null, 'city') ?: 'Hyderabad'))
+                             )">
+                            <div>
+                                <label for="country" class="block text-[12.5px] font-medium text-ink mb-1.5">Country</label>
+                                <select id="country" name="country" x-ref="countrySel" x-model="country" x-on:change="onCountry()"
+                                        class="w-full h-10 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink
+                                               focus:border-primary-ring focus:outline-none transition-colors">
+                                    <template x-for="name in countries" :key="name">
+                                        <option :value="name" x-text="name"></option>
+                                    </template>
+                                </select>
+                                @error('country')<p class="text-[11.5px] text-danger mt-1.5">{{ $message }}</p>@enderror
+                            </div>
+
+                            <div>
+                                <label for="state" class="block text-[12.5px] font-medium text-ink mb-1.5">State</label>
+                                <select id="state" name="state" x-ref="stateSel" x-model="state" x-on:change="onState()"
+                                        class="w-full h-10 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink
+                                               focus:border-primary-ring focus:outline-none transition-colors">
+                                    <template x-for="name in states" :key="name">
+                                        <option :value="name" x-text="name"></option>
+                                    </template>
+                                </select>
+                                @error('state')<p class="text-[11.5px] text-danger mt-1.5">{{ $message }}</p>@enderror
+                            </div>
+
+                            <div>
+                                <label for="city" class="flex items-center gap-1 text-[12.5px] font-medium text-ink mb-1.5">
+                                    City <span class="text-danger" aria-hidden="true">*</span>
+                                </label>
+                                <select id="city" name="city" x-ref="citySel" x-model="city" required
+                                        class="w-full h-10 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink
+                                               focus:border-primary-ring focus:outline-none transition-colors">
+                                    <template x-for="name in cities" :key="name">
+                                        <option :value="name" x-text="name"></option>
+                                    </template>
+                                </select>
+                                @error('city')<p class="text-[11.5px] text-danger mt-1.5">{{ $message }}</p>@enderror
+                            </div>
                         </div>
+
+                        <x-field label="Locality / area" name="locality" placeholder="e.g. Gachibowli" />
 
                         <x-field label="Full address" name="full_address" type="textarea"
                                  placeholder="Plot, street, community, city" />
@@ -367,34 +424,39 @@
                         <x-wizard-heading :step="3" :of="count($steps)" title="Configuration & pricing"
                                           subtitle="Project-wide price band, then one row per unit type." />
 
-                        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                            <x-select-field label="Currency" name="currency" :options="['AED', 'INR', 'USD']" />
-                            <x-field label="Price from" name="price_min" type="number" placeholder="1800000" required />
-                            <x-field label="Price to" name="price_max" type="number" placeholder="3200000" required />
-                            <x-field label="Price per sq.ft." name="price_per_sqft" type="number" placeholder="1450" />
+                        {{-- One price, not a band — at the project level and in every unit-type
+                             row below. The upper end was never a number anyone could state
+                             honestly at intake, so only the entry price is asked for. Both
+                             `price_max` columns stay on their models and are simply left null;
+                             every reader of them already had to handle that, since they have
+                             always been nullable. --}}
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {{-- INR only for now. The column, the validation rule and this
+                                 list are the three places a new currency has to be added;
+                                 a single option also means it is always pre-selected. --}}
+                            <x-select-field label="Currency" name="currency" :options="['INR']" />
+                            <x-field label="Starting from" name="price_min" type="number" placeholder="1800000" required />
+                            {{-- Options come from Settings → Measurement units, plus whatever
+                                 this project already has, so a unit retired there does not
+                                 vanish from a project still using it. --}}
+                            <x-select-field label="Project extent metric" name="extent_metric"
+                                            :options="$extentMetricOptions"
+                                            placeholder="Select a unit…" />
                         </div>
 
-                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <x-field label="Total units" name="total_units" type="number" placeholder="480" />
                             <x-field label="Towers / blocks" name="towers" type="number" placeholder="3" />
-                            <x-field label="Floors per tower" name="floors_per_tower" type="number" placeholder="24" />
-                            <x-field label="Flats per floor" name="flats_per_floor" type="number" placeholder="6" />
+                            <x-field label="No. of floors" name="floors_per_tower" type="number" placeholder="24" />
                         </div>
-
-                        <x-field label="Parking details" name="parking_details"
-                                 placeholder="e.g. 2 covered bays per unit, 1:1.5 visitor ratio" />
 
                         {{-- Repeatable unit types ------------------------------------- --}}
                         <div class="border-t border-line-soft pt-4">
-                            <div class="flex items-center justify-between gap-3 mb-2.5">
-                                <div>
-                                    <p class="text-[12.5px] font-medium text-ink">Unit types available</p>
-                                    <p class="text-[11.5px] text-ink-3 mt-0.5">
-                                        Areas are in sq.ft.; sq.m. is shown to channel partners automatically.
-                                    </p>
-                                </div>
-                                <x-button variant="outline" size="sm" tag="button" type="button" icon="plus"
-                                          x-on:click="rows.push({})">Add unit type</x-button>
+                            <div class="mb-2.5">
+                                <p class="text-[12.5px] font-medium text-ink">Unit types available</p>
+                                <p class="text-[11.5px] text-ink-3 mt-0.5">
+                                    One row per configuration on offer.
+                                </p>
                             </div>
 
                             <div class="space-y-2.5">
@@ -403,6 +465,19 @@
                                         {{-- Carries a saved floor plan through the rebuild. --}}
                                         <input type="hidden" :name="`unit_types[${i}][existing_floor_plan]`"
                                                :value="rows[i].existing_floor_plan ?? ''">
+
+                                        {{-- The three area figures and the upper price are no longer asked for,
+                                             but an edit deletes every unit-type row and recreates it from this
+                                             payload — so dropping the inputs outright would silently blank these
+                                             columns on the next save of a project that already has them. They
+                                             ride through hidden instead: new rows leave them empty, existing rows
+                                             keep whatever is on record. Same reason `existing_floor_plan` above
+                                             is here. --}}
+                                        <template x-for="carried in ['carpet_area_sqft', 'built_up_area_sqft', 'super_built_up_area_sqft', 'price_max']"
+                                                  :key="carried">
+                                            <input type="hidden" :name="`unit_types[${i}][${carried}]`"
+                                                   :value="rows[i][carried] ?? ''">
+                                        </template>
 
                                         <div class="flex items-center justify-between gap-3">
                                             <span class="text-[11.5px] font-medium text-ink-3 nums"
@@ -421,46 +496,19 @@
                                                 <select :name="`unit_types[${i}][label]`" x-model="rows[i].label"
                                                         class="w-full h-9 pl-3 pr-8 rounded-lg bg-panel border border-line text-[13px] text-ink appearance-none focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
                                                     <option value="">Select…</option>
-                                                    @foreach(['1BHK', '2BHK', '3BHK', '4BHK', 'Villa', 'Plot', 'Studio', 'Commercial unit'] as $label)
+                                                    {{-- From Settings → Unit types, plus any label already saved on
+                                                         this project so a type switched off there does not vanish
+                                                         from a row that uses it. --}}
+                                                    @foreach($unitTypeOptions as $label)
                                                         <option value="{{ $label }}">{{ $label }}</option>
                                                     @endforeach
                                                 </select>
                                             </label>
 
                                             <label class="block">
-                                                <span class="block text-[11.5px] text-ink-2 mb-1">Carpet area</span>
-                                                <input type="number" :name="`unit_types[${i}][carpet_area_sqft]`"
-                                                       x-model="rows[i].carpet_area_sqft" placeholder="sq.ft."
-                                                       class="w-full h-9 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
-                                            </label>
-
-                                            <label class="block">
-                                                <span class="block text-[11.5px] text-ink-2 mb-1">Built-up area</span>
-                                                <input type="number" :name="`unit_types[${i}][built_up_area_sqft]`"
-                                                       x-model="rows[i].built_up_area_sqft" placeholder="sq.ft."
-                                                       class="w-full h-9 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
-                                            </label>
-
-                                            <label class="block">
-                                                <span class="block text-[11.5px] text-ink-2 mb-1">Super built-up</span>
-                                                <input type="number" :name="`unit_types[${i}][super_built_up_area_sqft]`"
-                                                       x-model="rows[i].super_built_up_area_sqft" placeholder="sq.ft."
-                                                       class="w-full h-9 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
-                                            </label>
-                                        </div>
-
-                                        <div class="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
-                                            <label class="block">
-                                                <span class="block text-[11.5px] text-ink-2 mb-1">Price from</span>
+                                                <span class="block text-[11.5px] text-ink-2 mb-1">Starting from</span>
                                                 <input type="number" :name="`unit_types[${i}][price_min]`"
                                                        x-model="rows[i].price_min" placeholder="1800000"
-                                                       class="w-full h-9 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
-                                            </label>
-
-                                            <label class="block">
-                                                <span class="block text-[11.5px] text-ink-2 mb-1">Price to</span>
-                                                <input type="number" :name="`unit_types[${i}][price_max]`"
-                                                       x-model="rows[i].price_max" placeholder="2400000"
                                                        class="w-full h-9 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
                                             </label>
 
@@ -472,7 +520,7 @@
                                             </label>
 
                                             <label class="block">
-                                                <span class="block text-[11.5px] text-ink-2 mb-1">Floor plan</span>
+                                                <span class="block text-[11.5px] text-ink-2 mb-1">Upload floor plan</span>
                                                 <input type="file" :name="`unit_types[${i}][floor_plan]`"
                                                        accept="image/*,application/pdf"
                                                        class="w-full h-9 text-[11.5px] text-ink-2 file:mr-2 file:h-9 file:px-2.5 file:rounded-lg file:border-0 file:bg-canvas file:text-[11.5px] file:text-ink-2 file:cursor-pointer">
@@ -480,6 +528,15 @@
                                         </div>
                                     </div>
                                 </template>
+                            </div>
+
+                            {{-- Under the rows, not in the header: the button sits where the
+                                 row it creates will appear, so adding one never scrolls the
+                                 new row out of view on a list that is already several long.
+                                 Right-aligned, matching the wizard's other forward actions. --}}
+                            <div class="flex justify-end mt-2.5">
+                                <x-button variant="outline" size="sm" tag="button" type="button" icon="plus"
+                                          x-on:click="rows.push({})">Add unit type</x-button>
                             </div>
 
                             @error('unit_types')
@@ -505,18 +562,9 @@
                                      min="0" max="100" placeholder="65" />
                         </div>
 
-                        <x-field label="Construction specifications" name="construction_specifications" type="textarea" rows="4"
-                                 placeholder="Structure type, flooring, fittings, brand names — kitchen, bathroom fixtures, etc." />
-
                         <div class="border-t border-line-soft pt-4 space-y-3">
                             <x-checkbox-group label="Amenities" name="amenities" :options="$amenityOptions" :columns="3" />
 
-                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                <x-field label="Other amenities" name="amenities_extra"
-                                         placeholder="Comma separated" hint="Anything not listed above." />
-                                <x-field label="Amenities area / size" name="amenities_size" placeholder="e.g. 40,000 sq.ft. clubhouse" />
-                                <x-field label="Number of amenities" name="amenities_count" type="number" placeholder="24" />
-                            </div>
                         </div>
 
                         <div class="border-t border-line-soft pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
@@ -526,33 +574,9 @@
                         </div>
                     </section>
 
-                    {{-- 5 · Timeline & Legal -------------------------------------------- --}}
+                    {{-- 5 · Media & Marketing Assets ------------------------------------ --}}
                     <section x-show="step === 5" data-step="5" x-cloak class="space-y-4">
-                        <x-wizard-heading :step="5" :of="count($steps)" title="Timeline & legal"
-                                          subtitle="Delivery dates, statutory approvals and financing tie-ups." />
-
-                        {{-- Possession date is deliberately not here with the other dates —
-                             it lives in step 1, directly under the project type that reveals
-                             it. See the note there. --}}
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <x-field label="Launch date" name="launch_date" type="date" />
-                            <x-field label="Construction progress %" name="construction_progress" type="number"
-                                     min="0" max="100" placeholder="35" hint="Updated periodically." />
-                        </div>
-
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <x-field label="Approving authorities" name="approving_authorities" type="textarea" rows="4"
-                                     placeholder="Dubai Municipality&#10;Dubai Development Authority"
-                                     hint="One per line." />
-                            <x-field label="Bank approvals" name="bank_approvals" type="textarea" rows="4"
-                                     placeholder="Emirates NBD&#10;ADCB&#10;Mashreq"
-                                     hint="One per line — banks offering loans on this project." />
-                        </div>
-                    </section>
-
-                    {{-- 6 · Media & Marketing Assets ------------------------------------ --}}
-                    <section x-show="step === 6" data-step="6" x-cloak class="space-y-4">
-                        <x-wizard-heading :step="6" :of="count($steps)" title="Media & marketing assets"
+                        <x-wizard-heading :step="5" :of="count($steps)" title="Media & marketing assets"
                                           subtitle="Everything channel partners see and share." />
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -579,7 +603,7 @@
                                         <label class="group relative block cursor-pointer">
                                             <input type="checkbox" name="remove_media[]" value="{{ $image->id }}"
                                                    class="peer sr-only">
-                                            <img src="{{ $image->url ?: Storage::disk('public')->url($image->path) }}" alt=""
+                                            <img src="{{ $image->url ?: asset('storage/' . $image->path) }}" alt=""
                                                  class="w-full aspect-[4/3] object-cover rounded-lg border border-line
                                                         transition-opacity peer-checked:opacity-30">
                                             <span class="absolute inset-x-1 bottom-1 flex items-center justify-center gap-1
@@ -619,9 +643,9 @@
                         </div>
                     </section>
 
-                    {{-- 7 · Commercial Terms -------------------------------------------- --}}
-                    <section x-show="step === 7" data-step="7" x-cloak class="space-y-4">
-                        <x-wizard-heading :step="7" :of="count($steps)" title="Commercial terms"
+                    {{-- 6 · Commercial Terms -------------------------------------------- --}}
+                    <section x-show="step === 6" data-step="6" x-cloak class="space-y-4">
+                        <x-wizard-heading :step="6" :of="count($steps)" title="Commercial terms"
                                           subtitle="What the buyer pays, and what the channel partner earns." />
 
                         <x-checkbox-group label="Payment plan options" name="payment_plan_options"
@@ -644,13 +668,13 @@
                             <x-field label="Registration & stamp duty" name="registration_stamp_duty"
                                      placeholder="e.g. 4% of value (indicative)" />
                             <x-field label="Maintenance charges" name="maintenance_charges"
-                                     placeholder="e.g. AED 14 per sq.ft. / month" />
-                            <x-field label="Floor rise" name="floor_rise" placeholder="e.g. AED 15 per sq.ft. per floor" />
+                                     placeholder="e.g. ₹14 per sq.ft. / month" />
+                            <x-field label="Floor rise" name="floor_rise" placeholder="e.g. ₹15 per sq.ft. per floor" />
                             <x-field label="PLC charges" name="plc_charges" placeholder="e.g. 3% for park-facing" />
                         </div>
 
                         <x-field label="Other charges" name="other_charges" type="textarea" rows="4"
-                                 placeholder="Club membership — AED 25,000&#10;Legal — AED 5,000&#10;Infrastructure development — AED 40,000"
+                                 placeholder="Club membership — ₹25,000&#10;Legal — ₹5,000&#10;Infrastructure development — ₹40,000"
                                  hint="One per line — itemised where possible." />
 
                         {{-- Developer terms ------------------------------------------------
@@ -707,9 +731,9 @@
                         </div>
                     </section>
 
-                    {{-- 8 · Contact & Sales Info ---------------------------------------- --}}
-                    <section x-show="step === 8" data-step="8" x-cloak class="space-y-4">
-                        <x-wizard-heading :step="8" :of="count($steps)" title="Contact & sales info"
+                    {{-- 7 · Contact & Sales Info ---------------------------------------- --}}
+                    <section x-show="step === 7" data-step="7" x-cloak class="space-y-4">
+                        <x-wizard-heading :step="7" :of="count($steps)" title="Contact & sales info"
                                           subtitle="Where channel partners take clients, and who they ask for." />
 
                         <x-field label="Sales office address" name="sales_office_address" type="textarea"
@@ -725,25 +749,6 @@
 
                         <x-field label="Booking process / documents checklist" name="booking_process" type="textarea" rows="4"
                                  placeholder="Steps to book, and the documents a client must bring" />
-                    </section>
-
-                    {{-- 9 · Compliance & Trust Signals ---------------------------------- --}}
-                    <section x-show="step === 9" data-step="9" x-cloak class="space-y-4">
-                        <x-wizard-heading :step="9" :of="count($steps)" title="Compliance & trust signals"
-                                          subtitle="Optional, but these are what make a channel partner confident enough to pitch." />
-
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <x-file-field label="RERA QR code / certificate" name="rera_certificate"
-                                          accept="image/*,application/pdf" hint="Image or PDF."
-                                          :current="$firstMedia('rera_certificate')?->path" />
-                            <x-file-field label="Legal due diligence report" name="legal_due_diligence"
-                                          accept="application/pdf" hint="PDF, if the developer shared one."
-                                          :current="$detail?->legal_due_diligence_path" />
-                        </div>
-
-                        <x-field label="Project awards / recognitions" name="awards" type="textarea" rows="4"
-                                 placeholder="Best Residential Project — Arabian Property Awards 2025"
-                                 hint="One per line." />
                     </section>
 
                     {{-- Footer: step nav + submit --------------------------------------- --}}
@@ -799,3 +804,87 @@
             </div>
         </div>
     </form>
+
+@push('scripts')
+<script>
+    /**
+     * The country → state → city cascade on step 2.
+     *
+     * `tree` is the whole list, shipped with the page: it is a few hundred rows that every
+     * admin sees, so fetching it per level would be three round trips for data that fits
+     * in the HTML.
+     *
+     * Selections are validated against the tree on every change rather than trusted, so a
+     * country switch can never leave a state from the previous one still selected — which
+     * is how a project ends up saved as "India / Dubai".
+     */
+    function locationPicker(tree, initialCountry, initialState, initialCity) {
+        return {
+            tree,
+            country: '',
+            state: '',
+            city: '',
+
+            init() {
+                this.country = this.tree[initialCountry] ? initialCountry : (this.countries[0] ?? '');
+                this.state = this.statesOf(this.country)[initialState] !== undefined
+                    ? initialState
+                    : (this.states[0] ?? '');
+                this.city = this.cities.includes(initialCity) ? initialCity : (this.cities[0] ?? '');
+                this.syncSelects();
+            },
+
+            /**
+             * Pushes the chosen values back onto the <select> elements after Alpine has
+             * rendered their <option>s.
+             *
+             * x-model writes the value immediately, but the options come from x-for and do
+             * not exist yet on that pass — assigning a value a <select> has no option for
+             * makes the browser silently reset it to the first one. That is why a project
+             * saved as "United Arab Emirates / UAE / Dubai" opened showing India, and why a
+             * new project showed Andhra Pradesh while holding Telangana's cities.
+             *
+             * $nextTick runs after the x-for pass, so by then there is an option to select.
+             */
+            syncSelects() {
+                this.$nextTick(() => {
+                    if (this.$refs.countrySel) this.$refs.countrySel.value = this.country;
+                    if (this.$refs.stateSel) this.$refs.stateSel.value = this.state;
+                    if (this.$refs.citySel) this.$refs.citySel.value = this.city;
+                });
+            },
+
+            get countries() {
+                return Object.keys(this.tree);
+            },
+
+            statesOf(country) {
+                return this.tree[country] ?? {};
+            },
+
+            get states() {
+                return Object.keys(this.statesOf(this.country));
+            },
+
+            get cities() {
+                return this.statesOf(this.country)[this.state] ?? [];
+            },
+
+            // Falling back to the first option, never to blank: city is required, and an
+            // empty select would block the submit with no visible reason on a hidden step.
+            onCountry() {
+                this.state = this.states[0] ?? '';
+                this.city = this.cities[0] ?? '';
+                // Same reason as init(): changing country re-renders both dependent
+                // option lists, so their values have to be re-applied afterwards.
+                this.syncSelects();
+            },
+
+            onState() {
+                this.city = this.cities[0] ?? '';
+                this.syncSelects();
+            },
+        };
+    }
+</script>
+@endpush

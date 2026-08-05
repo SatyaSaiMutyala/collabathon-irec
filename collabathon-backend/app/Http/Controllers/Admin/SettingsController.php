@@ -4,10 +4,13 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Mail\BrokerApprovedMail;
+use App\Models\Amenity;
 use App\Models\City;
 use App\Models\Country;
 use App\Models\FormField;
+use App\Models\MeasurementUnit;
 use App\Models\ProjectType;
+use App\Models\UnitType;
 use App\Models\State;
 use App\Models\Setting;
 use App\Models\User;
@@ -58,6 +61,16 @@ class SettingsController extends Controller
             'selectedCountry' => $selectedCountry,
             'selectedState' => $selectedState,
             'projectTypes' => $projectTypes,
+            // withCount over PropertyUnitType.label — the same name-not-id link the
+            // project types use, so the panel can warn before a rename or a delete.
+            'unitTypes' => UnitType::ordered()->get()
+                ->each(fn (UnitType $t) => $t->setAttribute('usage_count', $t->usageCount())),
+            // Project counts, not row counts: an amenity lives inside one JSON array per
+            // project, so the guard's wording is "listed on N projects".
+            'amenities' => Amenity::ordered()->get()
+                ->each(fn (Amenity $a) => $a->setAttribute('usage_count', $a->usageCount())),
+            'measurementUnits' => MeasurementUnit::ordered()->get()
+                ->each(fn (MeasurementUnit $u) => $u->setAttribute('usage_count', $u->usageCount())),
             'firebase' => [
                 'configured' => FirebaseCredentials::isConfigured(),
                 // Identify the account without exposing it — neither of these can send.

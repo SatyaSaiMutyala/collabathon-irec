@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AmenityController;
 use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\ApprovalController;
 use App\Http\Controllers\Admin\AuthController;
@@ -9,11 +10,13 @@ use App\Http\Controllers\Admin\DeveloperController;
 use App\Http\Controllers\Admin\GeocodeController;
 use App\Http\Controllers\Admin\LeadController;
 use App\Http\Controllers\Admin\LocationController;
+use App\Http\Controllers\Admin\MeasurementUnitController;
 use App\Http\Controllers\Admin\ProjectTypeController;
 use App\Http\Controllers\Admin\PropertyController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\TeamController;
+use App\Http\Controllers\Admin\UnitTypeController;
 use App\Http\Middleware\EnsureAdmin;
 use Illuminate\Support\Facades\Route;
 
@@ -103,6 +106,27 @@ Route::prefix('admin')
         });
         Route::patch('/settings/mail', [SettingsController::class, 'updateMail'])->name('settings.mail');
         Route::post('/settings/mail/test', [SettingsController::class, 'testMail'])->name('settings.mail.test');
+
+        // Measurement units — the "Project extent metric" options.
+        Route::prefix('settings/measurement-units')->name('settings.measurement-units.')->group(function () {
+            Route::post('/', [MeasurementUnitController::class, 'store'])->name('store');
+            Route::patch('/{measurementUnit}', [MeasurementUnitController::class, 'update'])->name('update');
+            Route::delete('/{measurementUnit}', [MeasurementUnitController::class, 'destroy'])->name('destroy');
+        });
+
+        // Unit type master data — the list the intake form's unit rows pick from.
+        Route::prefix('settings/unit-types')->name('settings.unit-types.')->group(function () {
+            Route::post('/', [UnitTypeController::class, 'store'])->name('store');
+            Route::patch('/{unitType}', [UnitTypeController::class, 'update'])->name('update');
+            Route::delete('/{unitType}', [UnitTypeController::class, 'destroy'])->name('destroy');
+        });
+
+        // Amenity master data — the checkbox grid on the intake form's specifications step.
+        Route::prefix('settings/amenities')->name('settings.amenities.')->group(function () {
+            Route::post('/', [AmenityController::class, 'store'])->name('store');
+            Route::patch('/{amenity}', [AmenityController::class, 'update'])->name('update');
+            Route::delete('/{amenity}', [AmenityController::class, 'destroy'])->name('destroy');
+        });
 
         // Location master data — country -> state -> city, edited from the settings page.
         Route::prefix('settings/locations')->name('settings.locations.')->group(function () {

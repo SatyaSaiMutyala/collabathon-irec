@@ -40,7 +40,7 @@
     <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div class="flex items-start gap-3.5 min-w-0">
             @if($developer->logo_path)
-                <img src="{{ Storage::disk('public')->url($developer->logo_path) }}" alt=""
+                <img src="{{ asset('storage/' . $developer->logo_path) }}" alt=""
                      class="w-14 h-14 rounded-xl object-cover border border-line-soft shrink-0">
             @else
                 <x-avatar :name="$developer->company_name" :src="$developer->logo_path" size="lg" class="w-14 h-14 shrink-0" />
@@ -228,7 +228,7 @@
                            'border-b border-line-soft' => ! $loop->last,
                        ])>
                         @if($project->cover_image_path)
-                            <img src="{{ Storage::disk('public')->url($project->cover_image_path) }}" alt=""
+                            <img src="{{ asset('storage/' . $project->cover_image_path) }}" alt=""
                                  class="w-11 h-11 rounded-lg object-cover border border-line-soft shrink-0">
                         @else
                             <div class="w-11 h-11 rounded-lg bg-canvas border border-line-soft flex items-center justify-center shrink-0">

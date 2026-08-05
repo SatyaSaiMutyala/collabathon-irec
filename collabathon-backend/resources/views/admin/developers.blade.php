@@ -184,7 +184,7 @@
                 <td class="px-4 py-3">
                     <div class="flex items-center gap-2.5 min-w-0">
                         @if($dev->logo_path)
-                            <img src="{{ Storage::disk('public')->url($dev->logo_path) }}"
+                            <img src="{{ asset('storage/' . $dev->logo_path) }}"
                                  alt="" class="w-8 h-8 rounded-lg object-cover border border-line-soft shrink-0">
                         @else
                             <x-avatar :name="$dev->company_name" :src="$dev->logo_path" size="md" />

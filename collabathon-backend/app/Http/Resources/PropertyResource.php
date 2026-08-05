@@ -41,6 +41,7 @@ class PropertyResource extends JsonResource
             'cover_image_url' => $this->cover_image_path ? asset('storage/' . $this->cover_image_path) : null,
 
             'location' => [
+                'country' => $this->country,
                 'state' => $this->state,
                 'city' => $this->city,
                 'locality' => $this->locality,
@@ -57,6 +58,8 @@ class PropertyResource extends JsonResource
                 'min' => $this->price_min !== null ? (int) $this->price_min : null,
                 'max' => $this->price_max !== null ? (int) $this->price_max : null,
                 'per_sqft' => $this->price_per_sqft !== null ? (int) $this->price_per_sqft : null,
+                // The unit the project's extent is quoted in — Sq.ft., Acres, Guntha, …
+                'extent_metric' => $this->extent_metric,
                 'currency' => $this->currency,
             ],
 

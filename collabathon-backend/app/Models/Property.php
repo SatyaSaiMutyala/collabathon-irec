@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\DB;
     'rera_number', 'rera_registered_at', 'rera_valid_till',
     'state', 'city', 'locality', 'full_address', 'landmark', 'pincode', 'zone',
     'latitude', 'longitude', 'maps_link',
-    'price_min', 'price_max', 'price_per_sqft', 'currency',
+    'price_min', 'price_max', 'price_per_sqft', 'extent_metric', 'currency',
     'total_units', 'towers', 'floors_per_tower', 'flats_per_floor',
     'land_parcel_acres', 'total_project_area_sqft', 'open_space_percent',
     'launch_date', 'possession_date', 'construction_progress',
@@ -171,7 +171,16 @@ class Property extends Model
             ->when($filters['project_status'] ?? null, fn ($q, $v) => $q->where('project_status', $v))
             ->when($filters['city'] ?? null, fn ($q, $v) => $q->where('city', $v))
             ->when($filters['zone'] ?? null, fn ($q, $v) => $q->where('zone', $v))
-            ->when($filters['price_min'] ?? null, fn ($q, $v) => $q->where('price_max', '>=', $v))
+            /*
+             * The buyer's budget floor is tested against the project's ceiling, which is
+             * now optional — intake collects "Starting from" alone. A bare
+             * `price_max >= ?` is NULL for those rows and NULL is not true, so every
+             * project priced without a ceiling would silently drop out of the results.
+             * Coalescing to price_min treats a single-price project as a point rather
+             * than an open-ended range, which is the conservative reading: it matches a
+             * budget floor only when the entry price already clears it.
+             */
+            ->when($filters['price_min'] ?? null, fn ($q, $v) => $q->whereRaw('COALESCE(price_max, price_min) >= ?', [$v]))
             ->when($filters['price_max'] ?? null, fn ($q, $v) => $q->where('price_min', '<=', $v));
     }
 }

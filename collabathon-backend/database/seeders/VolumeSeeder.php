@@ -116,7 +116,7 @@ class VolumeSeeder extends Seeder
                     'price_min' => $min,
                     'price_max' => $min + 800_000,
                     'price_per_sqft' => 1000 + ($i % 500),
-                    'currency' => 'AED',
+                    'currency' => 'INR',
                     'views_count' => $i % 300,
                     'interests_count' => $i % 40,
                     'created_at' => $now->copy()->subHours($i % 2000),

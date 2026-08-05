@@ -31,6 +31,7 @@
             'Developer / builder' => $property->developer?->company_name,
             'Project type' => $property->project_type,
             'Project status' => $property->project_status,
+            'Possession date' => $date($property->possession_date),
             'Heading' => $property->tagline,
             // The registered-on / valid-till dates are no longer collected on the form, so
             // they are not shown either — a read-only row for a field nothing can edit
@@ -53,34 +54,29 @@
             'Nearby infrastructure' => $list($detail?->nearby_infrastructure),
         ],
         'Configuration & pricing' => [
-            'Price range' => $property->price_min !== null
-                ? $money($property->price_min) . ' – ' . number_format((float) $property->price_max)
-                : null,
-            'Price per sq.ft.' => $property->price_per_sqft ? $money($property->price_per_sqft) : null,
+            // A band only when there is an upper end on record; intake collects the entry
+            // price alone now, so most records read "From <price>".
+            'Price' => match (true) {
+                $property->price_min === null => null,
+                $property->price_max === null => 'From ' . $money($property->price_min),
+                default => $money($property->price_min) . ' – ' . number_format((float) $property->price_max),
+            },
+            'Project extent metric' => $property->extent_metric,
             'Total units' => $property->total_units,
             'Towers / blocks' => $property->towers,
-            'Floors per tower' => $property->floors_per_tower,
-            'Flats per floor' => $property->flats_per_floor,
-            'Parking' => $detail?->parking_details,
+            'No. of floors' => $property->floors_per_tower,
         ],
         'Specifications' => [
             'Land parcel' => $property->land_parcel_acres ? $trim($property->land_parcel_acres) . ' acres' : null,
             'Total project area' => $property->total_project_area_sqft
                 ? number_format($property->total_project_area_sqft) . ' sq.ft.' : null,
             'Open / green space' => $property->open_space_percent ? $property->open_space_percent . '%' : null,
-            'Construction specifications' => $detail?->construction_specifications,
-            'Amenities area' => $detail?->amenities_size,
-            'Number of amenities' => $detail?->amenities_count,
             'Green certification' => $property->green_certification,
             'Vastu compliant' => $property->vastu_compliant ? 'Yes' : 'No',
         ],
-        'Timeline & legal' => [
-            'Launch date' => $date($property->launch_date),
-            'Possession date' => $date($property->possession_date),
-            'Construction progress' => $property->construction_progress . '%',
-            'Approving authorities' => $list($detail?->approving_authorities),
-            'Bank approvals' => $list($detail?->bank_approvals),
-        ],
+        // The Timeline & legal group went with its intake step. Possession date survived
+        // it — that field is collected in step 1 — so it moves up to the basics it now
+        // belongs with rather than heading a group of its own.
         'Commercial terms' => [
             'Payment plans' => $list($detail?->payment_plan_options),
             'Booking amount' => $money($detail?->booking_amount),
@@ -101,9 +97,7 @@
             'Sales contact' => trim(($detail?->sales_contact_name ?? '') . ' ' . ($detail?->sales_contact_number ?? '')) ?: null,
             'Booking process' => $detail?->booking_process,
         ],
-        'Compliance & trust' => [
-            'Awards / recognitions' => $list($detail?->awards),
-        ],
+        // Compliance & trust held only awards, which is no longer collected either.
     ];
 
     // Attachment kinds, in the order the sheet lists them.
@@ -130,7 +124,7 @@
     <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div class="flex items-start gap-3.5 min-w-0">
             @if($property->cover_image_path || $property->logo_path)
-                <img src="{{ Storage::disk('public')->url($property->cover_image_path ?: $property->logo_path) }}"
+                <img src="{{ asset('storage/' . ($property->cover_image_path ?: $property->logo_path)) }}"
                      alt="" class="w-14 h-14 rounded-xl object-cover border border-line-soft shrink-0">
             @else
                 <x-avatar :name="$property->name" size="lg" class="w-14 h-14 shrink-0" />
@@ -353,7 +347,7 @@
                                         <td class="px-4 py-3 text-[12.5px] text-ink-2 nums">{{ $unit->units_count ?? '—' }}</td>
                                         <td class="px-4 py-3">
                                             @if($unit->floor_plan_path)
-                                                <a href="{{ Storage::disk('public')->url($unit->floor_plan_path) }}"
+                                                <a href="{{ asset('storage/' . $unit->floor_plan_path) }}"
                                                    target="_blank" rel="noopener"
                                                    class="inline-flex items-center gap-1 text-[12.5px] text-primary hover:underline">
                                                     View <x-icon name="external" class="w-3.5 h-3.5" />
@@ -377,7 +371,7 @@
                 @if($media->get('image')?->isNotEmpty())
                     <div class="grid grid-cols-3 gap-2">
                         @foreach($media['image'] as $image)
-                            @php $imageUrl = $image->url ?: Storage::disk('public')->url($image->path); @endphp
+                            @php $imageUrl = $image->url ?: asset('storage/' . $image->path); @endphp
                             <a href="{{ $imageUrl }}" target="_blank" rel="noopener"
                                class="block rounded-lg overflow-hidden border border-line hover:opacity-90 transition-opacity">
                                 <img src="{{ $imageUrl }}" alt=""
@@ -412,7 +406,7 @@
                                 @if($items?->isNotEmpty())
                                     <span class="flex items-center gap-2">
                                         @foreach($items as $i => $item)
-                                            <a href="{{ Storage::disk('public')->url($item->path) }}"
+                                            <a href="{{ asset('storage/' . $item->path) }}"
                                                target="_blank" rel="noopener"
                                                class="inline-flex items-center gap-1 text-primary hover:underline">
                                                 {{ $items->count() > 1 ? '#' . ($i + 1) : 'View' }}
@@ -431,7 +425,7 @@
                         <dt class="text-[12.5px] text-ink-3">Legal due diligence</dt>
                         <dd class="text-[12.5px] shrink-0">
                             @if($detail?->legal_due_diligence_path)
-                                <a href="{{ Storage::disk('public')->url($detail->legal_due_diligence_path) }}"
+                                <a href="{{ asset('storage/' . $detail->legal_due_diligence_path) }}"
                                    target="_blank" rel="noopener"
                                    class="inline-flex items-center gap-1 text-primary hover:underline">
                                     View <x-icon name="external" class="w-3 h-3" />
