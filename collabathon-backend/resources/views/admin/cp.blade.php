@@ -2,7 +2,7 @@
 
     <x-page-header
         title="Channel Partners"
-        subtitle="Brokers who are through approval and able to sign in. New registrations are reviewed on the approvals queue before they appear here.">
+        subtitle="Channel partners who are through approval and able to sign in. New registrations are reviewed on the approvals queue before they appear here.">
         <x-slot:actions>
             <x-button variant="subtle" tag="a" icon="clock" href="{{ route('admin.approvals') }}">
                 Approval queue
@@ -23,7 +23,7 @@
         search-placeholder="Search by name, company, email, mobile or RERA…"
         empty-icon="users"
         empty-title="No channel partners yet"
-        empty-description="Approved brokers appear here. Try clearing the filters, or review the approval queue.">
+        empty-description="Approved channel partners appear here. Try clearing the filters, or review the approval queue.">
 
         <x-slot:filters>
             <x-filter-select name="city" :options="$cities" placeholder="All cities" />

@@ -42,9 +42,21 @@
 
                     {{-- Company ------------------------------------------------------- --}}
                     <div class="space-y-3">
+                        <x-field label="Company name" name="company_name" placeholder="e.g. Skyline Realty Group" required />
+
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <x-field label="Company name" name="company_name" placeholder="e.g. Skyline Realty Group" required />
+                            <x-field label="Company website" name="website" placeholder="https://example.ae" />
+                            <x-field label="Social media" name="social_media"
+                                     placeholder="@handle or profile URL"
+                                     hint="Instagram, LinkedIn or X — whichever they actually use." />
+                        </div>
+
+                        {{-- Contact person: the developer's public point of contact. This
+                             is the one channel partners see, so it sits with the login
+                             details rather than with the internal key contact below. --}}
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <x-field label="Contact person" name="contact_person" placeholder="Full name" required />
+                            <x-field label="Designation" name="contact_designation" placeholder="e.g. Sales Head" />
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -53,40 +65,68 @@
                                      hint="This becomes their login." />
                         </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <x-field label="City" name="city" placeholder="e.g. Dubai" icon="map-pin" required />
-                            <x-field label="State / Emirate" name="state" placeholder="e.g. Dubai" />
-                        </div>
-
                         {{-- Pre-filled so it can be copied/shared before saving; the admin
                              may also type their own, or clear it to have one generated. --}}
                         <x-password-field hint="Shown once more after saving, with share options." />
                     </div>
 
+                    {{-- Key contact ---------------------------------------------------- --}}
+                    <div class="border-t border-line-soft space-y-3 pt-4">
+                        <div class="flex items-center gap-2">
+                            <h4 class="text-[13px] font-semibold text-ink">Key contact</h4>
+                            <x-badge tone="neutral" size="sm">Admin only</x-badge>
+                        </div>
+                        <p class="text-[11.5px] text-ink-3 -mt-1">
+                            The relationship owner inside the developer. Never sent to the mobile app —
+                            channel partners only ever see the contact person above.
+                        </p>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <x-field label="Key contact person" name="key_contact_person" placeholder="Full name" />
+                            <x-field label="Designation" name="key_contact_designation" placeholder="e.g. Managing Director" />
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <x-field label="Key contact mobile" name="key_contact_mobile" placeholder="+971 5X XXX XXXX" icon="phone" />
+                            <x-field label="Key contact email" name="key_contact_email" type="email"
+                                     placeholder="name@company.ae" icon="mail" />
+                        </div>
+                    </div>
+
+                    {{-- Location & geo-fence ------------------------------------------- --}}
+                    <div class="border-t border-line-soft space-y-3 pt-4">
+                        <h4 class="text-[13px] font-semibold text-ink">Location</h4>
+
+                        {{-- Country -> state -> city, each narrowing the next. Defaults to
+                             the trio most developers added here use; all remain changeable,
+                             and a failed submit keeps whatever was chosen. --}}
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <x-location-picker country="India" state="Telangana" city="Hyderabad" required />
+                        </div>
+
+                        {{-- One address field. Pincode and coordinates are no longer typed:
+                             they come from the map lookup inside this component, or stay
+                             empty when the address is entered by hand. --}}
+                        <x-address-finder />
+                    </div>
+
                     {{-- Credentials & branding ---------------------------------------- --}}
                     <div class="border-t border-line-soft space-y-3 pt-4">
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <x-field label="RERA / licence number" name="rera_number" placeholder="e.g. RERA-DXB-24817"
-                                     hint="Shown to brokers as a trust signal." />
-                            <x-file-field label="Company logo" name="logo" accept="image/*"
-                                          hint="PNG or JPG, up to 2 MB." />
-                        </div>
+                        {{-- No RERA / licence number at creation: it is nullable in
+                             DeveloperController::store and is added later from the edit
+                             form, once the licence is to hand. The two-column grid went
+                             with it — the logo field alone in it sat at half width. --}}
+                        <x-file-field label="Company logo" name="logo" accept="image/*"
+                                      hint="PNG or JPG, up to 2 MB." />
 
                         <x-field label="About the company" name="about" type="textarea" rows="3"
                                  placeholder="Track record, flagship projects, years in market…" />
                     </div>
 
-                    {{-- Commercial ---------------------------------------------------- --}}
-                    <div class="border-t border-line-soft space-y-3 pt-4">
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <x-field label="CP payout %" name="cp_payout_percent" type="number" step="0.01"
-                                     placeholder="2.50" hint="Commission paid to the channel partner." required />
-                            <x-select-field label="Status" name="status" :options="['active' => 'Active', 'paused' => 'Paused']" />
-                        </div>
-
-                        <x-switch-field label="Verified developer" name="verified"
-                                        hint="Adds a verified badge on every listing this developer owns." />
-                    </div>
+                    {{-- No Commercial section at creation. CP payout, status and the
+                         verified badge are all set from the developer's own page once the
+                         account exists; store() applies the defaults. See the note there
+                         on why payout is not simply left at the column default of 0. --}}
 
                     <div class="pt-1">
                         <x-button variant="gold" tag="button" type="submit" icon="check" class="w-full"
@@ -101,11 +141,14 @@
     </x-page-header>
 
 
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-5">
+    {{-- Coverage rather than commercials: on a directory of companies the useful summary
+         is where they are, not how many listings they hold. --}}
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3.5 mb-5">
         <x-stat-card icon="building" label="Total developers" :value="$totals['all']" />
         <x-stat-card icon="check" label="Active" :value="$totals['active']" />
-        <x-stat-card icon="list" label="Listings published" :value="$totals['listings']" />
-        <x-stat-card icon="sparkles" label="Avg. CP payout" :value="$totals['avg_payout'] . '%'" />
+        <x-stat-card icon="map-pin" label="Countries" :value="$totals['countries']" />
+        <x-stat-card icon="map-pin" label="States" :value="$totals['states']" />
+        <x-stat-card icon="map-pin" label="Cities" :value="$totals['cities']" />
     </div>
 
     <x-data-table
@@ -116,6 +159,7 @@
         empty-description="Adjust the search or filters to see more accounts.">
 
         <x-slot:filters>
+            <x-filter-select name="country" :options="$countries" placeholder="All countries" />
             <x-filter-select name="city" :options="$cities" placeholder="All cities" />
             <x-filter-select name="status" :options="['active' => 'Active', 'paused' => 'Paused']" placeholder="Any status" />
         </x-slot:filters>
@@ -123,9 +167,9 @@
         <x-slot:head>
             <x-th sort="name">Company</x-th>
             <x-th hide="lg">Contact</x-th>
-            <x-th hide="xl">City</x-th>
-            <x-th align="right" sort="payout" hide="md">CP payout</x-th>
-            <x-th align="right" sort="listings" hide="lg">Listings</x-th>
+            <x-th hide="md">City / State</x-th>
+            <x-th hide="lg">Country</x-th>
+            <x-th hide="xl">Pincode</x-th>
             <x-th sort="created_at" hide="xl">Created</x-th>
             <x-th>Status</x-th>
             <x-th align="right">Actions</x-th>
@@ -164,17 +208,19 @@
                     <p class="text-[11.5px] text-ink-3 nums">{{ $dev->mobile }}</p>
                 </td>
 
-                <td class="px-4 py-3 hidden xl:table-cell">
+                <td class="px-4 py-3 hidden md:table-cell">
                     <span class="inline-flex items-center gap-1.5 text-[12.5px] text-ink-2">
-                        <x-icon name="map-pin" class="w-3.5 h-3.5 text-ink-3" />
-                        {{ $dev->city }}
+                        <x-icon name="map-pin" class="w-3.5 h-3.5 text-ink-3 shrink-0" />
+                        {{ $dev->city ?: '—' }}
                     </span>
+                    {{-- State sits under the city rather than in its own column: the two are
+                         read together, and a separate column would be the first thing to
+                         get hidden at this breakpoint anyway. --}}
+                    <p class="text-[11.5px] text-ink-3 truncate pl-5">{{ $dev->state ?: '—' }}</p>
                 </td>
 
-                <td class="px-4 py-3 text-right text-[12.5px] text-ink nums font-medium hidden md:table-cell">
-                    {{ rtrim(rtrim(number_format((float) $dev->cp_payout_percent, 2), '0'), '.') }}%
-                </td>
-                <td class="px-4 py-3 text-right text-[12.5px] text-ink-2 nums hidden lg:table-cell">{{ $dev->properties_count }}</td>
+                <td class="px-4 py-3 text-[12.5px] text-ink-2 hidden lg:table-cell">{{ $dev->country ?: '—' }}</td>
+                <td class="px-4 py-3 text-[12.5px] text-ink-2 nums hidden xl:table-cell">{{ $dev->pincode ?: '—' }}</td>
                 <td class="px-4 py-3 text-[12.5px] text-ink-3 nums hidden xl:table-cell">{{ $dev->created_at->format('d M Y') }}</td>
 
                 <td class="px-4 py-3">

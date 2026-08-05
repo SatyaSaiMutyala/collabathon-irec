@@ -12,16 +12,28 @@
         'action' => route('admin.approvals.password', $broker),
     ]);
 
-    // Every uploaded document, in the order the mobile app collects them. Paths are
-    // frequently null — a registration can reach the queue with none attached — so each
-    // row renders either a link or a plain "Not provided".
+    /**
+     * Every uploaded document, in the order the mobile app collects them. Paths are
+     * frequently null — a registration can reach the queue with none attached — so each
+     * row renders either a link or a plain "Not provided".
+     *
+     * Deliberately excluded, because the registration form no longer produces them and a
+     * row that can never be filled reads as a missing document rather than an absent one:
+     *
+     *   - Cancelled cheque — dropped from the form; neither `cheque_details` nor
+     *     `cheque_file` is in the app's payload any more.
+     *   - Signature — the form still asks for one, but its SignaturePad only sets a
+     *     `hasSignature` boolean for validation and never uploads the image, so
+     *     `signature_path` is always null. The API accepts `signature_file`; only the
+     *     app side is missing. Restore this row once it actually sends it.
+     *
+     * Both columns are left on `broker_profiles` — existing registrations still hold data.
+     */
     $documents = [
         ['label' => 'PAN card', 'number' => $profile?->pan_card, 'path' => $profile?->pan_card_path],
         ['label' => 'Aadhaar card', 'number' => $profile?->aadhaar_card, 'path' => $profile?->aadhaar_path],
         ['label' => 'RERA certificate', 'number' => $profile?->rera_number, 'path' => $profile?->rera_certificate_path],
         ['label' => 'GST certificate', 'number' => $profile?->gst_number, 'path' => $profile?->gst_path],
-        ['label' => 'Cancelled cheque', 'number' => $profile?->cheque_details, 'path' => $profile?->cheque_path],
-        ['label' => 'Signature', 'number' => null, 'path' => $profile?->signature_path],
     ];
 
     $attached = collect($documents)->filter(fn ($d) => filled($d['path']))->count();
@@ -30,6 +42,35 @@
         'name' => $broker->name,
         'action' => route('admin.approvals.reject', $broker),
     ]);
+
+    /**
+     * x-detail-grid renders an HtmlString as markup, which is how the two fields that are
+     * really lists of chips, and the one that is a link, keep their formatting without the
+     * component needing a slot per special case. Both helpers escape their own input.
+     */
+    $badges = function (?array $items, string $tone) {
+        if (! $items) {
+            return null;
+        }
+
+        $chips = collect($items)
+            ->map(fn ($item) => '<span class="inline-flex items-center rounded-md px-2 py-0.5 text-[11.5px] font-medium '
+                . ($tone === 'primary' ? 'bg-primary-soft text-primary-dark' : 'bg-canvas text-ink-2 ring-1 ring-inset ring-line')
+                . '">' . e($item) . '</span>')
+            ->implode('');
+
+        return new \Illuminate\Support\HtmlString('<span class="flex flex-wrap gap-1.5">' . $chips . '</span>');
+    };
+
+    $website = filled($profile?->company_website)
+        ? new \Illuminate\Support\HtmlString(sprintf(
+            '<a href="%s" target="_blank" rel="noopener noreferrer" class="text-primary-dark hover:underline break-all">%s</a>',
+            e(\Illuminate\Support\Str::startsWith($profile->company_website, ['http://', 'https://'])
+                ? $profile->company_website
+                : 'https://' . $profile->company_website),
+            e($profile->company_website)
+        ))
+        : null;
 @endphp
 
 <x-layouts.admin active="approvals" :title="$broker->name" section="Manage">
@@ -37,7 +78,7 @@
     <a href="{{ route('admin.approvals') }}"
        class="inline-flex items-center gap-1.5 text-[12.5px] text-ink-2 hover:text-ink transition-colors mb-4">
         <x-icon name="chevron-left" class="w-4 h-4" />
-        Back to broker approvals
+        Back to channel partner approvals
     </a>
 
     {{-- ============================== Header ============================== --}}
@@ -63,7 +104,7 @@
                     @endif
                 </div>
                 <p class="text-[13px] text-ink-2 mt-1">
-                    {{ $profile?->company_name ?: 'Independent broker' }}
+                    {{ $profile?->company_name ?: 'Independent channel partner' }}
                     @if($profile?->city) · {{ $profile->city }}@endif
                     · Submitted {{ ($profile?->submitted_at ?? $broker->created_at)->format('d M Y') }}
                 </p>
@@ -93,7 +134,7 @@
                 <form method="POST" action="{{ route('admin.approvals.approve', $broker) }}">
                     @csrf
                     <x-button variant="primary" tag="button" type="submit" icon="check">
-                        {{ $isPending ? 'Approve broker' : 'Re-approve broker' }}
+                        {{ $isPending ? 'Approve channel partner' : 'Re-approve channel partner' }}
                     </x-button>
                 </form>
             @endif
@@ -136,7 +177,10 @@
         <x-stat-card icon="clock" label="Experience"
                      :value="$profile?->years_of_experience ? $profile->years_of_experience . ' yrs' : '—'" />
         <x-stat-card icon="users" label="Team size" :value="$profile?->team_size ?: '—'" />
-        <x-stat-card icon="list" label="Segments" :value="count($profile?->segments ?? [])" />
+        {{-- Labelled "Categories" to match the Channel Partners screen. The underlying
+             column, the API field and the mobile app all still call it `segments` —
+             only the admin-facing wording changed. --}}
+        <x-stat-card icon="list" label="Categories" :value="count($profile?->segments ?? [])" />
         <x-stat-card icon="download" label="Documents" :value="$attached . ' of ' . count($documents)" />
     </div>
 
@@ -147,107 +191,38 @@
             {{-- Plain "&": Blade escapes the prop when it renders, so a pre-escaped
                  "&amp;" here would reach the page as a literal "&amp;". --}}
             <x-panel title="Contact & identity" flush>
-                <dl class="divide-y divide-line-soft">
-                    @foreach([
-                        'Full name' => $broker->name,
-                        'Email' => $broker->email,
-                        'Mobile' => $broker->mobile,
-                        'Alternate mobile' => $profile?->alternate_mobile,
-                        'Residence address' => $profile?->residence_address,
-                    ] as $label => $value)
-                        <div class="px-5 py-3 flex items-start gap-4">
-                            <dt class="text-[12.5px] text-ink-3 w-[160px] shrink-0">{{ $label }}</dt>
-                            <dd class="text-[13px] text-ink min-w-0 break-words whitespace-pre-line">{{ $value ?: '—' }}</dd>
-                        </div>
-                    @endforeach
-                </dl>
+                <x-detail-grid :fields="[
+                    ['label' => 'Full name', 'value' => $broker->name],
+                    ['label' => 'Email', 'value' => $broker->email],
+                    ['label' => 'Mobile', 'value' => $broker->mobile],
+                    ['label' => 'Alternate mobile', 'value' => $profile?->alternate_mobile],
+                    ['label' => 'Residence address', 'value' => $profile?->residence_address, 'wide' => true],
+                ]" />
             </x-panel>
 
             {{-- ---------------------------- Business ---------------------------- --}}
             <x-panel title="Business" flush>
-                <dl class="divide-y divide-line-soft">
-                    <div class="px-5 py-3 flex items-start gap-4">
-                        <dt class="text-[12.5px] text-ink-3 w-[160px] shrink-0">Registering as</dt>
-                        <dd class="text-[13px] text-ink">{{ $profile?->is_company ? 'Company' : 'Individual' }}</dd>
-                    </div>
-                    @foreach([
-                        'Company name' => $profile?->company_name,
-                        'Office address' => $profile?->office_address,
-                        'Website' => $profile?->company_website,
-                        'Social media' => $profile?->social_media_handle,
-                        'Years of experience' => $profile?->years_of_experience,
-                        'Team size' => $profile?->team_size,
-                    ] as $label => $value)
-                        <div class="px-5 py-3 flex items-start gap-4">
-                            <dt class="text-[12.5px] text-ink-3 w-[160px] shrink-0">{{ $label }}</dt>
-                            <dd class="text-[13px] text-ink min-w-0 break-words whitespace-pre-line">
-                                @if($label === 'Website' && filled($value))
-                                    <a href="{{ Str::startsWith($value, ['http://', 'https://']) ? $value : 'https://' . $value }}"
-                                       target="_blank" rel="noopener noreferrer"
-                                       class="text-primary-dark hover:underline inline-flex items-center gap-1">
-                                        {{ $value }} <x-icon name="external" class="w-3.5 h-3.5" />
-                                    </a>
-                                @else
-                                    {{ filled($value) ? $value : '—' }}
-                                @endif
-                            </dd>
-                        </div>
-                    @endforeach
-                </dl>
+                <x-detail-grid :fields="[
+                    ['label' => 'Registering as', 'value' => $profile?->is_company ? 'Company' : 'Individual'],
+                    ['label' => 'Company name', 'value' => $profile?->company_name],
+                    ['label' => 'Website', 'value' => $website],
+                    ['label' => 'Social media', 'value' => $profile?->social_media_handle],
+                    ['label' => 'Years of experience', 'value' => $profile?->years_of_experience],
+                    ['label' => 'Team size', 'value' => $profile?->team_size],
+                    ['label' => 'Office address', 'value' => $profile?->office_address, 'wide' => true],
+                ]" />
             </x-panel>
 
             {{-- ---------------------------- Coverage ---------------------------- --}}
             <x-panel title="Coverage" flush>
-                <dl class="divide-y divide-line-soft">
-                    @foreach(['State' => $profile?->state, 'City' => $profile?->city] as $label => $value)
-                        <div class="px-5 py-3 flex items-start gap-4">
-                            <dt class="text-[12.5px] text-ink-3 w-[160px] shrink-0">{{ $label }}</dt>
-                            <dd class="text-[13px] text-ink">{{ $value ?: '—' }}</dd>
-                        </div>
-                    @endforeach
-
-                    <div class="px-5 py-3 flex items-start gap-4">
-                        <dt class="text-[12.5px] text-ink-3 w-[160px] shrink-0">Multiple states</dt>
-                        <dd class="text-[13px] text-ink">{{ $profile?->operates_multiple_states ? 'Yes' : 'No' }}</dd>
-                    </div>
-
-                    <div class="px-5 py-3 flex items-start gap-4">
-                        <dt class="text-[12.5px] text-ink-3 w-[160px] shrink-0">Segments</dt>
-                        <dd class="min-w-0">
-                            @if($profile?->segments)
-                                <div class="flex flex-wrap gap-1.5">
-                                    @foreach($profile->segments as $segment)
-                                        <x-badge tone="primary" size="sm">{{ $segment }}</x-badge>
-                                    @endforeach
-                                </div>
-                            @else
-                                <span class="text-[13px] text-ink">—</span>
-                            @endif
-                        </dd>
-                    </div>
-
-                    <div class="px-5 py-3 flex items-start gap-4">
-                        <dt class="text-[12.5px] text-ink-3 w-[160px] shrink-0">Operating zones</dt>
-                        <dd class="min-w-0">
-                            @if($profile?->zones)
-                                <div class="flex flex-wrap gap-1.5">
-                                    @foreach($profile->zones as $zone)
-                                        <x-badge tone="neutral" size="sm">{{ $zone }}</x-badge>
-                                    @endforeach
-                                </div>
-                            @else
-                                <span class="text-[13px] text-ink">—</span>
-                            @endif
-                        </dd>
-                    </div>
-
-                    <div class="px-5 py-3 flex items-start gap-4">
-                        <dt class="text-[12.5px] text-ink-3 w-[160px] shrink-0">Project contributions</dt>
-                        <dd class="text-[13px] text-ink min-w-0 break-words whitespace-pre-line">
-                            {{ $profile?->project_contributions ?: '—' }}
-                        </dd>
-                    </div>
-                </dl>
+                <x-detail-grid :fields="[
+                    ['label' => 'State', 'value' => $profile?->state],
+                    ['label' => 'City', 'value' => $profile?->city],
+                    ['label' => 'Multiple states', 'value' => $profile?->operates_multiple_states ? 'Yes' : 'No'],
+                    ['label' => 'Categories', 'value' => $badges($profile?->segments, 'primary')],
+                    ['label' => 'Operating zones', 'value' => $badges($profile?->zones, 'neutral')],
+                    ['label' => 'Project contributions', 'value' => $profile?->project_contributions, 'wide' => true],
+                ]" />
             </x-panel>
         </div>
 
@@ -311,7 +286,7 @@
                             ]) />
                     <p class="text-[12.5px] text-ink-2 leading-relaxed">
                         {{ $profile?->confirm_accuracy
-                            ? 'The broker confirmed the information given is accurate.'
+                            ? 'The channel partner confirmed the information given is accurate.'
                             : 'The accuracy declaration was not confirmed.' }}
                     </p>
                 </div>
@@ -372,7 +347,7 @@
                 <header class="px-6 py-4 border-b border-line flex items-start justify-between gap-4">
                     <div class="min-w-0">
                         <h3 id="reject-title" class="text-[15px] font-semibold text-ink tracking-[-0.01em]">
-                            {{ $isPending ? 'Reject this registration' : 'Revoke this broker’s access' }}
+                            {{ $isPending ? 'Reject this registration' : 'Revoke this channel partner’s access' }}
                         </h3>
                         <p class="text-[12.5px] text-ink-3 mt-0.5">
                             {{ $broker->name }} will not be able to sign in
@@ -392,7 +367,7 @@
                              placeholder="e.g. RERA number could not be verified against the registry." />
                     <x-field label="Internal note" name="internal_note" type="textarea" rows="2"
                              placeholder="Optional — visible to admins only."
-                             hint="Not shared with the broker." />
+                             hint="Not shared with the channel partner." />
 
                     <div class="pt-1 flex items-center justify-end gap-2.5">
                         <button type="button" @click="open = false"

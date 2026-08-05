@@ -18,8 +18,8 @@
     <div class="flex items-start gap-3 rounded-xl bg-primary-soft ring-1 ring-inset ring-primary-ring px-4 py-3 mb-5">
         <x-icon name="lock" class="w-4 h-4 text-primary-dark shrink-0 mt-0.5" />
         <p class="text-[12.5px] text-ink-2 leading-relaxed">
-            <span class="font-medium text-ink">Contact details stay locked until a broker marks a project “Interested.”</span>
-            A casual view never exposes the broker's phone number or email to the developer.
+            <span class="font-medium text-ink">Contact details stay locked until a channel partner marks a project “Interested.”</span>
+            A casual view never exposes the channel partner's phone number or email to the developer.
         </p>
     </div>
 
@@ -36,7 +36,7 @@
             class="xl:col-span-3"
             :paginator="$leads"
             label="leads"
-            search-placeholder="Search by broker or project…"
+            search-placeholder="Search by channel partner or project…"
             empty-title="No activity matches"
             empty-description="Adjust the search or filters to see more leads.">
 
@@ -48,7 +48,7 @@
             </x-slot:filters>
 
             <x-slot:head>
-                <x-th>Broker</x-th>
+                <x-th>Channel Partner</x-th>
                 <x-th hide="md">Project</x-th>
                 <x-th hide="xl">Developer</x-th>
                 <x-th sort="created_at" hide="lg">Date</x-th>

@@ -14,7 +14,15 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        /**
+         * Where the `guest` middleware sends someone who is already signed in.
+         *
+         * Without this it falls back to Laravel's default of '/', which this app
+         * redirects straight back to /login — so an authenticated admin hitting the
+         * site root bounced between the two until the browser gave up with
+         * ERR_TOO_MANY_REDIRECTS. The panel is the only place a signed-in user belongs.
+         */
+        $middleware->redirectUsersTo('/admin/dashboard');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

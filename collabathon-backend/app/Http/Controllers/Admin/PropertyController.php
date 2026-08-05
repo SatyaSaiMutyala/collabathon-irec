@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Concerns\HandlesListQueries;
 use App\Http\Controllers\Controller;
 use App\Models\Developer;
+use App\Models\ProjectType;
 use App\Models\Property;
 use App\Services\PushNotifier;
 use App\Models\PropertyDetail;
@@ -17,6 +18,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class PropertyController extends Controller
@@ -95,6 +97,8 @@ class PropertyController extends Controller
             'properties' => $this->paginate($query, $request),
             'developers' => Developer::orderBy('company_name')->get(['id', 'company_name']),
             'cities' => Property::query()->distinct()->orderBy('city')->pluck('city')->filter()->values(),
+            // Filter options track the editable list in Settings → Project types.
+            'projectTypes' => ProjectType::ordered()->pluck('name', 'name'),
             'totals' => [
                 'all' => (int) $counts->total,
                 'published' => (int) $counts->published,
@@ -115,7 +119,28 @@ class PropertyController extends Controller
         return view('admin.properties.create', [
             'developers' => Developer::orderBy('company_name')->get(['id', 'company_name']),
             'amenityOptions' => self::AMENITY_OPTIONS,
-        ]);
+        ] + $this->projectTypeData(old('project_type')));
+    }
+
+    /**
+     * Shared by create and edit: the selectable types, the name => requires-possession
+     * map the form's conditional field reads, and which type is currently chosen.
+     *
+     * Inactive types are still offered when a project already uses one, so editing an
+     * old project does not silently switch its type on save.
+     */
+    private function projectTypeData(?string $current): array
+    {
+        $types = ProjectType::query()
+            ->where(fn ($q) => $q->active()->when($current, fn ($w) => $w->orWhere('name', $current)))
+            ->ordered()
+            ->get();
+
+        return [
+            'projectTypes' => $types,
+            'possessionByType' => ProjectType::possessionMap(),
+            'selectedProjectType' => $current ?? $types->first()?->name ?? '',
+        ];
     }
 
     public function store(Request $request, PushNotifier $push): RedirectResponse
@@ -191,7 +216,7 @@ class PropertyController extends Controller
             'amenityOptions' => self::AMENITY_OPTIONS,
             // Flat map of form-field name => current value; see toFormValues().
             'formRecord' => $this->toFormValues($property),
-        ]);
+        ] + $this->projectTypeData(old('project_type', $property->project_type)));
     }
 
     /**
@@ -289,7 +314,7 @@ class PropertyController extends Controller
             'construction_progress', 'green_certification', 'vastu_compliant',
         ]);
 
-        foreach (['rera_registered_at', 'rera_valid_till', 'launch_date', 'possession_date'] as $date) {
+        foreach (['launch_date', 'possession_date'] as $date) {
             $values[$date] = $property->{$date}?->format('Y-m-d');
         }
 
@@ -381,15 +406,14 @@ class PropertyController extends Controller
             // 1 · Project basic info
             'developer_id' => ['required', 'exists:developers,id'],
             'name' => ['required', 'string', 'max:255'],
-            'project_type' => ['required', 'in:Residential,Commercial,Mixed-use,Plotted Development,Villa,Row House'],
+            // Editable master data now — see Settings → Project types.
+            'project_type' => ['required', Rule::exists('project_types', 'name')],
             'project_status' => ['required', 'in:New Launch,Under Construction,Ready to Move,Nearing Completion'],
             'listing_status' => ['required', 'in:draft,active,archived'],
             'tagline' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:20000'],
             'logo' => ['nullable', 'image', 'max:2048'],
             'rera_number' => ['nullable', 'string', 'max:64'],
-            'rera_registered_at' => ['nullable', 'date'],
-            'rera_valid_till' => ['nullable', 'date', 'after_or_equal:rera_registered_at'],
 
             // 2 · Location details
             'state' => ['nullable', 'string', 'max:96'],
@@ -443,7 +467,13 @@ class PropertyController extends Controller
 
             // 5 · Timeline & legal
             'launch_date' => ['nullable', 'date'],
-            'possession_date' => ['nullable', 'date'],
+            // Mandatory only for the types flagged in Settings — RERA requires a
+            // completion date for built units, not for land-only types.
+            'possession_date' => [
+                Rule::requiredIf(fn () => (bool) ProjectType::where('name', request('project_type'))
+                    ->value('requires_possession_date')),
+                'nullable', 'date',
+            ],
             'construction_progress' => ['nullable', 'integer', 'min:0', 'max:100'],
             'approving_authorities' => ['nullable', 'string', 'max:5000'],
             'bank_approvals' => ['nullable', 'string', 'max:5000'],
@@ -504,7 +534,9 @@ class PropertyController extends Controller
     {
         $columns = [
             'developer_id', 'name', 'project_type', 'project_status', 'listing_status',
-            'tagline', 'description', 'rera_number', 'rera_registered_at', 'rera_valid_till',
+            // rera_registered_at / rera_valid_till are no longer collected — the columns
+            // stay so existing records keep their dates, but the form owns neither.
+            'tagline', 'description', 'rera_number',
             'state', 'city', 'locality', 'full_address', 'landmark', 'pincode', 'zone',
             'latitude', 'longitude', 'maps_link',
             'price_min', 'price_max', 'price_per_sqft', 'currency',

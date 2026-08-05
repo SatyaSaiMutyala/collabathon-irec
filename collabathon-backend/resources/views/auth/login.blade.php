@@ -12,15 +12,15 @@
 
             <div class="relative max-w-md">
                 <h2 class="text-white text-[26px] font-semibold leading-snug tracking-[-0.02em]">
-                    One place to approve brokers, issue developer accounts and watch every lead.
+                    One place to approve channel partners, issue developer accounts and watch every lead.
                 </h2>
                 <p class="text-nav-text-2 text-[13.5px] mt-4 leading-relaxed">
-                    Brokers register from the mobile app and stay locked out until you approve them.
+                    Channel partners register from the mobile app and stay locked out until you approve them.
                     Developers never self-register — you create their accounts here.
                 </p>
 
                 <div class="flex items-center gap-8 mt-10 pt-8 border-t border-nav-line">
-                    @foreach([['58', 'Brokers'], ['5', 'Developers'], ['640', 'Leads tracked']] as [$value, $label])
+                    @foreach([['58', 'Channel Partners'], ['5', 'Developers'], ['640', 'Leads tracked']] as [$value, $label])
                         <div>
                             <p class="text-white text-[20px] font-semibold leading-none">{{ $value }}</p>
                             <p class="text-nav-text-3 text-[11.5px] mt-1.5">{{ $label }}</p>
@@ -45,7 +45,7 @@
 
                 <div class="mb-7">
                     <h1 class="text-[22px] font-semibold text-ink tracking-[-0.02em]">Welcome back</h1>
-                    <p class="text-[13px] text-ink-2 mt-1.5">Sign in to manage developers, brokers and projects.</p>
+                    <p class="text-[13px] text-ink-2 mt-1.5">Sign in to manage developers, channel partners and projects.</p>
                 </div>
 
                 @if($errors->any())

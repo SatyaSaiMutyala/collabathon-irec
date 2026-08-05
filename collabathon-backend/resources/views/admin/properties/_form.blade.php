@@ -39,8 +39,11 @@
     // A failed submit lands back here — open the first step that actually has an error
     // rather than step 1, so the message is not hidden behind the rail.
     $stepFields = [
-        1 => ['name', 'developer_id', 'project_type', 'project_status', 'tagline', 'description',
-              'logo', 'rera_number', 'rera_registered_at', 'rera_valid_till', 'listing_status'],
+        // possession_date sits here, not with the other dates in step 5: it is revealed by
+        // project_type, and a conditional field the type control cannot show is invisible.
+        1 => ['name', 'developer_id', 'project_type', 'possession_date', 'project_status',
+              'tagline', 'description',
+              'logo', 'rera_number', 'listing_status'],
         2 => ['state', 'city', 'locality', 'full_address', 'landmark', 'pincode', 'zone',
               'latitude', 'longitude', 'maps_link', 'connectivity_highlights', 'nearby_infrastructure'],
         3 => ['price_min', 'price_max', 'price_per_sqft', 'currency', 'total_units', 'towers',
@@ -48,7 +51,7 @@
         4 => ['land_parcel_acres', 'total_project_area_sqft', 'open_space_percent',
               'construction_specifications', 'amenities', 'amenities_extra', 'amenities_size',
               'amenities_count', 'green_certification', 'vastu_compliant'],
-        5 => ['launch_date', 'possession_date', 'construction_progress', 'approving_authorities', 'bank_approvals'],
+        5 => ['launch_date', 'construction_progress', 'approving_authorities', 'bank_approvals'],
         6 => ['cover_image', 'gallery', 'site_layout', 'master_plan', 'brochure', 'price_list',
               'video_url', 'virtual_tour_url', 'payment_schedule_file', 'payment_schedule'],
         7 => ['payment_plan_options', 'booking_amount', 'cp_commission_percent', 'special_incentives',
@@ -139,6 +142,17 @@
               uploadError: '',
               maxPost: {{ $postMaxBytes }},
               maxFile: {{ $uploadMaxBytes }},
+
+              /* Settings → Project types drives which types ask for a RERA possession
+                 date, so the rule lives in the data rather than being hard-coded here.
+                 Read as a plain method, not a getter: an x-data getter is reached
+                 through Alpine's merged scope proxy, which invokes it without the
+                 reactive receiver, so `this.projectType` inside it is untracked and
+                 x-show never re-evaluates when the type changes. */
+              projectType: @js($selectedProjectType),
+              possessionByType: @js($possessionByType),
+
+              needsPossessionDate() { return this.possessionByType[this.projectType] === true },
 
               go(n) { this.step = Math.min(Math.max(n, 1), this.last); window.scrollTo({ top: 0, behavior: 'smooth' }) },
 
@@ -271,24 +285,40 @@
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {{-- Options come from Settings → Project types. `x-model` feeds
+                                 the conditional possession-date field in step 5. --}}
                             <x-select-field label="Project type" name="project_type"
-                                            :options="['Residential', 'Commercial', 'Mixed-use', 'Plotted Development', 'Villa', 'Row House']" />
+                                            x-model="projectType"
+                                            :options="$projectTypes->pluck('name', 'name')" />
                             <x-select-field label="Project status" name="project_status"
                                             :options="['New Launch', 'Under Construction', 'Ready to Move', 'Nearing Completion']" />
                         </div>
 
-                        <x-field label="Tagline / USP" name="tagline" placeholder="Short marketing line" />
+                        {{-- Directly under the control that reveals it. It is a date, so it
+                             would sit naturally in step 5 with launch date — but a conditional
+                             field five steps from its trigger reads as the trigger doing
+                             nothing. Proximity wins over grouping here. --}}
+                        {{-- x-bind:class, not x-show. x-show's effect on this element only ran
+                             on init and never re-evaluated when projectType changed, so the
+                             field stayed visible for every type; x-bind on the same expression
+                             updates correctly, so visibility rides on that instead. --}}
+                        <div data-possession-field
+                             x-bind:class="needsPossessionDate() ? 'grid' : 'hidden'"
+                             class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <x-field label="Possession date (as per RERA)" name="possession_date" type="date"
+                                     x-bind:required="needsPossessionDate()"
+                                     hint="Committed handover date. Required for this project type." />
+                        </div>
+
+                        <x-field label="Heading" name="tagline" placeholder="Short marketing line" />
+
+                        <x-field label="RERA registration number" name="rera_number" placeholder="e.g. RERA-DXB-24817" />
+
                         <x-field label="Project description" name="description" type="textarea" rows="4"
                                  placeholder="Detailed overview of the project" />
 
                         <x-file-field label="Project logo / branding" name="logo" accept="image/*" :current="$property?->logo_path"
                                       hint="PNG or JPG, up to 2 MB." />
-
-                        <div class="border-t border-line-soft pt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <x-field label="RERA registration number" name="rera_number" placeholder="e.g. RERA-DXB-24817" />
-                            <x-field label="RERA registered on" name="rera_registered_at" type="date" />
-                            <x-field label="RERA valid till" name="rera_valid_till" type="date" />
-                        </div>
                     </section>
 
                     {{-- 2 · Location Details -------------------------------------------- --}}
@@ -360,7 +390,7 @@
                                 <div>
                                     <p class="text-[12.5px] font-medium text-ink">Unit types available</p>
                                     <p class="text-[11.5px] text-ink-3 mt-0.5">
-                                        Areas are in sq.ft.; sq.m. is shown to brokers automatically.
+                                        Areas are in sq.ft.; sq.m. is shown to channel partners automatically.
                                     </p>
                                 </div>
                                 <x-button variant="outline" size="sm" tag="button" type="button" icon="plus"
@@ -501,9 +531,11 @@
                         <x-wizard-heading :step="5" :of="count($steps)" title="Timeline & legal"
                                           subtitle="Delivery dates, statutory approvals and financing tie-ups." />
 
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {{-- Possession date is deliberately not here with the other dates —
+                             it lives in step 1, directly under the project type that reveals
+                             it. See the note there. --}}
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <x-field label="Launch date" name="launch_date" type="date" />
-                            <x-field label="Possession date" name="possession_date" type="date" hint="Expected handover." />
                             <x-field label="Construction progress %" name="construction_progress" type="number"
                                      min="0" max="100" placeholder="35" hint="Updated periodically." />
                         </div>
@@ -521,7 +553,7 @@
                     {{-- 6 · Media & Marketing Assets ------------------------------------ --}}
                     <section x-show="step === 6" data-step="6" x-cloak class="space-y-4">
                         <x-wizard-heading :step="6" :of="count($steps)" title="Media & marketing assets"
-                                          subtitle="Everything brokers see and share." />
+                                          subtitle="Everything channel partners see and share." />
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <x-file-field label="Cover image" name="cover_image" accept="image/*" :current="$property?->cover_image_path"
@@ -597,7 +629,7 @@
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <x-field label="Booking amount" name="booking_amount" type="number" placeholder="100000" />
-                            <x-field label="CP commission / brokerage %" name="cp_commission_percent" type="number" step="0.01"
+                            <x-field label="CP commission %" name="cp_commission_percent" type="number" step="0.01"
                                      placeholder="2.50" hint="Overrides the developer default for this project." />
                         </div>
 
@@ -631,7 +663,7 @@
                              x-data="{ termsType: @js(old('terms_type', data_get($formRecord ?? null, 'terms_type') ?? '')) }">
                             <div class="flex items-baseline justify-between gap-3 mb-1">
                                 <h3 class="text-[13.5px] font-medium text-ink">Developer terms</h3>
-                                <span class="text-[11.5px] text-ink-3">Visible to the developer and to brokers</span>
+                                <span class="text-[11.5px] text-ink-3">Visible to the developer and to channel partners</span>
                             </div>
                             <p class="text-[12px] text-ink-3 mb-3 max-w-[68ch] leading-relaxed">
                                 The terms document for this project. Attach the signed copy, or type the
@@ -664,7 +696,7 @@
                                 <x-file-field label="Terms document" name="terms_document"
                                               accept=".pdf,.doc,.docx"
                                               :current="data_get($formRecord ?? null, 'terms_document_path')"
-                                              hint="PDF, DOC or DOCX, up to 20 MB. Brokers can read it in the app and download it." />
+                                              hint="PDF, DOC or DOCX, up to 20 MB. Channel partners can read it in the app and download it." />
                             </div>
 
                             <div x-show="termsType === 'text'" x-cloak class="mt-3">
@@ -678,7 +710,7 @@
                     {{-- 8 · Contact & Sales Info ---------------------------------------- --}}
                     <section x-show="step === 8" data-step="8" x-cloak class="space-y-4">
                         <x-wizard-heading :step="8" :of="count($steps)" title="Contact & sales info"
-                                          subtitle="Where brokers take clients, and who they ask for." />
+                                          subtitle="Where channel partners take clients, and who they ask for." />
 
                         <x-field label="Sales office address" name="sales_office_address" type="textarea"
                                  placeholder="Building, street, community, city" />
@@ -698,7 +730,7 @@
                     {{-- 9 · Compliance & Trust Signals ---------------------------------- --}}
                     <section x-show="step === 9" data-step="9" x-cloak class="space-y-4">
                         <x-wizard-heading :step="9" :of="count($steps)" title="Compliance & trust signals"
-                                          subtitle="Optional, but these are what make a broker confident enough to pitch." />
+                                          subtitle="Optional, but these are what make a channel partner confident enough to pitch." />
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <x-file-field label="RERA QR code / certificate" name="rera_certificate"

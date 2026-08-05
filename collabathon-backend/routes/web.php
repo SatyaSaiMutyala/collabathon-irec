@@ -6,7 +6,10 @@ use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\ChannelPartnerController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DeveloperController;
+use App\Http\Controllers\Admin\GeocodeController;
 use App\Http\Controllers\Admin\LeadController;
+use App\Http\Controllers\Admin\LocationController;
+use App\Http\Controllers\Admin\ProjectTypeController;
 use App\Http\Controllers\Admin\PropertyController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\SettingsController;
@@ -14,7 +17,12 @@ use App\Http\Controllers\Admin\TeamController;
 use App\Http\Middleware\EnsureAdmin;
 use Illuminate\Support\Facades\Route;
 
-Route::redirect('/', '/login');
+// Conditional, not a flat redirect to /login: a signed-in admin landing on the root
+// should go to the panel. Sending them to /login instead only worked because the guest
+// middleware bounced them back — which is the redirect loop, not a route.
+Route::get('/', fn () => redirect()->to(
+    auth()->check() ? route('admin.dashboard') : route('login')
+));
 
 // ---------------------------------------------------------------- guest
 Route::middleware('guest')->group(function () {
@@ -47,6 +55,9 @@ Route::prefix('admin')
 
         Route::get('/cp', [ChannelPartnerController::class, 'index'])->name('cp')
             ->middleware("can:view-module,'cp'");
+
+        // Address lookup behind the developer form's "find on map" control.
+        Route::get('/geocode', GeocodeController::class)->name('geocode');
 
         Route::get('/developers', [DeveloperController::class, 'index'])->name('developers')
             ->middleware("can:view-module,'developers'");
@@ -92,6 +103,28 @@ Route::prefix('admin')
         });
         Route::patch('/settings/mail', [SettingsController::class, 'updateMail'])->name('settings.mail');
         Route::post('/settings/mail/test', [SettingsController::class, 'testMail'])->name('settings.mail.test');
+
+        // Location master data — country -> state -> city, edited from the settings page.
+        Route::prefix('settings/locations')->name('settings.locations.')->group(function () {
+            Route::post('/countries', [LocationController::class, 'storeCountry'])->name('countries.store');
+            Route::patch('/countries/{country}', [LocationController::class, 'updateCountry'])->name('countries.update');
+            Route::delete('/countries/{country}', [LocationController::class, 'destroyCountry'])->name('countries.destroy');
+
+            Route::post('/states', [LocationController::class, 'storeState'])->name('states.store');
+            Route::patch('/states/{state}', [LocationController::class, 'updateState'])->name('states.update');
+            Route::delete('/states/{state}', [LocationController::class, 'destroyState'])->name('states.destroy');
+
+            Route::post('/cities', [LocationController::class, 'storeCity'])->name('cities.store');
+            Route::patch('/cities/{city}', [LocationController::class, 'updateCity'])->name('cities.update');
+            Route::delete('/cities/{city}', [LocationController::class, 'destroyCity'])->name('cities.destroy');
+        });
+
+        // Project type master data — the list the project form and filters pick from.
+        Route::prefix('settings/project-types')->name('settings.project-types.')->group(function () {
+            Route::post('/', [ProjectTypeController::class, 'store'])->name('store');
+            Route::patch('/{projectType}', [ProjectTypeController::class, 'update'])->name('update');
+            Route::delete('/{projectType}', [ProjectTypeController::class, 'destroy'])->name('destroy');
+        });
 
         // ------------------------------------------------------ Super Admin only
         Route::middleware('can:manage-team')->group(function () {

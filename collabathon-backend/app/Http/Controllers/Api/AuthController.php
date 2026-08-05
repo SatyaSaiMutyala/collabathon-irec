@@ -24,6 +24,21 @@ use Illuminate\Validation\ValidationException;
  */
 class AuthController extends Controller
 {
+    /**
+     * KYC uploads: multipart field name => the column its stored path goes in.
+     *
+     * The `_file` suffix keeps each one clear of the same-named text field holding the
+     * document's *number* (`pan_card` is the number, `pan_card_file` is the scan).
+     */
+    private const DOCUMENTS = [
+        'pan_card_file' => 'pan_card_path',
+        'aadhaar_file' => 'aadhaar_path',
+        'rera_certificate_file' => 'rera_certificate_path',
+        'gst_file' => 'gst_path',
+        'cheque_file' => 'cheque_path',
+        'signature_file' => 'signature_path',
+    ];
+
     /** Broker self-registration. Creates the user + profile, issues no token. */
     public function register(Request $request, PushNotifier $push): JsonResponse
     {
@@ -65,15 +80,30 @@ class AuthController extends Controller
             // was gathered in the app and thrown away, so every broker's profile fell
             // back to initials no matter what they uploaded.
             'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+
+            // KYC scans. Same failure the photo had: the app made these attachments
+            // required, uploaded nothing, and the admin's Documents panel read
+            // "Not provided" for every registration. PDFs are allowed because a RERA
+            // certificate is usually issued as one.
+            ...collect(self::DOCUMENTS)
+                ->keys()
+                ->mapWithKeys(fn ($field) => [
+                    $field => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:8192'],
+                ])
+                ->all(),
         ]);
 
         // Stored before the transaction so a failed insert cannot leave a half-written
         // row pointing at nothing; an orphaned file is the cheaper failure.
-        $photoPath = $request->hasFile('photo')
+        $data['photo_path'] = $request->hasFile('photo')
             ? $request->file('photo')->store('broker-photos', 'public')
             : null;
 
-        $data['photo_path'] = $photoPath;
+        foreach (self::DOCUMENTS as $field => $column) {
+            $data[$column] = $request->hasFile($field)
+                ? $request->file($field)->store('broker-documents', 'public')
+                : null;
+        }
 
         $user = DB::transaction(function () use ($data) {
             $user = User::create([
@@ -92,6 +122,7 @@ class AuthController extends Controller
                 'rera_number', 'rera_certificate_expiry', 'gst_number', 'cheque_details',
                 'state', 'city', 'segments', 'zones', 'operates_multiple_states',
                 'project_contributions', 'photo_path',
+                ...array_values(self::DOCUMENTS),
             ])->merge([
                 'user_id' => $user->id,
                 'confirm_accuracy' => true,

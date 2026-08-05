@@ -19,7 +19,7 @@ $accepted = $funnel[2]['value'] ?: 0;
 
     <x-page-header
         title="Dashboard"
-        subtitle="Platform activity across every developer, broker and listing on iREC.">
+        subtitle="Platform activity across every developer, channel partner and listing on iREC.">
         <x-slot:actions>
             <x-button variant="outline" icon="download">Export</x-button>
         </x-slot:actions>
@@ -68,7 +68,7 @@ $accepted = $funnel[2]['value'] ?: 0;
     {{-- ------------------- Ranked + activity + queue ------------------- --}}
     <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
 
-        <x-panel title="Most in-demand listings" subtitle="By broker interests" padded>
+        <x-panel title="Most in-demand listings" subtitle="By channel partner interests" padded>
             <x-chart-bars :rows="$topProperties" color="var(--color-chart-1)" />
         </x-panel>
 
@@ -87,12 +87,12 @@ $accepted = $funnel[2]['value'] ?: 0;
                 </div>
             @empty
                 <x-empty-state icon="inbox" title="No activity yet"
-                               description="Views and interests will appear here as brokers use the app." />
+                               description="Views and interests will appear here as channel partners use the app." />
             @endforelse
         </x-panel>
 
         <x-panel title="Awaiting your review" flush class="lg:col-span-2 xl:col-span-1"
-                 :subtitle="$pendingBrokers->count() . ' brokers cannot sign in until approved'">
+                 :subtitle="$pendingBrokers->count() . ' channel partners cannot sign in until approved'">
             <x-slot:actions>
                 <a href="{{ route('admin.approvals') }}"
                    class="text-[12px] font-medium text-primary-dark hover:underline whitespace-nowrap">Review all</a>
@@ -112,7 +112,7 @@ $accepted = $funnel[2]['value'] ?: 0;
                 </div>
             @empty
                 <x-empty-state icon="check" title="Queue is clear"
-                               description="Every broker registration has been reviewed." />
+                               description="Every channel partner registration has been reviewed." />
             @endforelse
         </x-panel>
     </div>

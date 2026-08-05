@@ -18,7 +18,7 @@
 
     $deletePayload = \Illuminate\Support\Js::from([
         'title' => 'Delete this project?',
-        'message' => "\"{$property->name}\" will be removed from every listing and from broker "
+        'message' => "\"{$property->name}\" will be removed from every listing and from channel partner "
             . 'view. Leads already raised against it are kept.',
         'confirmLabel' => 'Delete project',
         'tone' => 'danger',
@@ -31,10 +31,11 @@
             'Developer / builder' => $property->developer?->company_name,
             'Project type' => $property->project_type,
             'Project status' => $property->project_status,
-            'Tagline / USP' => $property->tagline,
-            'RERA number' => $property->rera_number,
-            'RERA registered on' => $date($property->rera_registered_at),
-            'RERA valid till' => $date($property->rera_valid_till),
+            'Heading' => $property->tagline,
+            // The registered-on / valid-till dates are no longer collected on the form, so
+            // they are not shown either — a read-only row for a field nothing can edit
+            // reads as a broken control. Both columns still hold their existing values.
+            'RERA registration number' => $property->rera_number,
         ],
         'Location' => [
             'State / Emirate' => $property->state,
@@ -289,7 +290,7 @@
             {{-- Developer terms ----------------------------------------------- --}}
             @if($detail?->hasTerms())
                 <x-panel :title="$detail->terms_title ?: 'Developer terms'"
-                         :subtitle="$detail->terms_type === 'document' ? 'Document · shown to the developer and to brokers' : 'Typed content · shown to the developer and to brokers'"
+                         :subtitle="$detail->terms_type === 'document' ? 'Document · shown to the developer and to channel partners' : 'Typed content · shown to the developer and to channel partners'"
                          :padded="$detail->terms_type === 'text'"
                          :flush="$detail->terms_type === 'document'">
                     @if($detail->terms_type === 'document')

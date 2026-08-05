@@ -19,7 +19,7 @@
     <x-data-table
         :paginator="$decisions"
         label="decisions"
-        search-placeholder="Search by broker, company or email…"
+        search-placeholder="Search by channel partner, company or email…"
         empty-title="No decisions recorded"
         empty-description="Approved and rejected registrations appear here.">
 
@@ -31,7 +31,7 @@
         </x-slot:filters>
 
         <x-slot:head>
-            <x-th>Broker</x-th>
+            <x-th>Channel Partner</x-th>
             <x-th hide="md">Company</x-th>
             <x-th hide="lg">Decided</x-th>
             <x-th hide="xl">Reviewer</x-th>
@@ -57,7 +57,7 @@
                             @else
                                 {{-- The broker row is gone but the decision survives: the
                                      audit trail is the point of this table. --}}
-                                <p class="text-[13px] font-medium text-ink-3 truncate">Deleted broker</p>
+                                <p class="text-[13px] font-medium text-ink-3 truncate">Deleted channel partner</p>
                             @endif
                         </div>
                     </div>

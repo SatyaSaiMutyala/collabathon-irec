@@ -39,7 +39,7 @@
         <x-slot:filters>
             <x-filter-select name="developer_id" :options="$developers->pluck('company_name', 'id')" placeholder="All developers" />
             <x-filter-select name="type"
-                             :options="['Residential', 'Commercial', 'Mixed-use', 'Plotted Development', 'Villa', 'Row House']"
+                             :options="$projectTypes"
                              placeholder="Any type" />
             <x-filter-select name="project_status"
                              :options="['New Launch', 'Under Construction', 'Ready to Move', 'Nearing Completion']"
@@ -158,7 +158,7 @@
                         <form method="POST" action="{{ route('admin.properties.destroy', $p) }}"
                               x-on:submit.prevent="$dispatch('confirm-request', {
                                   title: 'Delete this project?',
-                                  message: @js('"' . $p->name . '" will be removed from every listing and from broker view. Leads already raised against it are kept.'),
+                                  message: @js('"' . $p->name . '" will be removed from every listing and from channel partner view. Leads already raised against it are kept.'),
                                   confirmLabel: 'Delete project',
                                   tone: 'danger',
                                   form: $el,

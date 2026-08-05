@@ -5,6 +5,15 @@ namespace App\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * The developer as the mobile app sees it.
+ *
+ * `key_contact_person` and its designation/mobile/email are deliberately absent, and must
+ * stay that way. That contact is the internal relationship owner — the admin panel shows
+ * it, channel partners never do. This resource is the only thing standing between those
+ * columns and every broker on the platform, so a field added here is published to all of
+ * them; add to the admin views instead.
+ */
 class DeveloperResource extends JsonResource
 {
     public function toArray(Request $request): array
@@ -12,11 +21,20 @@ class DeveloperResource extends JsonResource
         return [
             'id' => $this->id,
             'company_name' => $this->company_name,
+            // The public point of contact, with the designation now captured alongside it.
             'contact_person' => $this->contact_person,
+            'contact_designation' => $this->contact_designation,
             'mobile' => $this->mobile,
             'email' => $this->email,
+            'website' => $this->website,
+            'social_media' => $this->social_media,
+            'country' => $this->country,
             'city' => $this->city,
             'state' => $this->state,
+            'pincode' => $this->pincode,
+            'address' => $this->address,
+            'latitude' => $this->latitude !== null ? (float) $this->latitude : null,
+            'longitude' => $this->longitude !== null ? (float) $this->longitude : null,
             'rera_number' => $this->rera_number,
             'logo_url' => $this->logo_path ? asset('storage/' . $this->logo_path) : null,
             'about' => $this->about,

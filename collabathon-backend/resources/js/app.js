@@ -124,7 +124,199 @@ export function makePassword(length = 14) {
         .join('');
 }
 
+/* ------------------------------------------------------------------ address picker */
+
+const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+
+// Hyderabad. Only ever seen when a developer has no coordinates yet and the admin opens
+// the map before searching — an arbitrary centre is better than a view of the null island.
+const FALLBACK_CENTRE = [17.4401, 78.3489];
+
+let leafletPromise = null;
+
+/**
+ * Loads Leaflet the first time the map is opened, not on page load.
+ *
+ * It is ~150 KB of JS and CSS for one control on one form, and most admin pages never
+ * show it. Deferring keeps that cost off every other screen, and the promise is cached so
+ * opening the map a second time is instant.
+ */
+function loadLeaflet() {
+    if (leafletPromise) return leafletPromise;
+
+    leafletPromise = new Promise((resolve, reject) => {
+        const css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = LEAFLET_CSS;
+        document.head.appendChild(css);
+
+        const script = document.createElement('script');
+        script.src = LEAFLET_JS;
+        script.onload = () => resolve(window.L);
+        script.onerror = () => reject(new Error('Leaflet failed to load'));
+        document.head.appendChild(script);
+    });
+
+    return leafletPromise;
+}
+
+/**
+ * The developer form's address field: one textarea, plus a map for picking it.
+ *
+ * The map is a modal rather than an inline panel because the form is already inside one —
+ * an embedded map would have to compete for the same vertical space as every other field,
+ * and a map you cannot pan comfortably is worse than no map.
+ *
+ * Nothing is written back to the form until "Use this address" is pressed. Panning and
+ * clicking around is exploratory; committing is a separate, deliberate act.
+ */
+export function addressFinder(config = {}) {
+    return {
+        endpoint: config.endpoint,
+        pincode: config.pincode ?? '',
+        latitude: config.latitude ?? '',
+        longitude: config.longitude ?? '',
+
+        open: false,
+        query: '',
+        results: [],
+        busy: false,
+        error: '',
+        picked: null,
+        map: null,
+        marker: null,
+
+        async openMap() {
+            this.open = true;
+            this.error = '';
+
+            let L;
+            try {
+                L = await loadLeaflet();
+            } catch {
+                this.error = 'The map could not be loaded. Type the address instead.';
+                return;
+            }
+
+            // Leaflet measures its container on init. Inside a modal that was display:none
+            // a moment ago that measurement is 0x0 and the tiles render as a grey sliver,
+            // so the map is built after the DOM has settled and told to re-measure.
+            await this.$nextTick();
+
+            const centre = this.latitude && this.longitude
+                ? [Number(this.latitude), Number(this.longitude)]
+                : FALLBACK_CENTRE;
+
+            if (! this.map) {
+                this.map = L.map(this.$refs.map).setView(centre, this.latitude ? 16 : 11);
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; OpenStreetMap contributors',
+                }).addTo(this.map);
+
+                this.map.on('click', (event) => this.dropPin(event.latlng.lat, event.latlng.lng));
+            } else {
+                this.map.setView(centre, this.latitude ? 16 : 11);
+            }
+
+            setTimeout(() => this.map.invalidateSize(), 60);
+
+            if (this.latitude && this.longitude) {
+                this.setMarker(Number(this.latitude), Number(this.longitude));
+            }
+        },
+
+        closeMap() {
+            this.open = false;
+            this.results = [];
+            this.error = '';
+        },
+
+        setMarker(lat, lng) {
+            const L = window.L;
+            if (! L || ! this.map) return;
+
+            if (this.marker) {
+                this.marker.setLatLng([lat, lng]);
+            } else {
+                this.marker = L.marker([lat, lng], { draggable: true }).addTo(this.map);
+                this.marker.on('dragend', () => {
+                    const p = this.marker.getLatLng();
+                    this.dropPin(p.lat, p.lng);
+                });
+            }
+        },
+
+        /** Map click or pin drag: resolve those coordinates to an address. */
+        async dropPin(lat, lng) {
+            this.setMarker(lat, lng);
+            this.busy = true;
+            this.error = '';
+
+            try {
+                const res = await fetch(`${this.endpoint}?lat=${lat}&lon=${lng}`, {
+                    headers: { Accept: 'application/json' },
+                });
+                const hits = (await res.json()).data ?? [];
+                this.picked = hits[0] ?? null;
+                if (! this.picked) this.error = 'No address at that point. Try somewhere nearer a road.';
+            } catch {
+                this.error = 'Could not reach the address service.';
+            } finally {
+                this.busy = false;
+            }
+        },
+
+        /** Search box inside the modal: pincode or place name. */
+        async search() {
+            if (this.query.trim().length < 3) return;
+            this.busy = true;
+            this.error = '';
+            this.results = [];
+
+            try {
+                const res = await fetch(`${this.endpoint}?q=${encodeURIComponent(this.query.trim())}`, {
+                    headers: { Accept: 'application/json' },
+                });
+                this.results = (await res.json()).data ?? [];
+                if (! this.results.length) this.error = 'Nothing found for that.';
+            } catch {
+                this.error = 'Could not reach the address service.';
+            } finally {
+                this.busy = false;
+            }
+        },
+
+        /** A search result was clicked: centre the map on it and make it the candidate. */
+        selectResult(hit) {
+            this.picked = hit;
+            this.results = [];
+            this.query = '';
+
+            if (this.map && hit.latitude && hit.longitude) {
+                this.map.setView([hit.latitude, hit.longitude], 16);
+                this.setMarker(hit.latitude, hit.longitude);
+            }
+        },
+
+        /** Commit the candidate to the form. */
+        apply() {
+            if (! this.picked) return;
+
+            this.$refs.address.value = this.picked.address;
+            this.pincode = this.picked.pincode ?? '';
+            this.latitude = this.picked.latitude ?? '';
+            this.longitude = this.picked.longitude ?? '';
+            this.picked = null;
+            this.closeMap();
+        },
+    };
+}
+
 // Alpine loads from a CDN and evaluates its expressions from the global scope, so the
 // wizard and the credential dialogs reach these through `window` rather than an import.
 window.compressFileInputs = compressFileInputs;
 window.makePassword = makePassword;
+window.addressFinder = addressFinder;

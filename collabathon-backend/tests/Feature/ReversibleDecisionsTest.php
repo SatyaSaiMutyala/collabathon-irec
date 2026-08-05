@@ -171,11 +171,14 @@ class ReversibleDecisionsTest extends TestCase
         $response->assertOk();
         $response->assertSee('Revoke access');
         $response->assertSee('already been decided');
-        // An active broker must not be offered "approve" again.
-        $response->assertDontSee('Re-approve broker');
+        // Asserted on the verb only — the noun ("broker" vs "channel partner") is copy that
+        // has changed once already and is not what this test is about.
+        $response->assertDontSee('Re-approve');
 
         $rejected = $this->actingAs($admin)->get(route('admin.approvals.show', $this->broker(User::STATUS_REJECTED)));
-        $rejected->assertSee('Re-approve broker');
+        $rejected->assertSee('Re-approve');
+        // A rejected registration has nothing left to revoke.
+        $rejected->assertDontSee('Revoke access');
     }
 
     // ------------------------------------------------------------------ leads

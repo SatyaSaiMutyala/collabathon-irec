@@ -61,7 +61,7 @@
                     </x-badge>
                 </div>
                 <p class="text-[13px] text-ink-2 mt-1">
-                    {{ $profile?->company_name ?: 'Independent broker' }}
+                    {{ $profile?->company_name ?: 'Independent channel partner' }}
                     @if($property) · interested in {{ $property->name }}@endif
                     · {{ $lead->created_at->format('d M Y') }}
                 </p>
@@ -76,7 +76,7 @@
                 @if($broker)
                     <x-button variant="subtle" icon="user-check" tag="a"
                               href="{{ route('admin.approvals.show', $broker) }}">
-                        Broker file
+                        Channel partner file
                     </x-button>
                 @endif
             </div>
@@ -138,7 +138,7 @@
             </x-panel>
 
             {{-- Broker ------------------------------------------------------- --}}
-            <x-panel title="Broker" flush>
+            <x-panel title="Channel Partner" flush>
                 <dl class="divide-y divide-line-soft">
                     @foreach([
                         'Name' => $broker?->name,
@@ -244,7 +244,7 @@
                         </x-badge>
                     </a>
                 @empty
-                    <p class="px-5 py-4 text-[12.5px] text-ink-3">No other activity from this broker.</p>
+                    <p class="px-5 py-4 text-[12.5px] text-ink-3">No other activity from this channel partner.</p>
                 @endforelse
             </x-panel>
         </div>

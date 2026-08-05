@@ -54,7 +54,7 @@ $notifications = [];
 if ($pendingCount > 0) {
     $notifications[] = [
         'icon' => 'user-check', 'tone' => 'info',
-        'text' => $pendingCount . ' broker ' . Str::plural('registration', $pendingCount) . ' awaiting review',
+        'text' => $pendingCount . ' channel partner ' . Str::plural('registration', $pendingCount) . ' awaiting review',
         'time' => 'Now',
     ];
 }

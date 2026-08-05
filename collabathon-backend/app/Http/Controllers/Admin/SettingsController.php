@@ -4,7 +4,11 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Mail\BrokerApprovedMail;
+use App\Models\City;
+use App\Models\Country;
 use App\Models\FormField;
+use App\Models\ProjectType;
+use App\Models\State;
 use App\Models\Setting;
 use App\Models\User;
 use App\Support\MailSettings;
@@ -17,9 +21,43 @@ use Illuminate\View\View;
 
 class SettingsController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
+        /**
+         * The location cascade's position, driven by ?country= and ?state=.
+         *
+         * Selection is resolved against the data rather than trusted from the query: a
+         * stale `?state=` left over after a delete would otherwise render a city list
+         * belonging to nothing. Falling back to the first row keeps the panel usable
+         * instead of showing three empty columns.
+         */
+        $countries = Country::withCount('states')->orderBy('name')->get();
+
+        $selectedCountry = $countries->firstWhere('id', (int) $request->query('country'))
+            ?? $countries->first();
+
+        $states = $selectedCountry
+            ? State::where('country_id', $selectedCountry->id)->withCount('cities')->orderBy('name')->get()
+            : collect();
+
+        $selectedState = $states->firstWhere('id', (int) $request->query('state'))
+            ?? $states->first();
+
+        $cities = $selectedState
+            ? City::where('state_id', $selectedState->id)->orderBy('name')->get()
+            : collect();
+
+        // Project counts drive the delete guard's wording in the panel.
+        $projectTypes = ProjectType::ordered()->get()
+            ->each(fn ($type) => $type->projects_count = $type->projectCount());
+
         return view('admin.settings', [
+            'countries' => $countries,
+            'states' => $states,
+            'cities' => $cities,
+            'selectedCountry' => $selectedCountry,
+            'selectedState' => $selectedState,
+            'projectTypes' => $projectTypes,
             'firebase' => [
                 'configured' => FirebaseCredentials::isConfigured(),
                 // Identify the account without exposing it — neither of these can send.

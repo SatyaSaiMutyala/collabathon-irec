@@ -9,16 +9,25 @@ $themeColors = [
 ];
 
 $formTitles = [
-    'broker_registration' => 'Broker Registration',
+    'broker_registration' => 'Channel Partner Registration',
     'property_listing' => 'Project Listing',
 ];
 
 $tabs = [
-    ['key' => 'forms',  'label' => 'Form fields'],
-    ['key' => 'brand',  'label' => 'Branding'],
-    ['key' => 'email',  'label' => 'Email'],
-    ['key' => 'access', 'label' => 'Access'],
+    ['key' => 'forms',     'label' => 'Form fields'],
+    ['key' => 'locations', 'label' => 'Locations'],
+    ['key' => 'project-types', 'label' => 'Project types'],
+    ['key' => 'brand',     'label' => 'Branding'],
+    ['key' => 'email',     'label' => 'Email'],
+    ['key' => 'access',    'label' => 'Access'],
 ];
+
+// LocationController redirects back with ?tab=locations so a save reopens this tab
+// instead of dropping the admin on Form fields. Whitelisted against $tabs so the query
+// string cannot select a tab that does not exist.
+$openTab = in_array(request()->query('tab'), array_column($tabs, 'key'), true)
+    ? request()->query('tab')
+    : 'forms';
 @endphp
 
 <x-layouts.admin active="settings" title="Settings" section="Configure">
@@ -28,7 +37,7 @@ $tabs = [
         subtitle="Control what appears on registration and listing forms, and how the mobile apps are branded." />
 
 
-    <div x-data="{ tab: 'forms' }">
+    <div x-data="{ tab: '{{ $openTab }}' }">
         <x-tab-bar :tabs="$tabs" model="tab" class="mb-5" />
 
         {{-- ---------------------------- Form fields ---------------------------- --}}
@@ -100,9 +109,298 @@ $tabs = [
         </div>
 
         {{-- ---------------------------- Branding ---------------------------- --}}
+        {{-- ---------------------------- Locations ----------------------------
+             Three columns, each scoped to the selection on its left. Selecting is a
+             plain link rather than a JS filter so the chosen country/state survives a
+             save, a validation error and the browser back button — the cascade's
+             position lives in the URL, not in component state. --}}
+        <div x-show="tab === 'locations'" x-cloak class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+            {{-- Countries --}}
+            <x-panel title="Countries" :subtitle="$countries->count() . ' total'" flush>
+                <ul class="divide-y divide-line-soft max-h-[26rem] overflow-y-auto scrollbar-slim">
+                    @forelse($countries as $country)
+                        @php $isOn = $selectedCountry?->id === $country->id; @endphp
+                        <li @class(['px-4 py-2.5 flex items-center gap-2', 'bg-canvas' => $isOn])>
+                            <a href="{{ route('admin.settings', ['tab' => 'locations', 'country' => $country->id]) }}"
+                               class="flex-1 min-w-0 group">
+                                <span @class(['text-[13px] truncate block', 'font-semibold text-ink' => $isOn, 'text-ink-2 group-hover:text-ink' => ! $isOn])>
+                                    {{ $country->name }}
+                                    @if($country->code)
+                                        <span class="text-[11px] text-ink-3 nums">· {{ $country->code }}</span>
+                                    @endif
+                                </span>
+                                <span class="text-[11px] text-ink-3">{{ $country->states_count }} {{ Str::plural('state', $country->states_count) }}</span>
+                            </a>
+
+                            <form method="POST" action="{{ route('admin.settings.locations.countries.destroy', $country) }}"
+                                  x-data
+                                  @submit.prevent="if (confirm('Delete “{{ $country->name }}”? Its states and cities go too.')) $el.submit()">
+                                @csrf @method('DELETE')
+                                <button type="submit" class="text-ink-3 hover:text-danger p-1" aria-label="Delete {{ $country->name }}">
+                                    <x-icon name="x" class="w-3.5 h-3.5" />
+                                </button>
+                            </form>
+                        </li>
+                    @empty
+                        <li class="px-4 py-6 text-[12.5px] text-ink-3 text-center">No countries yet. Add one to begin.</li>
+                    @endforelse
+                </ul>
+
+                <x-slot:footer>
+                    <form method="POST" action="{{ route('admin.settings.locations.countries.store') }}"
+                          class="flex items-end gap-2">
+                        @csrf
+                        <div class="flex-1"><x-field label="Country" name="name" placeholder="e.g. United Arab Emirates" /></div>
+                        <div class="w-20"><x-field label="Code" name="code" placeholder="AE" /></div>
+                        <x-button variant="primary" tag="button" type="submit" icon="plus" class="mb-3">Add</x-button>
+                    </form>
+                </x-slot:footer>
+            </x-panel>
+
+            {{-- States --}}
+            <x-panel title="States / Emirates"
+                     :subtitle="$selectedCountry ? 'In ' . $selectedCountry->name : 'Select a country first'" flush>
+                <ul class="divide-y divide-line-soft max-h-[26rem] overflow-y-auto scrollbar-slim">
+                    @forelse($states as $state)
+                        @php $isOn = $selectedState?->id === $state->id; @endphp
+                        <li @class(['px-4 py-2.5 flex items-center gap-2', 'bg-canvas' => $isOn])>
+                            <a href="{{ route('admin.settings', ['tab' => 'locations', 'country' => $selectedCountry->id, 'state' => $state->id]) }}"
+                               class="flex-1 min-w-0 group">
+                                <span @class(['text-[13px] truncate block', 'font-semibold text-ink' => $isOn, 'text-ink-2 group-hover:text-ink' => ! $isOn])>
+                                    {{ $state->name }}
+                                </span>
+                                <span class="text-[11px] text-ink-3">{{ $state->cities_count }} {{ Str::plural('city', $state->cities_count) }}</span>
+                            </a>
+
+                            <form method="POST" action="{{ route('admin.settings.locations.states.destroy', $state) }}"
+                                  x-data
+                                  @submit.prevent="if (confirm('Delete “{{ $state->name }}”? Its cities go too.')) $el.submit()">
+                                @csrf @method('DELETE')
+                                <button type="submit" class="text-ink-3 hover:text-danger p-1" aria-label="Delete {{ $state->name }}">
+                                    <x-icon name="x" class="w-3.5 h-3.5" />
+                                </button>
+                            </form>
+                        </li>
+                    @empty
+                        <li class="px-4 py-6 text-[12.5px] text-ink-3 text-center">
+                            {{ $selectedCountry ? 'No states in ' . $selectedCountry->name . ' yet.' : 'Add a country first.' }}
+                        </li>
+                    @endforelse
+                </ul>
+
+                @if($selectedCountry)
+                    <x-slot:footer>
+                        <form method="POST" action="{{ route('admin.settings.locations.states.store') }}"
+                              class="flex items-end gap-2">
+                            @csrf
+                            <input type="hidden" name="country_id" value="{{ $selectedCountry->id }}">
+                            <div class="flex-1"><x-field label="State / Emirate" name="name" placeholder="e.g. Dubai" /></div>
+                            <x-button variant="primary" tag="button" type="submit" icon="plus" class="mb-3">Add</x-button>
+                        </form>
+                    </x-slot:footer>
+                @endif
+            </x-panel>
+
+            {{-- Cities --}}
+            <x-panel title="Cities"
+                     :subtitle="$selectedState ? 'In ' . $selectedState->name : 'Select a state first'" flush>
+                <ul class="divide-y divide-line-soft max-h-[26rem] overflow-y-auto scrollbar-slim">
+                    @forelse($cities as $city)
+                        <li class="px-4 py-2.5 flex items-center gap-2">
+                            <span class="flex-1 min-w-0 text-[13px] text-ink-2 truncate">{{ $city->name }}</span>
+
+                            <form method="POST" action="{{ route('admin.settings.locations.cities.destroy', $city) }}"
+                                  x-data
+                                  @submit.prevent="if (confirm('Delete “{{ $city->name }}”?')) $el.submit()">
+                                @csrf @method('DELETE')
+                                <button type="submit" class="text-ink-3 hover:text-danger p-1" aria-label="Delete {{ $city->name }}">
+                                    <x-icon name="x" class="w-3.5 h-3.5" />
+                                </button>
+                            </form>
+                        </li>
+                    @empty
+                        <li class="px-4 py-6 text-[12.5px] text-ink-3 text-center">
+                            {{ $selectedState ? 'No cities in ' . $selectedState->name . ' yet.' : 'Add a state first.' }}
+                        </li>
+                    @endforelse
+                </ul>
+
+                @if($selectedState)
+                    <x-slot:footer>
+                        <form method="POST" action="{{ route('admin.settings.locations.cities.store') }}"
+                              class="flex items-end gap-2">
+                            @csrf
+                            <input type="hidden" name="state_id" value="{{ $selectedState->id }}">
+                            <div class="flex-1"><x-field label="City" name="name" placeholder="e.g. Deira" /></div>
+                            <x-button variant="primary" tag="button" type="submit" icon="plus" class="mb-3">Add</x-button>
+                        </form>
+                    </x-slot:footer>
+                @endif
+            </x-panel>
+        </div>
+
+        {{-- ---------------------------- Project types ----------------------------
+             Master data for the project intake form's type list. Each row is its own
+             PATCH form so a single Save touches only that type, and the panel needs no
+             client-side state to track which row is dirty. --}}
+        <div x-show="tab === 'project-types'" x-cloak class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+
+            <x-panel title="Project types" flush class="xl:col-span-2">
+                <x-slot:actions>
+                    <span class="text-[11.5px] text-ink-3 nums">{{ $projectTypes->count() }} total</span>
+                </x-slot:actions>
+
+                <div class="overflow-x-auto scrollbar-slim">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-line-soft">
+                                <th scope="col" class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3">Name</th>
+                                <th scope="col" class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3 w-[130px]">
+                                    Possession date
+                                </th>
+                                <th scope="col" class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3 w-[90px]">Active</th>
+                                <th scope="col" class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3 w-[80px]">Order</th>
+                                <th scope="col" class="px-4 py-2.5 w-[120px]"><span class="sr-only">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line-soft">
+                            @forelse($projectTypes as $type)
+                                <tr class="hover:bg-canvas transition-colors align-middle">
+                                    <form method="POST" action="{{ route('admin.settings.project-types.update', $type) }}"
+                                          id="type-form-{{ $type->id }}">
+                                        @csrf @method('PATCH')
+                                    </form>
+
+                                    <td class="px-4 py-2.5">
+                                        <input form="type-form-{{ $type->id }}" name="name" value="{{ $type->name }}"
+                                               required maxlength="96"
+                                               class="w-full h-9 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink
+                                                      focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
+                                        @if($type->projects_count)
+                                            <p class="text-[11px] text-ink-3 mt-1">
+                                                {{ $type->projects_count }} {{ Str::plural('project', $type->projects_count) }} —
+                                                renaming updates {{ $type->projects_count === 1 ? 'it' : 'them' }} too
+                                            </p>
+                                        @endif
+                                    </td>
+
+                                    <td class="px-4 py-2.5">
+                                        {{-- Paired hidden input so "off" posts 0 rather than dropping the key. --}}
+                                        <input form="type-form-{{ $type->id }}" type="hidden" name="requires_possession_date" value="0">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input form="type-form-{{ $type->id }}" type="checkbox"
+                                                   name="requires_possession_date" value="1"
+                                                   @checked($type->requires_possession_date)
+                                                   class="w-4 h-4 rounded border-line text-primary focus:ring-primary-ring">
+                                            <span class="text-[12px] text-ink-2">Required</span>
+                                        </label>
+                                    </td>
+
+                                    <td class="px-4 py-2.5">
+                                        <input form="type-form-{{ $type->id }}" type="hidden" name="is_active" value="0">
+                                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                                            <input form="type-form-{{ $type->id }}" type="checkbox" name="is_active" value="1"
+                                                   @checked($type->is_active)
+                                                   class="w-4 h-4 rounded border-line text-primary focus:ring-primary-ring">
+                                            <span class="text-[12px] text-ink-2">On</span>
+                                        </label>
+                                    </td>
+
+                                    <td class="px-4 py-2.5">
+                                        <input form="type-form-{{ $type->id }}" name="sort_order" type="number" min="0" max="65535"
+                                               value="{{ $type->sort_order }}"
+                                               class="w-full h-9 px-2 rounded-lg bg-panel border border-line text-[13px] text-ink nums
+                                                      focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
+                                    </td>
+
+                                    <td class="px-4 py-2.5">
+                                        <div class="flex items-center justify-end gap-1.5">
+                                            <x-button variant="subtle" size="sm" tag="button" type="submit"
+                                                      form="type-form-{{ $type->id }}">Save</x-button>
+
+                                            @php
+                                                $typeDelete = \Illuminate\Support\Js::from([
+                                                    'title' => 'Delete this project type?',
+                                                    'message' => $type->projects_count
+                                                        ? "“{$type->name}” is used by {$type->projects_count} project"
+                                                            . ($type->projects_count === 1 ? '' : 's')
+                                                            . ' and cannot be deleted — turn it off instead.'
+                                                        : "“{$type->name}” will no longer be offered on the project form.",
+                                                    'confirmLabel' => 'Delete type',
+                                                    'tone' => 'danger',
+                                                ]);
+                                            @endphp
+                                            <form method="POST" action="{{ route('admin.settings.project-types.destroy', $type) }}"
+                                                  x-on:submit.prevent="$dispatch('confirm-request', { ...{{ $typeDelete }}, form: $el })">
+                                                @csrf @method('DELETE')
+                                                <button type="submit" class="text-ink-3 hover:text-danger p-1.5 rounded-md transition-colors"
+                                                        aria-label="Delete {{ $type->name }}">
+                                                    <x-icon name="x" class="w-3.5 h-3.5" />
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="5" class="px-4 py-8 text-[12.5px] text-ink-3 text-center">
+                                        No project types yet. Add one so the project form has something to offer.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </x-panel>
+
+            <div class="space-y-4">
+                <x-panel title="Add a project type" padded class="self-start">
+                    <form method="POST" action="{{ route('admin.settings.project-types.store') }}" class="space-y-3.5">
+                        @csrf
+                        <x-field label="Name" name="name" placeholder="e.g. Farmhouse" required maxlength="96" />
+
+                        <input type="hidden" name="requires_possession_date" value="0">
+                        <x-switch-field label="Needs a possession date" name="requires_possession_date"
+                                        hint="RERA mandates a completion date for built units. Leave off for land-only types." />
+
+                        <input type="hidden" name="is_active" value="0">
+                        <x-switch-field label="Offer on the project form" name="is_active" :checked="true"
+                                        hint="Turn off to retire a type without touching existing projects." />
+
+                        <div class="pt-1">
+                            <x-button variant="primary" tag="button" type="submit" icon="plus" class="w-full">
+                                Add project type
+                            </x-button>
+                        </div>
+                    </form>
+                </x-panel>
+
+                <x-panel title="How this works" padded class="self-start">
+                    <div class="space-y-3 text-[12.5px] text-ink-2 leading-relaxed">
+                        <p>
+                            These are the options the project intake form offers under
+                            <span class="font-medium text-ink">Project type</span>, and the choices in the
+                            Projects list filter.
+                        </p>
+                        <p>
+                            Types marked <span class="font-medium text-ink">Possession date required</span> make
+                            <span class="font-medium text-ink">Possession date (as per RERA)</span> appear and become
+                            mandatory on that project.
+                        </p>
+                        <p>
+                            Renaming a type updates every project already using it. A type still in use cannot be
+                            deleted — turn it off instead, which hides it from new projects while leaving existing
+                            ones untouched.
+                        </p>
+                    </div>
+                </x-panel>
+            </div>
+        </div>
+
         <div x-show="tab === 'brand'" x-cloak class="grid grid-cols-1 xl:grid-cols-3 gap-4">
             <x-panel title="App accent colour"
-                     subtitle="Sets the accent across the Broker and Developer mobile apps"
+                     subtitle="Sets the accent across the Channel Partner and Developer mobile apps"
                      padded class="xl:col-span-2">
                 <form method="POST" action="{{ route('admin.settings.theme') }}" x-data="{ picked: '{{ $accentColor }}' }">
                     @csrf @method('PATCH')
@@ -137,7 +435,7 @@ $tabs = [
                     <div class="flex items-center gap-2.5 mb-4">
                         <span class="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[10.5px] font-bold"
                               style="background-color: {{ $accentColor }}">iR</span>
-                        <span class="text-white text-[12.5px] font-medium">iREC Broker</span>
+                        <span class="text-white text-[12.5px] font-medium">iREC Channel Partner</span>
                     </div>
                     <div class="h-2 w-2/3 bg-nav-active mb-2"></div>
                     <div class="h-2 w-1/2 bg-nav-soft mb-4"></div>
@@ -153,7 +451,7 @@ $tabs = [
         {{-- ---------------------------- Email ---------------------------- --}}
         <div x-show="tab === 'email'" x-cloak class="grid grid-cols-1 xl:grid-cols-3 gap-4">
             <x-panel title="Mailjet"
-                     subtitle="Used to email approved brokers their sign-in details"
+                     subtitle="Used to email approved channel partners their sign-in details"
                      padded class="xl:col-span-2">
 
                 <div @class([
@@ -170,10 +468,10 @@ $tabs = [
                         <p class="text-[12.5px] text-ink-2 mt-0.5 leading-relaxed">
                             @if($mail['configured'])
                                 Sending as <span class="nums">{{ $mail['from_address'] }}</span> with key
-                                <span class="nums">{{ $mail['masked_key'] }}</span>. Approving a broker emails them
+                                <span class="nums">{{ $mail['masked_key'] }}</span>. Approving a channel partner emails them
                                 automatically.
                             @else
-                                Until a key is saved here, approving a broker changes their access but sends no email.
+                                Until a key is saved here, approving a channel partner changes their access but sends no email.
                             @endif
                         </p>
                     </div>
@@ -230,11 +528,11 @@ $tabs = [
                     <ul class="space-y-2.5 text-[12.5px] text-ink-2 leading-relaxed">
                         <li class="flex gap-2">
                             <span class="text-primary">&bull;</span>
-                            <span>A broker is <strong class="text-ink">approved</strong> — they get their sign-in details.</span>
+                            <span>A channel partner is <strong class="text-ink">approved</strong> — they get their sign-in details.</span>
                         </li>
                         <li class="flex gap-2">
                             <span class="text-primary">&bull;</span>
-                            <span>A broker's password is <strong class="text-ink">reset</strong> — the new one is emailed to them.</span>
+                            <span>A channel partner's password is <strong class="text-ink">reset</strong> — the new one is emailed to them.</span>
                         </li>
                     </ul>
                     <p class="text-[12px] text-ink-3 mt-4 pt-3 border-t border-line-soft leading-relaxed">

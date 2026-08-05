@@ -130,30 +130,157 @@
     {{-- ============================== Details ============================== --}}
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
         <div class="xl:col-span-2 space-y-4">
+            @php
+                /**
+                 * Paired two-up via x-detail-grid rather than a row per field: every value
+                 * here is short, and a full-width row for "Pincode" left most of the line
+                 * blank on a panel this wide.
+                 *
+                 * Ten short fields, so they chunk into five clean pairs. The address is the
+                 * one genuinely long value and takes a row of its own; the coordinates ride
+                 * underneath it as a muted second line rather than as a twelfth field,
+                 * which would have left a half-empty row and separated them from the place
+                 * they describe.
+                 */
+                $coords = $developer->latitude && $developer->longitude
+                    ? number_format((float) $developer->latitude, 5) . ', ' . number_format((float) $developer->longitude, 5)
+                    : null;
+
+                $addressCell = new \Illuminate\Support\HtmlString(
+                    filled($developer->address)
+                        ? e($developer->address) . ($coords
+                            ? '<span class="block text-[11.5px] text-ink-3 nums mt-1">' . e($coords) . '</span>'
+                            : '')
+                        : '—'
+                );
+            @endphp
+
             <x-panel title="Company" flush>
-                <dl class="divide-y divide-line-soft">
-                    @foreach([
-                        'Company name' => $developer->company_name,
-                        'Contact person' => $developer->contact_person,
-                        'Mobile' => $developer->mobile,
-                        'City' => $developer->city,
-                        'State / Emirate' => $developer->state,
-                        'RERA / licence' => $developer->rera_number,
-                    ] as $label => $value)
-                        <div class="px-5 py-3 flex items-start gap-4">
-                            <dt class="text-[12.5px] text-ink-3 w-[150px] shrink-0">{{ $label }}</dt>
-                            <dd class="text-[13px] text-ink min-w-0 break-words">
-                                {{ $value ?: '—' }}
-                            </dd>
-                        </div>
-                    @endforeach
-                </dl>
+                {{-- Ten short fields = five exact pairs. Designation rides with the contact
+                     name rather than taking a field of its own, which would make the count
+                     odd and strand the last value in a half-empty row. --}}
+                <x-detail-grid :fields="[
+                    ['label' => 'Company name', 'value' => $developer->company_name],
+                    ['label' => 'RERA / licence', 'value' => $developer->rera_number],
+                    ['label' => 'Website', 'value' => $developer->website],
+                    ['label' => 'Social media', 'value' => $developer->social_media],
+                    ['label' => 'Contact person', 'value' => collect([$developer->contact_person, $developer->contact_designation])->filter()->join(' · ')],
+                    ['label' => 'Mobile', 'value' => $developer->mobile],
+                    ['label' => 'Country', 'value' => $developer->country],
+                    ['label' => 'State / Emirate', 'value' => $developer->state],
+                    ['label' => 'City', 'value' => $developer->city],
+                    ['label' => 'Pincode', 'value' => $developer->pincode],
+                    ['label' => 'Address', 'value' => $addressCell, 'wide' => true],
+                ]" />
+            </x-panel>
+
+            {{-- Key contact. Separate panel, badged, so it reads as internal at a glance —
+                 DeveloperResource omits these columns, so none of it reaches the app. --}}
+            <x-panel flush>
+                <x-slot:title>Key contact</x-slot:title>
+                <x-slot:actions>
+                    <x-badge tone="neutral" size="sm">Admin only · not shown to CPs</x-badge>
+                </x-slot:actions>
+
+                {{-- Four short fields = two exact pairs. Designation stays its own field
+                     here, unlike the public contact, because it is the thing that tells an
+                     admin whether this is the person who can actually decide anything. --}}
+                <x-detail-grid :fields="[
+                    ['label' => 'Name', 'value' => $developer->key_contact_person],
+                    ['label' => 'Designation', 'value' => $developer->key_contact_designation],
+                    ['label' => 'Mobile', 'value' => $developer->key_contact_mobile],
+                    ['label' => 'Email', 'value' => $developer->key_contact_email],
+                ]" />
             </x-panel>
 
             <x-panel title="About the company" padded>
                 <p class="text-[13px] text-ink-2 leading-relaxed whitespace-pre-line">
                     {{ $developer->about ?: 'No description added yet.' }}
                 </p>
+            </x-panel>
+
+            {{-- ---------------------------- Projects ----------------------------
+                 The whole point of a developer record is what they are selling, so the
+                 list belongs on the profile rather than one filter-click away on the
+                 projects screen. --}}
+            @php
+                $overCap = $properties->count() > $projectCap;
+                $shown = $properties->take($projectCap);
+
+                $listingTone = ['active' => 'success', 'draft' => 'neutral', 'archived' => 'danger'];
+            @endphp
+
+            <x-panel flush>
+                <x-slot:title>Projects</x-slot:title>
+                <x-slot:actions>
+                    @if($stats['listings'] > 0)
+                        <a href="{{ route('admin.properties', ['developer_id' => $developer->id]) }}"
+                           class="text-[12px] text-primary-dark hover:underline">
+                            View all {{ $stats['listings'] }}
+                        </a>
+                    @endif
+                </x-slot:actions>
+
+                @forelse($shown as $project)
+                    <a href="{{ route('admin.properties.show', $project) }}"
+                       @class([
+                           'flex items-center gap-3 px-5 py-3 hover:bg-canvas transition-colors',
+                           'border-b border-line-soft' => ! $loop->last,
+                       ])>
+                        @if($project->cover_image_path)
+                            <img src="{{ Storage::disk('public')->url($project->cover_image_path) }}" alt=""
+                                 class="w-11 h-11 rounded-lg object-cover border border-line-soft shrink-0">
+                        @else
+                            <div class="w-11 h-11 rounded-lg bg-canvas border border-line-soft flex items-center justify-center shrink-0">
+                                <x-icon name="building" class="w-4 h-4 text-ink-3" />
+                            </div>
+                        @endif
+
+                        <div class="min-w-0 flex-1">
+                            <p class="text-[13px] font-medium text-ink truncate">{{ $project->name }}</p>
+                            <p class="text-[11.5px] text-ink-3 truncate">
+                                {{ collect([$project->project_type, $project->project_status, $project->city])
+                                    ->filter()->join(' · ') }}
+                            </p>
+                        </div>
+
+                        {{-- Price and engagement are the two things that say whether a
+                             listing is working; both hide before the name does. --}}
+                        <div class="text-right shrink-0 hidden sm:block">
+                            {{-- Millions, matching the projects list. A second unit for the
+                                 same figure across two screens is a reading error waiting
+                                 to happen. --}}
+                            <p class="text-[12.5px] text-ink nums">
+                                @if($project->price_min)
+                                    {{ $project->currency }} {{ number_format($project->price_min / 1_000_000, 2) }}M
+                                @else
+                                    —
+                                @endif
+                            </p>
+                            <p class="text-[11px] text-ink-3 nums">
+                                {{ $project->views_count }} views · {{ $project->interests_count }} interested
+                            </p>
+                        </div>
+
+                        <x-badge :tone="$listingTone[$project->listing_status] ?? 'neutral'" size="sm" dot>
+                            {{ ucfirst($project->listing_status) }}
+                        </x-badge>
+                    </a>
+                @empty
+                    <x-empty-state icon="building"
+                                   title="No projects yet"
+                                   description="Listings created for this developer will appear here." />
+                @endforelse
+
+                @if($overCap)
+                    <x-slot:footer>
+                        <a href="{{ route('admin.properties', ['developer_id' => $developer->id]) }}"
+                           class="text-[12px] text-primary-dark hover:underline">
+                            {{ $stats['listings'] - $projectCap }} more —
+                            see every project by {{ $developer->company_name }}
+                        </a>
+                    </x-slot:footer>
+                @endif
             </x-panel>
         </div>
 
@@ -257,9 +384,19 @@
                 <input type="hidden" name="_form" value="developer-edit">
 
                 <div class="space-y-3">
+                    <x-field label="Company name" name="company_name" :value="$developer->company_name" required />
+
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <x-field label="Company name" name="company_name" :value="$developer->company_name" required />
+                        <x-field label="Company website" name="website" :value="$developer->website"
+                                 placeholder="https://example.ae" />
+                        <x-field label="Social media" name="social_media" :value="$developer->social_media"
+                                 placeholder="@handle or profile URL" />
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <x-field label="Contact person" name="contact_person" :value="$developer->contact_person" required />
+                        <x-field label="Designation" name="contact_designation" :value="$developer->contact_designation"
+                                 placeholder="e.g. Sales Head" />
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -268,17 +405,49 @@
                                  :value="$developer->user?->email ?? $developer->email"
                                  hint="This is their login." />
                     </div>
+                </div>
+
+                {{-- Key contact ------------------------------------------------- --}}
+                <div class="border-t border-line-soft space-y-3 pt-4">
+                    <div class="flex items-center gap-2">
+                        <h4 class="text-[13px] font-semibold text-ink">Key contact</h4>
+                        <x-badge tone="neutral" size="sm">Admin only</x-badge>
+                    </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <x-field label="City" name="city" :value="$developer->city" icon="map-pin" required />
-                        <x-field label="State / Emirate" name="state" :value="$developer->state" />
+                        <x-field label="Key contact person" name="key_contact_person"
+                                 :value="$developer->key_contact_person" placeholder="Full name" />
+                        <x-field label="Designation" name="key_contact_designation"
+                                 :value="$developer->key_contact_designation" placeholder="e.g. Managing Director" />
                     </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <x-field label="Key contact mobile" name="key_contact_mobile"
+                                 :value="$developer->key_contact_mobile" icon="phone" />
+                        <x-field label="Key contact email" name="key_contact_email" type="email"
+                                 :value="$developer->key_contact_email" icon="mail" />
+                    </div>
+                </div>
+
+                {{-- Location ---------------------------------------------------- --}}
+                <div class="border-t border-line-soft space-y-3 pt-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {{-- Same picker as the create form. Values typed before Locations
+                             existed are kept as options so saving cannot blank them. --}}
+                        <x-location-picker :country="$developer->country" :state="$developer->state"
+                                           :city="$developer->city" required />
+                    </div>
+
+                    {{-- Same single address field as the create form; pincode and
+                         coordinates ride along hidden, filled by the map lookup. --}}
+                    <x-address-finder :address="$developer->address" :pincode="$developer->pincode"
+                                      :latitude="$developer->latitude" :longitude="$developer->longitude" />
                 </div>
 
                 <div class="border-t border-line-soft space-y-3 pt-4">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <x-field label="RERA / licence number" name="rera_number" :value="$developer->rera_number"
-                                 hint="Shown to brokers as a trust signal." />
+                                 hint="Shown to channel partners as a trust signal." />
                         <x-file-field label="Replace logo" name="logo" accept="image/*"
                                       hint="Leave empty to keep the current logo." />
                     </div>

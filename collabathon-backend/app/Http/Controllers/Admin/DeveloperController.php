@@ -30,6 +30,9 @@ class DeveloperController extends Controller
         'listings' => 'properties_count',
     ];
 
+    /** How many of a developer's projects the profile lists before linking out. */
+    private const PROJECTS_ON_PROFILE = 8;
+
     public function index(Request $request): View
     {
         $query = Developer::query()
@@ -43,6 +46,7 @@ class DeveloperController extends Controller
                     ->orWhere('contact_person', 'like', $term . '%')
                     ->orWhere('email', 'like', $term . '%'));
             })
+            ->when($request->query('country'), fn ($q, $v) => $q->where('country', $v))
             ->when($request->query('city'), fn ($q, $v) => $q->where('city', $v))
             ->when($request->query('status'), fn ($q, $v) => $q->where('status', $v));
 
@@ -50,12 +54,22 @@ class DeveloperController extends Controller
 
         return view('admin.developers', [
             'developers' => $this->paginate($query, $request),
+            // Only values that actually occur, so the filter can never return nothing.
             'cities' => Developer::query()->distinct()->orderBy('city')->pluck('city')->filter()->values(),
+            'countries' => Developer::query()->distinct()->orderBy('country')->pluck('country')->filter()->values(),
+            /*
+             * Coverage, not commercials. Listing count and average payout belong to the
+             * project and finance views — on a directory of companies the question an
+             * admin is actually asking is "where do we have developers, and where don't
+             * we". distinct() ignores NULL, so a developer with no country set is simply
+             * not counted rather than showing up as an empty region.
+             */
             'totals' => [
                 'all' => Developer::count(),
                 'active' => Developer::where('status', 'active')->count(),
-                'listings' => DB::table('properties')->whereNull('deleted_at')->count(),
-                'avg_payout' => round((float) Developer::avg('cp_payout_percent'), 2),
+                'countries' => Developer::distinct()->whereNotNull('country')->count('country'),
+                'states' => Developer::distinct()->whereNotNull('state')->count('state'),
+                'cities' => Developer::distinct()->whereNotNull('city')->count('city'),
             ],
         ]);
     }
@@ -69,6 +83,20 @@ class DeveloperController extends Controller
 
         return view('admin.developers.show', [
             'developer' => $developer,
+            /*
+             * This developer's projects, newest first.
+             *
+             * Not paginated: the panel sits below the record on a page that already has
+             * its own scroll, and a second paginator here would fight the page's own
+             * query string. Capped instead — a developer with more than the cap gets a
+             * "view all" link into the projects list, filtered to them, which is the
+             * screen built for browsing at that size.
+             */
+            'properties' => $developer->properties()
+                ->latest()
+                ->limit(self::PROJECTS_ON_PROFILE + 1)
+                ->get(),
+            'projectCap' => self::PROJECTS_ON_PROFILE,
             'stats' => [
                 'listings' => $developer->properties()->count(),
                 'active' => $developer->properties()->where('listing_status', 'active')->count(),
@@ -96,15 +124,53 @@ class DeveloperController extends Controller
             // hard limit — anything longer is silently truncated.
             'password' => ['nullable', 'string', 'min:8', 'max:72'],
             'mobile' => ['required', 'string', 'max:32'],
+            'contact_designation' => ['nullable', 'string', 'max:96'],
+
+            // Key contact — internal. Nullable because it is often filled in after the
+            // account exists, once someone has actually spoken to the developer.
+            'key_contact_person' => ['nullable', 'string', 'max:255'],
+            'key_contact_designation' => ['nullable', 'string', 'max:96'],
+            'key_contact_mobile' => ['nullable', 'string', 'max:32'],
+            'key_contact_email' => ['nullable', 'email', 'max:255'],
+
+            'country' => ['nullable', 'string', 'max:96'],
             'city' => ['required', 'string', 'max:96'],
             'state' => ['nullable', 'string', 'max:96'],
+            'pincode' => ['nullable', 'string', 'max:12'],
+            'address' => ['nullable', 'string', 'max:1000'],
+            // Bounded to real coordinates: a transposed pair puts the developer in the
+            // sea, and a stray decimal puts them off the planet.
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+
             'rera_number' => ['nullable', 'string', 'max:64'],
             'logo' => ['nullable', 'image', 'max:2048'],
             'about' => ['nullable', 'string', 'max:5000'],
-            'cp_payout_percent' => ['required', 'numeric', 'min:0', 'max:100'],
-            'verified' => ['required', 'boolean'],
-            'status' => ['required', 'in:active,paused'],
+            'website' => ['nullable', 'string', 'max:255'],
+            'social_media' => ['nullable', 'string', 'max:255'],
+            // Commercial terms are no longer asked for at creation — see below. Still
+            // validated rather than ignored, so a client that does send them is held to
+            // the same bounds as the edit form.
+            'cp_payout_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'verified' => ['nullable', 'boolean'],
+            'status' => ['nullable', 'in:active,paused'],
         ]);
+
+        /**
+         * Defaults for the fields the create form no longer collects.
+         *
+         * `verified` and `status` match the column defaults: a new developer is unverified
+         * until someone checks their licence, and active so the account works immediately.
+         *
+         * `cp_payout_percent` deliberately does NOT use the column default of 0. The form
+         * pre-filled 2.50 and most admins accepted it, so falling through to 0 would
+         * quietly create developers paying channel partners nothing — a real commercial
+         * value dressed up as an empty one. 2.50 keeps the previous outcome for the common
+         * path; it is editable on the developer's page straight after creation.
+         */
+        $data['cp_payout_percent'] ??= 2.50;
+        $data['verified'] ??= false;
+        $data['status'] ??= 'active';
 
         // `logo` is the upload; `logo_path` is what the column stores.
         unset($data['logo']);
@@ -205,8 +271,23 @@ class DeveloperController extends Controller
                 Rule::unique('users', 'email')->ignore($developer->user_id),
             ],
             'mobile' => ['sometimes', 'required', 'string', 'max:32'],
+            'contact_designation' => ['sometimes', 'nullable', 'string', 'max:96'],
+
+            'key_contact_person' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'key_contact_designation' => ['sometimes', 'nullable', 'string', 'max:96'],
+            'key_contact_mobile' => ['sometimes', 'nullable', 'string', 'max:32'],
+            'key_contact_email' => ['sometimes', 'nullable', 'email', 'max:255'],
+
+            'country' => ['sometimes', 'nullable', 'string', 'max:96'],
             'city' => ['sometimes', 'required', 'string', 'max:96'],
             'state' => ['sometimes', 'nullable', 'string', 'max:96'],
+            'pincode' => ['sometimes', 'nullable', 'string', 'max:12'],
+            'address' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'latitude' => ['sometimes', 'nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['sometimes', 'nullable', 'numeric', 'between:-180,180'],
+
+            'website' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'social_media' => ['sometimes', 'nullable', 'string', 'max:255'],
             'rera_number' => ['sometimes', 'nullable', 'string', 'max:64'],
             'logo' => ['nullable', 'image', 'max:2048'],
             'about' => ['sometimes', 'nullable', 'string', 'max:5000'],

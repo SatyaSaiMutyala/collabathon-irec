@@ -2,7 +2,7 @@
 
     <x-page-header
         title="Pending Approvals"
-        subtitle="Brokers cannot sign in to the mobile app until an admin approves their registration. Approving issues their access immediately.">
+        subtitle="Channel partners cannot sign in to the mobile app until an admin approves their registration. Approving issues their access immediately.">
         <x-slot:actions>
             {{-- The decision history lives on its own page: this one is work outstanding,
                  that one is a record that only grows. --}}
@@ -26,17 +26,17 @@
         search-placeholder="Search by name, company, email or RERA…"
         empty-icon="check"
         empty-title="Queue is clear"
-        empty-description="Every broker registration has been reviewed.">
+        empty-description="Every channel partner registration has been reviewed.">
 
         <x-slot:filters>
             <x-filter-select name="city" :options="$cities" placeholder="All cities" />
         </x-slot:filters>
 
         <x-slot:head>
-            <x-th>Broker</x-th>
+            <x-th>Channel Partner</x-th>
             <x-th hide="lg">Contact</x-th>
             <x-th hide="md">RERA</x-th>
-            <x-th hide="xl">Segments</x-th>
+            <x-th hide="xl">Categories</x-th>
             <x-th hide="lg">Submitted</x-th>
             <x-th align="right">Decision</x-th>
         </x-slot:head>
