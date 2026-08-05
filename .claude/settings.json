@@ -20,7 +20,22 @@
       "Bash(rm -f /tmp/irec_verify.txt /tmp/lp.html /tmp/dash.html /tmp/roles.html /tmp/team.html)",
       "Bash(\"/c/xampp/mysql/bin/mysql.exe\" -u root -e \"show databases;\")",
       "Bash(\"/c/xampp/mysql/bin/mysql.exe\" -u root -e \"use \\\\`new\\\\`; show tables;\")",
-      "Bash(echo \"EXIT=$?\")"
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(osascript -e 'tell application \"Simulator\" to activate' -e 'delay 0.5' -e 'tell application \"System Events\" to tell process \"Simulator\" to click menu item \"Point Accurate\" of menu 1 of menu bar item \"Window\" of menu bar 1')",
+      "Bash(osascript -e 'tell application \"System Events\" to tell process \"Simulator\" to get {position, size} of window 1')",
+      "Bash(chmod +x tap.sh)",
+      "Bash(./tap.sh 151 819)",
+      "Bash(swiftc -O -o /private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/siminput /private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/simctl-input.swift)",
+      "Bash(/private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/sim tap *)",
+      "Bash(/private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/sim shot *)",
+      "Bash(sips -Z 420 /private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/shots/20_dev_dashboard.png --out /private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/shots/_dd.png)",
+      "Bash(sips -Z 420 /private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/shots/29_project_terms.png --out /private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/shots/_pt2.png)",
+      "Bash(DELAY=1.0 /private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/sim tap 200 375)",
+      "Bash(/private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/sim type *)",
+      "Bash(DELAY=1.0 /private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/sim tap 200 468)",
+      "Bash(DELAY=2 /private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/sim tap 200 551)",
+      "Bash(/private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/pdfpage /private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/pdf/out.pdf 30 /private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/pdf)",
+      "Bash(sips -Z 1100 /private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/pdf/page30.png --out /private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/pdf/s30.png)"
     ]
   }
 }
