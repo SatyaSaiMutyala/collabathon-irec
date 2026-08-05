@@ -15,7 +15,7 @@ import {Platform} from 'react-native';
  * `php artisan serve --host=0.0.0.0` so the device can reach it directly. Leave it null
  * to use loopback. It is machine-specific: do not commit a value you did not set.
  */
-const LAN_HOST = '192.168.1.2';
+const LAN_HOST = null;
 
 const DEV_HOST =
   LAN_HOST ??
@@ -25,8 +25,10 @@ const DEV_HOST =
     default: '127.0.0.1',
   });
 
-// `php artisan serve` for collabathon-backend, which binds 127.0.0.1:8000 by default.
-const DEV_PORT = 8000;
+// 8001, not artisan serve's default 8000: the admin panel and APP_URL are both on 8001,
+// and asset()/Storage::url() build every image and document URL from APP_URL — so a
+// mismatch here hands the device links to a port nothing is listening on.
+const DEV_PORT = 8001;
 
 // The __DEV__ branch resolves to exactly the same loopback URL a hardcoded string gave,
 // so debug builds are unchanged — but a release build has to reach the real API, and a

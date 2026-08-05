@@ -15,6 +15,10 @@ import client from './client';
  * happily store. The file part is the {uri, name, type} object React Native's fetch
  * understands.
  */
+/** A picker result: the {uri, name, type} shape React Native's fetch sends as a file. */
+const isFilePart = value =>
+  value !== null && typeof value === 'object' && typeof value.uri === 'string';
+
 function toFormData(payload) {
   const form = new FormData();
 
@@ -23,8 +27,11 @@ function toFormData(payload) {
       return;
     }
 
-    if (key === 'photo') {
-      form.append('photo', value);
+    // Detected by shape, not by name. This used to test `key === 'photo'`, so every
+    // other attachment fell through to String(value) and was posted as the literal
+    // "[object Object]" — which is why the KYC scans never reached the server.
+    if (isFilePart(value)) {
+      form.append(key, value);
       return;
     }
 
@@ -42,13 +49,16 @@ function toFormData(payload) {
 // ---------------------------------------------------------------- auth
 export const authApi = {
   /**
-   * Registration carries an optional passport photo, so it goes out as multipart when
-   * one was picked and as plain JSON when it was not — a JSON body cannot carry a file,
-   * and forcing multipart on every registration would turn every boolean and array into
-   * a string the server then has to un-stringify.
+   * Registration carries a passport photo and the KYC scans, so it goes out as multipart
+   * when anything was picked and as plain JSON when nothing was — a JSON body cannot
+   * carry a file, and forcing multipart on every registration would turn every boolean
+   * and array into a string the server then has to un-stringify.
+   *
+   * The check is "any file part", not "photo": a broker who attached their PAN and
+   * Aadhaar but skipped the photo was sent as JSON, and every scan was silently dropped.
    */
   register: payload =>
-    payload.photo
+    Object.values(payload).some(isFilePart)
       ? client.post('/auth/register', toFormData(payload), {
           headers: {'Content-Type': 'multipart/form-data'},
         })

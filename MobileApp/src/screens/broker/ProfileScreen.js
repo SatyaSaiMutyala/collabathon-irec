@@ -66,7 +66,6 @@ const ProfileScreen = () => {
     reraNumber: profile.rera_number,
     reraCertificateExpiry: profile.rera_certificate_expiry,
     gstNumber: profile.gst_number,
-    chequeDetails: profile.cheque_details,
     state: profile.state,
     city: profile.city,
     segments: profile.segments,
@@ -151,13 +150,8 @@ const ProfileScreen = () => {
             value={attachmentLabel(broker.reraCertificateAttachment)}
             valueColor={broker.reraCertificateAttachment ? colors.success : colors.textMuted}
           />
-          <InfoRow icon="wallet-outline" label="Cancelled Cheque" value={fallback(broker.chequeDetails)} />
-          <InfoRow
-            icon="document-attach-outline"
-            label="Cheque Attachment"
-            value={attachmentLabel(broker.chequeAttachment)}
-            valueColor={broker.chequeAttachment ? colors.success : colors.textMuted}
-          />
+          {/* No cancelled-cheque rows: registration stopped collecting the number and the
+              scan, so both could only ever render the "—" placeholder. */}
           <InfoRow icon="receipt-outline" label="GST Number" value={fallback(broker.gstNumber)} />
           <InfoRow
             icon="document-attach-outline"
@@ -185,12 +179,9 @@ const ProfileScreen = () => {
           />
           <InfoRow icon="albums-outline" label="Project Contributions" value={fallback(broker.projectContributions)} />
           <InfoRow icon="earth-outline" label="Operates in Multiple States" value={yesNo(broker.operatesMultipleStates)} />
-          <InfoRow
-            icon="create-outline"
-            label="Authorized Signature"
-            value={broker.hasSignature ? 'Signed' : 'Not signed'}
-            valueColor={broker.hasSignature ? colors.success : colors.textMuted}
-          />
+          {/* No signature row: the register form's pad only sets a local `hasSignature`
+              flag and never uploads the image, so nothing about it survives submission
+              and this always read "Not signed" — including for people who had signed. */}
         </Card>
 
         <Button

@@ -278,6 +278,18 @@ const RegisterScreen = ({navigation}) => {
     inputRefs.current[focusKey]?.focus?.();
   };
 
+  /**
+   * A picked file as the {uri, name, type} part React Native's fetch understands.
+   *
+   * `type` is declared as JPEG because the picker only ever returns camera/gallery
+   * images here; the server sniffs the real mime anyway and accepts PDF too, so a
+   * mislabelled part is validated on its contents rather than this hint.
+   */
+  const filePart = (uri, fallbackName) =>
+    uri
+      ? {uri, name: uri.split('/').pop() || fallbackName, type: 'image/jpeg'}
+      : null;
+
   /** Maps the empanelment form onto the API's register contract. */
   const toPayload = () => ({
     name: [form.suffix, form.fullNameAsRera].filter(Boolean).join(' ').trim(),
@@ -316,13 +328,16 @@ const RegisterScreen = ({navigation}) => {
     // The picker hands back a local file:// URI. The transport layer turns this into a
     // multipart part; sending the URI as a plain string would store a path that only
     // ever resolved on the device that typed it.
-    photo: form.photoAttachment
-      ? {
-          uri: form.photoAttachment,
-          name: form.photoAttachment.split('/').pop() || 'photo.jpg',
-          type: 'image/jpeg',
-        }
-      : null,
+    photo: filePart(form.photoAttachment, 'photo.jpg'),
+
+    // The KYC scans. The form has always collected these — PAN, Aadhaar and RERA are
+    // required to get past validation — but they were never put in the payload, so every
+    // registration arrived with the numbers and none of the documents, and the admin's
+    // Documents panel read "Not provided" for all of them.
+    pan_card_file: filePart(form.panCardAttachment, 'pan-card.jpg'),
+    aadhaar_file: filePart(form.aadhaarAttachment, 'aadhaar.jpg'),
+    rera_certificate_file: filePart(form.reraCertificateAttachment, 'rera-certificate.jpg'),
+    gst_file: filePart(form.gstAttachment, 'gst.jpg'),
   });
 
   const handleSubmit = async () => {
