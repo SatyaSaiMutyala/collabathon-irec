@@ -24,8 +24,6 @@
         'confirmLabel' => 'Delete developer',
         'tone' => 'danger',
     ]);
-
-    $payout = rtrim(rtrim(number_format((float) $developer->cp_payout_percent, 2), '0'), '.');
 @endphp
 
 <x-layouts.admin active="developers" :title="$developer->company_name" section="Manage">
@@ -153,6 +151,20 @@
                             : '')
                         : '—'
                 );
+
+                // One filled-in platform is the common case, not five — a row per
+                // platform would be four "—"s more often than not. This renders only
+                // the ones actually set, each as its own labelled link.
+                $socialLinks = \App\Support\SocialPlatforms::linksFor($developer);
+                $socialCell = new \Illuminate\Support\HtmlString(
+                    count($socialLinks)
+                        ? collect($socialLinks)->map(fn ($link) => sprintf(
+                            '<a href="%s" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-primary-dark hover:underline">%s <svg class="w-3 h-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 13L13 7M13 7H8M13 7V12" stroke-linecap="round" stroke-linejoin="round"/></svg></a>',
+                            e(\Illuminate\Support\Str::startsWith($link['value'], ['http://', 'https://']) ? $link['value'] : 'https://' . ltrim($link['value'], '@')),
+                            e($link['label'])
+                        ))->join('<span class="text-ink-3 mx-0.5">·</span>')
+                        : '—'
+                );
             @endphp
 
             <x-panel title="Company" flush>
@@ -163,7 +175,7 @@
                     ['label' => 'Company name', 'value' => $developer->company_name],
                     ['label' => 'RERA / licence', 'value' => $developer->rera_number],
                     ['label' => 'Website', 'value' => $developer->website],
-                    ['label' => 'Social media', 'value' => $developer->social_media],
+                    ['label' => 'Social media', 'value' => $socialCell],
                     ['label' => 'Contact person', 'value' => collect([$developer->contact_person, $developer->contact_designation])->filter()->join(' · ')],
                     ['label' => 'Mobile', 'value' => $developer->mobile],
                     ['label' => 'Country', 'value' => $developer->country],
@@ -320,10 +332,6 @@
             <x-panel title="Commercial" flush>
                 <dl class="divide-y divide-line-soft">
                     <div class="px-5 py-3 flex items-center justify-between gap-4">
-                        <dt class="text-[12.5px] text-ink-3">CP payout</dt>
-                        <dd class="text-[15px] font-semibold text-ink nums">{{ $payout }}%</dd>
-                    </div>
-                    <div class="px-5 py-3 flex items-center justify-between gap-4">
                         <dt class="text-[12.5px] text-ink-3">Verified badge</dt>
                         <dd>
                             <x-badge :tone="$developer->verified ? 'primary' : 'neutral'" size="sm">
@@ -386,11 +394,17 @@
                 <div class="space-y-3">
                     <x-field label="Company name" name="company_name" :value="$developer->company_name" required />
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <x-field label="Company website" name="website" :value="$developer->website"
-                                 placeholder="https://example.ae" />
-                        <x-field label="Social media" name="social_media" :value="$developer->social_media"
-                                 placeholder="@handle or profile URL" />
+                    <x-field label="Company website" name="website" :value="$developer->website"
+                             placeholder="https://example.ae" />
+
+                    <div>
+                        <p class="text-[12.5px] font-medium text-ink mb-1.5">Social media</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            @foreach(\App\Support\SocialPlatforms::ALL as $key => $label)
+                                <x-field :label="$label" :name="$key" :value="$developer->{$key}"
+                                         placeholder="@handle or profile URL" />
+                            @endforeach
+                        </div>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -456,13 +470,8 @@
                 </div>
 
                 <div class="border-t border-line-soft space-y-3 pt-4">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <x-field label="CP payout %" name="cp_payout_percent" type="number" step="0.01" required
-                                 :value="$developer->cp_payout_percent"
-                                 hint="Commission paid to the channel partner." />
-                        <x-select-field label="Status" name="status" :selected="$developer->status"
-                                        :options="['active' => 'Active', 'paused' => 'Paused']" />
-                    </div>
+                    <x-select-field label="Status" name="status" :selected="$developer->status"
+                                    :options="['active' => 'Active', 'paused' => 'Paused']" />
 
                     <x-switch-field label="Verified developer" name="verified" :checked="$developer->verified"
                                     hint="Adds a verified badge on every listing this developer owns." />

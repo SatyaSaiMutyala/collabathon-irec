@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     // Location / geo-fence
     'country', 'pincode', 'address', 'latitude', 'longitude',
     // Presence
-    'website', 'social_media',
+    'website', 'instagram', 'facebook', 'youtube', 'twitter', 'linkedin',
 ])]
 class Developer extends Model
 {

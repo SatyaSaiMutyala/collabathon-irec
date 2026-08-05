@@ -44,11 +44,19 @@
                     <div class="space-y-3">
                         <x-field label="Company name" name="company_name" placeholder="e.g. Skyline Realty Group" required />
 
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <x-field label="Company website" name="website" placeholder="https://example.ae" />
-                            <x-field label="Social media" name="social_media"
-                                     placeholder="@handle or profile URL"
-                                     hint="Instagram, LinkedIn or X — whichever they actually use." />
+                        <x-field label="Company website" name="website" placeholder="https://example.ae" />
+
+                        {{-- One field per platform rather than a single free-text "social
+                             media" box — a developer can run more than one channel, and a
+                             named field is what lets the show page render each as its own
+                             labelled link instead of trying to parse free text. --}}
+                        <div>
+                            <p class="text-[12.5px] font-medium text-ink mb-1.5">Social media</p>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                @foreach(\App\Support\SocialPlatforms::ALL as $key => $label)
+                                    <x-field :label="$label" :name="$key" placeholder="@handle or profile URL" />
+                                @endforeach
+                            </div>
                         </div>
 
                         {{-- Contact person: the developer's public point of contact. This

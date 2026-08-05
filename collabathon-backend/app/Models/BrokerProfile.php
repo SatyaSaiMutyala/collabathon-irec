@@ -9,7 +9,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /** The ~34 registration fields the mobile app collects, hanging off the broker's user row. */
 #[Fillable([
     'user_id', 'alternate_mobile', 'residence_address', 'photo_path',
-    'is_company', 'company_name', 'office_address', 'company_website', 'social_media_handle',
+    'is_company', 'company_name', 'office_address', 'company_website',
+    'instagram', 'facebook', 'youtube', 'twitter', 'linkedin',
     'years_of_experience', 'team_size',
     'pan_card', 'pan_card_path', 'aadhaar_card', 'aadhaar_path',
     'rera_number', 'rera_certificate_path', 'rera_certificate_expiry',

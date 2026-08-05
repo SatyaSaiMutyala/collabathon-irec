@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\ActivityController;
 use App\Http\Controllers\Admin\AmenityController;
 use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\ApprovalController;
@@ -11,12 +12,14 @@ use App\Http\Controllers\Admin\GeocodeController;
 use App\Http\Controllers\Admin\LeadController;
 use App\Http\Controllers\Admin\LocationController;
 use App\Http\Controllers\Admin\MeasurementUnitController;
+use App\Http\Controllers\Admin\NearbyPlacesController;
 use App\Http\Controllers\Admin\ProjectTypeController;
 use App\Http\Controllers\Admin\PropertyController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\TeamController;
 use App\Http\Controllers\Admin\UnitTypeController;
+use App\Http\Controllers\DeveloperProjectResponseController;
 use App\Http\Middleware\EnsureAdmin;
 use Illuminate\Support\Facades\Route;
 
@@ -35,6 +38,16 @@ Route::middleware('guest')->group(function () {
 
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
 
+// ---------------------------------------------------------------- developer email response
+// Reached only from the "New project for your review" email — signed, no login. The
+// signature itself is the credential, so this stays outside every auth middleware.
+Route::middleware(['signed', 'throttle:30,1'])->group(function () {
+    Route::get('/developer-response/{property}', [DeveloperProjectResponseController::class, 'show'])
+        ->name('developer-response.show');
+    Route::post('/developer-response/{property}', [DeveloperProjectResponseController::class, 'store'])
+        ->name('developer-response.store');
+});
+
 // ---------------------------------------------------------------- admin panel
 Route::prefix('admin')
     ->name('admin.')
@@ -42,6 +55,8 @@ Route::prefix('admin')
     ->group(function () {
 
         Route::get('/dashboard', DashboardController::class)->name('dashboard')
+            ->middleware("can:view-module,'dashboard'");
+        Route::get('/activity', [ActivityController::class, 'index'])->name('activity')
             ->middleware("can:view-module,'dashboard'");
 
         Route::get('/approvals', [ApprovalController::class, 'index'])->name('approvals')
@@ -61,6 +76,7 @@ Route::prefix('admin')
 
         // Address lookup behind the developer form's "find on map" control.
         Route::get('/geocode', GeocodeController::class)->name('geocode');
+        Route::get('/nearby-places', NearbyPlacesController::class)->name('nearby-places');
 
         Route::get('/developers', [DeveloperController::class, 'index'])->name('developers')
             ->middleware("can:view-module,'developers'");
@@ -86,6 +102,13 @@ Route::prefix('admin')
         Route::delete('/properties/{property}', [PropertyController::class, 'destroy'])->name('properties.destroy');
 
         Route::get('/leads', [LeadController::class, 'index'])->name('leads')
+            ->middleware("can:view-module,'leads'");
+        // Drill-down from the developer overview: developer -> their projects -> one
+        // project's full request breakdown. Registered ahead of /leads/{lead} — different
+        // segment counts so there is no real ambiguity, but specific-first stays honest.
+        Route::get('/leads/developers/{developer}', [LeadController::class, 'developer'])->name('leads.developer')
+            ->middleware("can:view-module,'leads'");
+        Route::get('/leads/developers/{developer}/projects/{property}', [LeadController::class, 'project'])->name('leads.project')
             ->middleware("can:view-module,'leads'");
         Route::get('/leads/{lead}', [LeadController::class, 'show'])->name('leads.show')
             ->middleware("can:view-module,'leads'");

@@ -24,6 +24,7 @@ class PropertyDetailResource extends JsonResource
             'payment_plan_options' => $this->payment_plan_options ?? [],
             'booking_amount' => $this->booking_amount !== null ? (int) $this->booking_amount : null,
             'cp_commission_percent' => $this->cp_commission_percent !== null ? (float) $this->cp_commission_percent : null,
+            'fos_commission_percent' => $this->fos_commission_percent !== null ? (float) $this->fos_commission_percent : null,
             'special_incentives' => $this->special_incentives,
             'cashback_schemes' => $this->cashback_schemes,
             'registration_stamp_duty' => $this->registration_stamp_duty,

@@ -6,6 +6,7 @@ use App\Http\Concerns\HandlesListQueries;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PropertyResource;
 use App\Models\Property;
+use App\Support\PropertyDeveloperResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -76,15 +77,7 @@ class MyPropertyController extends Controller
             'reason' => ['nullable', 'string', 'max:2000', 'required_if:status,declined'],
         ]);
 
-        $property->forceFill([
-            'developer_status' => $data['status'],
-            'developer_responded_at' => now(),
-            // Clearing on accept matters: a developer who declines, then accepts, must
-            // not leave a stale rejection reason attached to a live listing.
-            'developer_decline_reason' => $data['status'] === Property::DEV_DECLINED
-                ? ($data['reason'] ?? null)
-                : null,
-        ])->save();
+        PropertyDeveloperResponse::apply($property, $data['status'], $data['reason'] ?? null);
 
         $property->load(['developer', 'detail', 'unitTypes', 'media']);
 

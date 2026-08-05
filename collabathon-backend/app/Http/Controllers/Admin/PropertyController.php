@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Concerns\HandlesListQueries;
 use App\Http\Controllers\Controller;
+use App\Mail\ProjectAssignedMail;
 use App\Models\Amenity;
 use App\Models\Country;
 use App\Models\Developer;
@@ -15,12 +16,15 @@ use App\Models\PropertyDetail;
 use App\Models\PropertyMedia;
 use App\Models\PropertyUnitType;
 use App\Models\UnitType;
-use App\Support\RichText;
+use App\Support\MailSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -176,6 +180,7 @@ class PropertyController extends Controller
         // notifying on save would fire again every time the draft is edited.
         if ($data['listing_status'] === 'active') {
             $push->propertyAssigned($property);
+            $this->notifyDeveloperByEmail($property);
         }
 
         return redirect()
@@ -183,6 +188,50 @@ class PropertyController extends Controller
             ->with('status', $data['listing_status'] === 'active'
                 ? "\"{$data['name']}\" is live to brokers."
                 : "\"{$data['name']}\" saved as a draft.");
+    }
+
+    /**
+     * Emails the developer the full project sheet with one-click accept/decline links.
+     *
+     * Same swallow-every-failure shape as ApprovalController::notifyApproved — the
+     * project is already saved and live to the push notification either way; an
+     * unreachable SMTP host must not turn a successful save into a 500.
+     */
+    private function notifyDeveloperByEmail(Property $property): bool
+    {
+        if (! MailSettings::apply()) {
+            return false;
+        }
+
+        $developer = $property->developer ?? $property->loadMissing('developer')->developer;
+        if (! $developer?->email) {
+            return false;
+        }
+
+        try {
+            $property->loadMissing(['detail', 'unitTypes']);
+
+            $expires = now()->addDays(14);
+            $acceptUrl = URL::temporarySignedRoute('developer-response.show', $expires, [
+                'property' => $property->id,
+                'action' => 'accept',
+            ]);
+            $declineUrl = URL::temporarySignedRoute('developer-response.show', $expires, [
+                'property' => $property->id,
+                'action' => 'decline',
+            ]);
+
+            Mail::to($developer->email)->send(new ProjectAssignedMail($property, $acceptUrl, $declineUrl));
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('Project assignment email failed', [
+                'property_id' => $property->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
     }
 
     /** Everything captured for one project, grouped the way the intake form groups it. */
@@ -322,7 +371,7 @@ class PropertyController extends Controller
 
         if ($detail) {
             $values += $detail->only([
-                'booking_amount', 'cp_commission_percent', 'special_incentives', 'cashback_schemes',
+                'booking_amount', 'cp_commission_percent', 'fos_commission_percent', 'special_incentives', 'cashback_schemes',
                 'registration_stamp_duty', 'maintenance_charges', 'floor_rise', 'plc_charges',
                 'payment_schedule', 'sales_office_address', 'site_visit_timings',
                 'sales_contact_name', 'sales_contact_number', 'booking_process',
@@ -497,6 +546,7 @@ class PropertyController extends Controller
             'payment_plan_options.*' => ['string', 'max:64'],
             'booking_amount' => ['nullable', 'integer', 'min:0'],
             'cp_commission_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'fos_commission_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'special_incentives' => ['nullable', 'string', 'max:5000'],
             'cashback_schemes' => ['nullable', 'string', 'max:5000'],
             'registration_stamp_duty' => ['nullable', 'string', 'max:255'],
@@ -593,7 +643,7 @@ class PropertyController extends Controller
     private function detailAttributes(array $data, Request $request, int $propertyId, ?PropertyDetail $existing = null): array
     {
         $columns = [
-            'booking_amount', 'cp_commission_percent', 'special_incentives', 'cashback_schemes',
+            'booking_amount', 'cp_commission_percent', 'fos_commission_percent', 'special_incentives', 'cashback_schemes',
             'registration_stamp_duty', 'maintenance_charges', 'floor_rise', 'plc_charges',
             'payment_schedule', 'sales_office_address', 'site_visit_timings',
             'sales_contact_name', 'sales_contact_number', 'booking_process',
@@ -618,36 +668,32 @@ class PropertyController extends Controller
     }
 
     /**
-     * The developer terms block — type, title, and whichever of the two payloads applies.
+     * The developer terms block — title and the document.
      *
-     * The unselected payload is kept, not cleared: an admin who flips to "text" to draft
-     * something and flips back must not find the signed PDF gone. `terms_type` is the
-     * single source of which one is live, so keeping both is safe.
+     * `terms_type` is derived here, not read from the form: the form no longer offers a
+     * choice, only a document, so "document" is true whenever one is actually on file —
+     * either just uploaded or already on record — and null otherwise. A property whose
+     * terms were typed in before that option was removed keeps its `terms_content` and
+     * `terms_type = 'text'` untouched unless this save also attaches a document.
      */
     private function termsAttributes(array $data, Request $request, int $propertyId, ?PropertyDetail $existing): array
     {
-        $type = $data['terms_type'] ?? null;
-
-        $attributes = [
-            'terms_type' => $type ?: null,
-            'terms_title' => filled($data['terms_title'] ?? null) ? $data['terms_title'] : null,
-            // Sanitised on the way in, never on the way out: the value is rendered inside
-            // a WebView on two apps, and cleaning at every read is a guarantee that only
-            // holds until someone adds a third reader.
-            'terms_content' => RichText::sanitize($data['terms_content'] ?? null)
-                ?? $existing?->terms_content,
-            'terms_document_path' => $existing?->terms_document_path,
-        ];
+        $documentPath = $existing?->terms_document_path;
 
         if ($file = $request->file('terms_document')) {
-            $attributes['terms_document_path'] = $this->upload($file, $propertyId);
+            $documentPath = $this->upload($file, $propertyId);
 
             if ($existing?->terms_document_path) {
                 Storage::disk('public')->delete($existing->terms_document_path);
             }
         }
 
-        return $attributes;
+        return [
+            'terms_type' => $documentPath ? 'document' : ($existing?->terms_type),
+            'terms_title' => filled($data['terms_title'] ?? null) ? $data['terms_title'] : null,
+            'terms_content' => $existing?->terms_content,
+            'terms_document_path' => $documentPath,
+        ];
     }
 
     /**

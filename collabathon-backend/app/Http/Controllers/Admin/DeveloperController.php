@@ -6,6 +6,7 @@ use App\Http\Concerns\HandlesListQueries;
 use App\Http\Controllers\Controller;
 use App\Models\Developer;
 use App\Models\User;
+use App\Support\SocialPlatforms;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -147,7 +148,7 @@ class DeveloperController extends Controller
             'logo' => ['nullable', 'image', 'max:2048'],
             'about' => ['nullable', 'string', 'max:5000'],
             'website' => ['nullable', 'string', 'max:255'],
-            'social_media' => ['nullable', 'string', 'max:255'],
+            ...SocialPlatforms::rules(),
             // Commercial terms are no longer asked for at creation — see below. Still
             // validated rather than ignored, so a client that does send them is held to
             // the same bounds as the edit form.
@@ -287,7 +288,7 @@ class DeveloperController extends Controller
             'longitude' => ['sometimes', 'nullable', 'numeric', 'between:-180,180'],
 
             'website' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'social_media' => ['sometimes', 'nullable', 'string', 'max:255'],
+            ...SocialPlatforms::rules(sometimes: true),
             'rera_number' => ['sometimes', 'nullable', 'string', 'max:64'],
             'logo' => ['nullable', 'image', 'max:2048'],
             'about' => ['sometimes', 'nullable', 'string', 'max:5000'],

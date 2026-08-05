@@ -36,10 +36,12 @@
 
 <x-layouts.admin active="leads" :title="($broker?->name ?? 'Lead') . ' · ' . ($property?->name ?? '')" section="Manage">
 
-    <a href="{{ route('admin.leads') }}"
+    {{-- Back to exactly where this was opened from — the project's own request list —
+         rather than all the way out to the developer overview. --}}
+    <a href="{{ $lead->developer && $property ? route('admin.leads.project', [$lead->developer, $property]) : route('admin.leads') }}"
        class="inline-flex items-center gap-1.5 text-[12.5px] text-ink-2 hover:text-ink transition-colors mb-4">
         <x-icon name="chevron-left" class="w-4 h-4" />
-        Back to approvals
+        Back to {{ $property?->name ?? 'approvals' }}
     </a>
 
     {{-- ============================== Header ============================== --}}

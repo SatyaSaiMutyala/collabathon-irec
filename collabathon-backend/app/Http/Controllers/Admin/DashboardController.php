@@ -20,6 +20,9 @@ class DashboardController extends Controller
         $properties = Property::count();
         $pending = User::role(User::ROLE_BROKER)->status(User::STATUS_PENDING)->count();
         $matches = Lead::where('status', Lead::STATUS_ACCEPTED)->count();
+        // Same definition ActivityController::index() paginates — counted from the
+        // identical query so this tile and that page's total can never disagree.
+        $actions = ActivityController::baseQuery()->count();
 
         return view('admin.dashboard', [
             'stats' => [
@@ -34,6 +37,9 @@ class DashboardController extends Controller
                     'spark' => $this->weeklySeries(User::role(User::ROLE_BROKER)->status(User::STATUS_PENDING))],
                 ['key' => 'matches', 'icon' => 'chart', 'label' => 'Confirmed matches', 'value' => $matches,
                     'spark' => $this->weeklySeries(Lead::where('status', Lead::STATUS_ACCEPTED))],
+                ['key' => 'actions', 'icon' => 'chart', 'label' => 'Total actions', 'value' => $actions,
+                    'route' => route('admin.activity'),
+                    'spark' => $this->activityWeeklySeries()],
             ],
 
             'trend' => $this->engagementTrend(),
@@ -65,6 +71,36 @@ class DashboardController extends Controller
 
         // Anything created before the window is the baseline for week 1.
         $baseline = (clone $query)->where('created_at', '<', $start)->count();
+
+        $series = [];
+        $running = $baseline;
+
+        for ($i = 0; $i < 12; $i++) {
+            $week = $start->copy()->addWeeks($i);
+            $key = (int) $week->format('oW');
+            $running += (int) ($rows[$key] ?? 0);
+            $series[] = $running;
+        }
+
+        return $series;
+    }
+
+    /**
+     * Same shape as {@see weeklySeries()}, for the one tile whose source isn't a
+     * single Eloquent builder: the activity union groups on `occurred_at` (the column
+     * every branch of that query already produces) instead of `created_at`.
+     */
+    private function activityWeeklySeries(): array
+    {
+        $start = Carbon::now()->startOfWeek()->subWeeks(11);
+
+        $rows = ActivityController::baseQuery()
+            ->where('occurred_at', '>=', $start)
+            ->selectRaw('YEARWEEK(occurred_at, 3) as yw, COUNT(*) as c')
+            ->groupBy('yw')
+            ->pluck('c', 'yw');
+
+        $baseline = ActivityController::baseQuery()->where('occurred_at', '<', $start)->count();
 
         $series = [];
         $running = $baseline;

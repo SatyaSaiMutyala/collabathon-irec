@@ -118,6 +118,23 @@ $showEndLabels = count($series) < 2 || $minGap >= 26;
             @endif
         @endforeach
 
+        {{-- Area wash under each line — the series hue at ~10% opacity, never a
+             saturated block. Drawn before the lines so the 2px stroke stays crisp
+             on top; drawn in series order so the first (primary) series' wash sits
+             under the others, which is the same stacking a reader's eye expects
+             from "the metric this chart leads with". --}}
+        @foreach($series as $s)
+            @php
+                $baseline = round($yAt(0), 2);
+                $area = [round($xAt(0), 2) . ',' . $baseline];
+                foreach ($points as $i => $p) {
+                    $area[] = round($xAt($i), 2) . ',' . round($yAt((float) ($p[$s['key']] ?? 0)), 2);
+                }
+                $area[] = round($xAt($n - 1), 2) . ',' . $baseline;
+            @endphp
+            <polygon points="{{ implode(' ', $area) }}" fill="{{ $s['color'] }}" fill-opacity="0.1" stroke="none" />
+        @endforeach
+
         {{-- Series: 2px lines, round caps --}}
         @foreach($series as $s)
             @php

@@ -71,6 +71,19 @@
             e($profile->company_website)
         ))
         : null;
+
+    $socialLinks = $profile ? \App\Support\SocialPlatforms::linksFor($profile) : [];
+    $socialCell = count($socialLinks)
+        ? new \Illuminate\Support\HtmlString(
+            collect($socialLinks)->map(fn ($link) => sprintf(
+                '<a href="%s" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-primary-dark hover:underline">%s</a>',
+                e(\Illuminate\Support\Str::startsWith($link['value'], ['http://', 'https://'])
+                    ? $link['value']
+                    : 'https://' . ltrim($link['value'], '@')),
+                e($link['label'])
+            ))->join('<span class="text-ink-3 mx-0.5">·</span>')
+        )
+        : null;
 @endphp
 
 <x-layouts.admin active="approvals" :title="$broker->name" section="Manage">
@@ -206,7 +219,7 @@
                     ['label' => 'Registering as', 'value' => $profile?->is_company ? 'Company' : 'Individual'],
                     ['label' => 'Company name', 'value' => $profile?->company_name],
                     ['label' => 'Website', 'value' => $website],
-                    ['label' => 'Social media', 'value' => $profile?->social_media_handle],
+                    ['label' => 'Social media', 'value' => $socialCell],
                     ['label' => 'Years of experience', 'value' => $profile?->years_of_experience],
                     ['label' => 'Team size', 'value' => $profile?->team_size],
                     ['label' => 'Office address', 'value' => $profile?->office_address, 'wide' => true],

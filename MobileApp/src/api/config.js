@@ -25,22 +25,20 @@ const DEV_HOST =
     default: '127.0.0.1',
   });
 
-// 8001, not artisan serve's default 8000: the admin panel and APP_URL are both on 8001,
-// and asset()/Storage::url() build every image and document URL from APP_URL — so a
-// mismatch here hands the device links to a port nothing is listening on.
-const DEV_PORT = 8001;
+// Must match both the running `php artisan serve --port=…` AND the backend's APP_URL —
+// asset()/Storage::url() build every image and document URL from APP_URL, so a mismatch
+// here hands the device working API responses with broken (unreachable-host) media links.
+// Only read by the local-dev line below.
+const DEV_PORT = 8000;
 
-// The __DEV__ branch resolves to exactly the same loopback URL a hardcoded string gave,
-// so debug builds are unchanged — but a release build has to reach the real API, and a
-// literal here silently shipped 127.0.0.1 to production.
 // Every endpoint in api/endpoints.js is written relative — '/auth/login', '/leads' — so
 // the version prefix belongs here. Without it those resolve to /auth/login on the host
 // root, which Laravel answers with a 404 the client reports as "cannot reach the server".
-// export const API_BASE_URL = 'https://brown-hedgehog-768805.hostingersite.com/api/v1';
+export const API_BASE_URL = 'https://brown-hedgehog-768805.hostingersite.com/api/v1';
 
-// LOCAL DEV — pointed at `php artisan serve --host=0.0.0.0` on this machine (192.168.1.2).
-// Uncomment the line above and delete this one to go back to the live server.
-export const API_BASE_URL = `http://${DEV_HOST}:${DEV_PORT}/api/v1`;
+// LOCAL DEV — set LAN_HOST above and swap in this line instead to point at
+// `php artisan serve --host=0.0.0.0` on this machine.
+// export const API_BASE_URL = `http://${DEV_HOST}:${DEV_PORT}/api/v1`;
 
 /** Matches the server-side cap in HandlesListQueries. */
 export const DEFAULT_PAGE_SIZE = 20;

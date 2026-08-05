@@ -50,13 +50,6 @@ function listToText(value) {
     .join(' · ');
 }
 
-function money(value, currency = 'AED') {
-  if (value === null || value === undefined || value === '') {
-    return null;
-  }
-  return `${currency} ${Number(value).toLocaleString()}`;
-}
-
 function sqft(value) {
   return value ? `${Number(value).toLocaleString()} sqft` : null;
 }
@@ -134,11 +127,6 @@ export function normalizeProperty(api) {
   const scale = api.scale ?? {};
   const compliance = api.compliance ?? {};
 
-  const priceRange =
-    price.max && price.max !== price.min
-      ? `${money(price.min, currency)} – ${Number(price.max).toLocaleString()}`
-      : money(price.min, currency);
-
   return {
     id: api.id,
     name: api.name,
@@ -172,6 +160,7 @@ export function normalizeProperty(api) {
     attachmentCount: media.plans.length + media.documents.length + media.tours.length,
 
     commissionPercent: detail.cp_commission_percent ?? 0,
+    fosCommissionPercent: detail.fos_commission_percent ?? 0,
 
     /**
      * The developer's terms for this project, when there are any.
@@ -254,7 +243,6 @@ export function normalizeProperty(api) {
       specs: {
         totalProjectArea: sqft(scale.total_project_area_sqft),
         landParcel: scale.land_parcel_acres ? `${scale.land_parcel_acres} acres` : null,
-        openSpace: scale.open_space_percent ? `${scale.open_space_percent}%` : null,
         constructionSpecs: detail.construction_specifications,
         amenitiesSize: detail.amenities_size,
         amenitiesCount: detail.amenities_count ? String(detail.amenities_count) : null,
@@ -267,19 +255,6 @@ export function normalizeProperty(api) {
       approvals: {
         approvingAuthorities: listToText(detail.approving_authorities),
         bankApprovals: listToText(detail.bank_approvals),
-      },
-      payment: {
-        priceRange,
-        bookingAmount: money(detail.booking_amount, currency),
-        paymentPlan: listToText(detail.payment_plan_options),
-        paymentSchedule: detail.payment_schedule,
-        maintenanceCharges: detail.maintenance_charges,
-        floorRise: detail.floor_rise,
-        plcCharges: detail.plc_charges,
-        otherCharges: listToText(detail.other_charges),
-        stampDuty: detail.registration_stamp_duty,
-        specialIncentives: detail.special_incentives,
-        cashbackSchemes: detail.cashback_schemes,
       },
       sales: {
         officeAddress: detail.sales_office_address,

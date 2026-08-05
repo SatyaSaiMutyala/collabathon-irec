@@ -27,14 +27,28 @@ $accepted = $funnel[2]['value'] ?: 0;
 
 
     {{-- ---------------------------- KPI row ---------------------------- --}}
-    <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3.5 mb-5">
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 mb-5">
         @foreach($stats as $stat)
-            <x-stat-card
-                :icon="$stat['icon']"
-                :label="$stat['label']"
-                :value="$stat['value']"
-                :good-when-up="$stat['goodWhenUp'] ?? true"
-                :spark="$stat['spark']" />
+            @if(!empty($stat['route']))
+                {{-- The one tile that is a drill-down rather than a number to read —
+                     hover state says so before the click does. --}}
+                <a href="{{ $stat['route'] }}" class="block">
+                    <x-stat-card
+                        :icon="$stat['icon']"
+                        :label="$stat['label']"
+                        :value="$stat['value']"
+                        :good-when-up="$stat['goodWhenUp'] ?? true"
+                        :spark="$stat['spark'] ?? []"
+                        class="hover:border-primary-ring transition-colors cursor-pointer" />
+                </a>
+            @else
+                <x-stat-card
+                    :icon="$stat['icon']"
+                    :label="$stat['label']"
+                    :value="$stat['value']"
+                    :good-when-up="$stat['goodWhenUp'] ?? true"
+                    :spark="$stat['spark']" />
+            @endif
         @endforeach
     </div>
 
@@ -73,6 +87,11 @@ $accepted = $funnel[2]['value'] ?: 0;
         </x-panel>
 
         <x-panel title="Recent activity" flush>
+            <x-slot:actions>
+                <a href="{{ route('admin.activity') }}" class="text-[11.5px] font-medium text-primary-dark hover:underline">
+                    View all
+                </a>
+            </x-slot:actions>
             @forelse($activity as $item)
                 <div class="px-5 py-3 flex items-start gap-3 border-b border-line-soft last:border-0">
                     <span class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 {{ $activityTones[$item['tone']] }}">

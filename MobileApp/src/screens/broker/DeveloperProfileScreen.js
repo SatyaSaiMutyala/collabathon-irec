@@ -23,6 +23,7 @@ import {
   selectDeveloperProperties,
 } from '../../store/slices/developersSlice';
 import {canLoadMore} from '../../store/paginated';
+import {SOCIAL_ICONS} from '../../utils/socialIcons';
 
 /**
  * A developer and their listings. The listings are their own paginated request —
@@ -67,8 +68,6 @@ const DeveloperProfileScreen = ({route, navigation}) => {
       </ScreenContainer>
     );
   }
-
-  const payout = Number(developer.cp_payout_percent ?? 0);
 
   return (
     <ScreenContainer edges={['top']}>
@@ -131,7 +130,6 @@ const DeveloperProfileScreen = ({route, navigation}) => {
                       value: String(developer.properties_count ?? properties.total),
                       label: 'Properties',
                     },
-                    {value: `${payout % 1 === 0 ? payout : payout.toFixed(2)}%`, label: 'CP Payout'},
                     developer.verified
                       ? {icon: 'shield-checkmark', iconTone: 'success', label: 'Verified'}
                       : {icon: 'shield-outline', iconTone: 'muted', label: 'Unverified'},
@@ -166,11 +164,14 @@ const DeveloperProfileScreen = ({route, navigation}) => {
                 value={[developer.city, developer.state].filter(Boolean).join(', ') || null}
               />
               <InfoRow icon="shield-checkmark-outline" label="RERA Number" value={developer.rera_number} />
-              <InfoRow
-                icon="pricetag-outline"
-                label="CP Payout"
-                value={developer.cp_payout_percent ? `${payout}%` : null}
-              />
+              {(developer.social_links ?? []).map(link => (
+                <InfoRow
+                  key={link.key}
+                  icon={SOCIAL_ICONS[link.key] ?? 'link-outline'}
+                  label={link.label}
+                  value={link.value}
+                />
+              ))}
               <InfoRow
                 icon="pulse-outline"
                 label="Account Status"

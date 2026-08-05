@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\SocialPlatforms;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -27,7 +28,10 @@ class DeveloperResource extends JsonResource
             'mobile' => $this->mobile,
             'email' => $this->email,
             'website' => $this->website,
-            'social_media' => $this->social_media,
+            // Only the platforms this developer actually filled in, ready to render —
+            // {key, label, value} per platform rather than five raw columns the app
+            // would otherwise have to know the labels for itself.
+            'social_links' => SocialPlatforms::linksFor($this->resource),
             'country' => $this->country,
             'city' => $this->city,
             'state' => $this->state,

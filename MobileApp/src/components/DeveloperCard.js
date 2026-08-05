@@ -34,7 +34,6 @@ const DeveloperCard = ({developer, onPress}) => {
   const name = developer.company_name;
   const count = developer.properties_count ?? 0;
   const projectLabel = `${count} ${count === 1 ? 'Project' : 'Projects'}`;
-  const payout = Number(developer.cp_payout_percent ?? 0);
 
   return (
     <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={{marginBottom: spacing.sm}}>
@@ -55,14 +54,8 @@ const DeveloperCard = ({developer, onPress}) => {
 
             <View style={{marginTop: moderateScale(4)}}>
               <MetaItem icon="location-outline" label={developer.city ?? '—'} />
-              <View style={{flexDirection: 'row', marginTop: moderateScale(4)}}>
+              <View style={{marginTop: moderateScale(4)}}>
                 <MetaItem icon="business-outline" label={projectLabel} />
-                <View style={{width: moderateScale(12)}} />
-                <MetaItem
-                  icon="pricetag-outline"
-                  label={`${payout % 1 === 0 ? payout : payout.toFixed(2)}% CP`}
-                  color={colors.primaryDark}
-                />
               </View>
             </View>
           </View>

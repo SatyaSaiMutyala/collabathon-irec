@@ -8,6 +8,7 @@ use App\Models\BrokerProfile;
 use App\Models\DeviceToken;
 use App\Models\User;
 use App\Services\PushNotifier;
+use App\Support\SocialPlatforms;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -54,7 +55,7 @@ class AuthController extends Controller
             'company_name' => ['nullable', 'string', 'max:255'],
             'office_address' => ['nullable', 'string'],
             'company_website' => ['nullable', 'string', 'max:255'],
-            'social_media_handle' => ['nullable', 'string', 'max:255'],
+            ...SocialPlatforms::rules(),
             'years_of_experience' => ['nullable', 'integer', 'min:0', 'max:80'],
             'team_size' => ['nullable', 'integer', 'min:0', 'max:10000'],
 
@@ -117,7 +118,8 @@ class AuthController extends Controller
 
             BrokerProfile::create(collect($data)->only([
                 'alternate_mobile', 'residence_address', 'is_company', 'company_name',
-                'office_address', 'company_website', 'social_media_handle',
+                'office_address', 'company_website',
+                'instagram', 'facebook', 'youtube', 'twitter', 'linkedin',
                 'years_of_experience', 'team_size', 'pan_card', 'aadhaar_card',
                 'rera_number', 'rera_certificate_expiry', 'gst_number', 'cheque_details',
                 'state', 'city', 'segments', 'zones', 'operates_multiple_states',

@@ -141,8 +141,8 @@ class PartnerController extends Controller
         'id', 'user_id', 'company_name', 'is_company', 'rera_number', 'rera_certificate_expiry',
         'gst_number', 'years_of_experience', 'team_size', 'city', 'state', 'segments', 'zones',
         'operates_multiple_states', 'project_contributions', 'submitted_at', 'photo_path',
-        'alternate_mobile', 'company_website', 'social_media_handle', 'office_address',
-        'residence_address',
+        'alternate_mobile', 'company_website', 'instagram', 'facebook', 'youtube', 'twitter',
+        'linkedin', 'office_address', 'residence_address',
     ];
 
     private function developerId(Request $request): int

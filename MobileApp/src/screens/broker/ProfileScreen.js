@@ -58,7 +58,11 @@ const ProfileScreen = () => {
     companyName: profile.company_name,
     officeAddress: profile.office_address,
     companyWebsite: profile.company_website,
-    socialMediaHandle: profile.social_media_handle,
+    instagram: profile.instagram,
+    facebook: profile.facebook,
+    youtube: profile.youtube,
+    twitter: profile.twitter,
+    linkedin: profile.linkedin,
     yearsOfExperience: profile.years_of_experience,
     teamSize: profile.team_size,
     panCard: profile.pan_card,
@@ -123,7 +127,11 @@ const ProfileScreen = () => {
               <InfoRow icon="business-outline" label="Company Name" value={fallback(broker.companyName)} />
               <InfoRow icon="location-outline" label="Office Address" value={fallback(broker.officeAddress)} />
               <InfoRow icon="globe-outline" label="Company Website" value={fallback(broker.companyWebsite)} />
-              <InfoRow icon="at-outline" label="Social Media Handle" value={fallback(broker.socialMediaHandle)} />
+              <InfoRow icon="logo-instagram" label="Instagram" value={fallback(broker.instagram)} />
+              <InfoRow icon="logo-facebook" label="Facebook" value={fallback(broker.facebook)} />
+              <InfoRow icon="logo-youtube" label="YouTube" value={fallback(broker.youtube)} />
+              <InfoRow icon="logo-twitter" label="Twitter / X" value={fallback(broker.twitter)} />
+              <InfoRow icon="logo-linkedin" label="LinkedIn" value={fallback(broker.linkedin)} />
               <InfoRow icon="briefcase-outline" label="Years of Experience" value={fallback(broker.yearsOfExperience)} />
               <InfoRow icon="people-outline" label="Team Size" value={fallback(broker.teamSize)} />
             </>

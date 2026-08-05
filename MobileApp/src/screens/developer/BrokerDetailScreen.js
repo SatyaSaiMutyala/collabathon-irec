@@ -22,6 +22,7 @@ import {
   selectPartnerById,
   selectPartnerProjects,
 } from '../../store/slices/partnersSlice';
+import {SOCIAL_ICONS} from '../../utils/socialIcons';
 
 /** ISO timestamp to "12 Mar 2026"; anything unparseable is dropped rather than shown raw. */
 const formatDate = iso => {
@@ -202,7 +203,14 @@ const BrokerDetailScreen = ({route, navigation}) => {
             valueColor={visible ? undefined : colors.textMuted}
           />
           <InfoRow icon="globe-outline" label="Website" value={broker.company_website} />
-          <InfoRow icon="at-outline" label="Social" value={broker.social_media_handle} />
+          {(broker.social_links ?? []).map(link => (
+            <InfoRow
+              key={link.key}
+              icon={SOCIAL_ICONS[link.key] ?? 'link-outline'}
+              label={link.label}
+              value={link.value}
+            />
+          ))}
           <InfoRow icon="business-outline" label="Office" value={broker.office_address} />
           <InfoRow icon="home-outline" label="Residence" value={broker.residence_address} />
         </Card>

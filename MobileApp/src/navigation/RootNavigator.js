@@ -5,7 +5,7 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {useAppDispatch, useAppSelector} from '../store/hooks';
 import {attachPushHandlers, registerDevice} from '../services/push';
 import {loadAuthState} from '../store/authPersistence';
-import {fetchMe, hydrateAuth} from '../store/slices/authSlice';
+import {fetchMe, hydrateAuth, sessionExpired} from '../store/slices/authSlice';
 import {useAppTheme} from '../theme';
 import AuthNavigator from './AuthNavigator';
 import BrokerTabNavigator from './BrokerTabNavigator';
@@ -89,7 +89,27 @@ const PUSH_ROUTES = {
   request_declined: () => ['Main', {screen: 'RequestsTab'}],
   broker_registered: () => ['Main', {screen: 'RequestBrokersTab'}],
   property_assigned: () => ['Main', {screen: 'PropertiesTab'}],
+  // Both fire on an account that is still pending or was rejected — per
+  // AuthController::login, neither status ever gets a token, so there was never a
+  // device to register for push in the first place. Mapped anyway so a future change
+  // that starts registering tokens before approval doesn't land on a silent gap; today
+  // this is dead in practice. 'Login' is the same screen the pending/rejected sign-in
+  // response itself routes to.
+  broker_approved: () => ['Login'],
+  broker_rejected: () => ['Login'],
+  // No entity to deep-link to — just surface the full text where the rest of the
+  // notification history already lives.
+  announcement: () => ['Notifications'],
 };
+
+/**
+ * Types that mean "this session is no longer valid" rather than "go look at
+ * something" — an admin reset the password or paused an already-active account.
+ * Same call client.js's 401 interceptor makes: this is not a navigation target, it's
+ * a reason to end the session right now instead of waiting for the next API request
+ * to 401 and do it then.
+ */
+const SESSION_KILLING_PUSH_TYPES = ['password_reset', 'broker_revoked'];
 
 const RootNavigator = () => {
   const dispatch = useAppDispatch();
@@ -139,12 +159,19 @@ const RootNavigator = () => {
   // swapping between auth and role navigators, which is why it is not inside a screen.
   useEffect(() => {
     return attachPushHandlers(data => {
+      if (SESSION_KILLING_PUSH_TYPES.includes(data?.type)) {
+        dispatch(sessionExpired());
+        return;
+      }
+
       const route = PUSH_ROUTES[data?.type]?.(data);
       if (route && navigationRef.isReady()) {
         navigationRef.navigate(...route);
       }
     });
-  }, []);
+    // `dispatch` is referentially stable (Redux Toolkit), so this still attaches once
+    // for the life of the app, same as before.
+  }, [dispatch]);
 
   if (!isSessionRestored) {
     return (

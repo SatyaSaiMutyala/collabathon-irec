@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Support\ContactMask;
+use App\Support\SocialPlatforms;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -97,7 +98,10 @@ class PartnerResource extends JsonResource
             // A URL or an address cannot be starred into something meaningful, and either
             // one is enough to reach the broker, so these are withheld until accept.
             'company_website' => $visible ? $profile?->company_website : null,
-            'social_media_handle' => $visible ? $profile?->social_media_handle : null,
+            // Empty rather than null when withheld — this is a list, and the app can
+            // treat "nothing to show" the same way whether that's privacy or the broker
+            // just never filled any of these in.
+            'social_links' => $visible && $profile ? SocialPlatforms::linksFor($profile) : [],
             'office_address' => $visible ? $profile?->office_address : null,
             'residence_address' => $visible ? $profile?->residence_address : null,
 

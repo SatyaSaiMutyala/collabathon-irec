@@ -143,7 +143,7 @@
                         <x-dropdown-item icon="cog" tag="a" href="{{ route('admin.properties.edit', $p) }}">
                             Edit project
                         </x-dropdown-item>
-                        <x-dropdown-item icon="users" tag="a" href="{{ route('admin.leads', ['search' => $p->name]) }}">
+                        <x-dropdown-item icon="users" tag="a" href="{{ route('admin.leads.project', [$p->developer, $p]) }}">
                             View leads
                         </x-dropdown-item>
 

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -32,7 +33,13 @@ class GeocodeController extends Controller
 
     public function __invoke(Request $request): JsonResponse
     {
-        $this->authorize('edit-module', 'developers');
+        // Shared by both the developer form and the project form's location picker, so
+        // either module's edit permission is enough — a team member who can edit
+        // projects but not developers still needs this endpoint to work on that form.
+        abort_unless(
+            Gate::allows('edit-module', 'developers') || Gate::allows('edit-module', 'properties'),
+            403
+        );
 
         // Dropping a pin is the other half of the map: the client sends coordinates and
         // needs the address back, which is the same contract in reverse.

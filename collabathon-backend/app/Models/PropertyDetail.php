@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'construction_specifications', 'amenities', 'amenities_size', 'amenities_count',
     'parking_details', 'approving_authorities', 'bank_approvals',
     'legal_due_diligence_path', 'awards',
-    'payment_plan_options', 'booking_amount', 'cp_commission_percent',
+    'payment_plan_options', 'booking_amount', 'cp_commission_percent', 'fos_commission_percent',
     'terms_type', 'terms_title', 'terms_document_path', 'terms_content',
     'special_incentives', 'cashback_schemes', 'registration_stamp_duty',
     'maintenance_charges', 'floor_rise', 'plc_charges', 'other_charges', 'payment_schedule',
@@ -52,6 +52,7 @@ class PropertyDetail extends Model
             'payment_plan_options' => 'array',
             'other_charges' => 'array',
             'cp_commission_percent' => 'decimal:2',
+            'fos_commission_percent' => 'decimal:2',
         ];
     }
 

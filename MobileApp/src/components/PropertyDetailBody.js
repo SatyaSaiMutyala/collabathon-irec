@@ -41,7 +41,7 @@ const PropertyDetailBody = ({project}) => {
   // a stack that owns the terms route.
   const navigation = useNavigation();
   const details = project.details ?? {};
-  const {overview, unit, location, specs, approvals, payment, sales} = details;
+  const {overview, unit, location, specs, approvals, sales} = details;
 
   const quickSpecs = [
     project.bedrooms ? {icon: 'bed-outline', label: `${project.bedrooms} Beds`} : null,
@@ -70,8 +70,17 @@ const PropertyDetailBody = ({project}) => {
             </AppText>
           </View>
         </View>
-        {!!project.commissionPercent && (
-          <Badge label={`${project.commissionPercent}% Commission`} tone="warning" />
+        {(!!project.commissionPercent || !!project.fosCommissionPercent) && (
+          <View style={{alignItems: 'flex-end'}}>
+            {!!project.commissionPercent && (
+              <Badge label={`${project.commissionPercent}% CP Commission`} tone="warning" />
+            )}
+            {!!project.fosCommissionPercent && (
+              <View style={{marginTop: spacing.xs}}>
+                <Badge label={`${project.fosCommissionPercent}% FOS Commission`} tone="primary" />
+              </View>
+            )}
+          </View>
         )}
       </View>
 
@@ -228,7 +237,7 @@ const PropertyDetailBody = ({project}) => {
       )}
 
       {/* ---------------------------------------------------------------- specs */}
-      {hasAny(specs, ['totalProjectArea', 'landParcel', 'openSpace', 'constructionSpecs', 'amenitiesSize', 'amenitiesCount', 'greenCertification', 'vastuCompliant', 'awards']) && (
+      {hasAny(specs, ['totalProjectArea', 'landParcel', 'constructionSpecs', 'amenitiesSize', 'amenitiesCount', 'greenCertification', 'vastuCompliant', 'awards']) && (
         <>
           <SectionTitle spacing={spacing} colors={colors}>
             Project Specifications
@@ -236,7 +245,6 @@ const PropertyDetailBody = ({project}) => {
           <Card>
             <InfoRow icon="map-outline" label="Total Project Area" value={specs.totalProjectArea} />
             <InfoRow icon="square-outline" label="Land Parcel" value={specs.landParcel} />
-            <InfoRow icon="leaf-outline" label="Open / Green Space" value={specs.openSpace} />
             <InfoRow icon="construct-outline" label="Construction Specs" value={specs.constructionSpecs} />
             <InfoRow icon="fitness-outline" label="Clubhouse / Amenity Size" value={specs.amenitiesSize} />
             <InfoRow icon="list-outline" label="Amenities Count" value={specs.amenitiesCount} />
@@ -278,38 +286,6 @@ const PropertyDetailBody = ({project}) => {
           </Card>
         </>
       ) : null}
-
-      {/* ---------------------------------------------------------------- payment */}
-      {hasAny(payment, ['priceRange', 'bookingAmount', 'paymentPlan', 'paymentSchedule', 'maintenanceCharges', 'floorRise', 'plcCharges', 'otherCharges', 'stampDuty', 'specialIncentives', 'cashbackSchemes']) && (
-        <>
-          <SectionTitle spacing={spacing} colors={colors}>
-            Payment &amp; Charges
-          </SectionTitle>
-          <Card>
-            <InfoRow icon="cash-outline" label="Price Range" value={payment.priceRange} />
-            <InfoRow icon="wallet-outline" label="Booking Amount" value={payment.bookingAmount} />
-            <InfoRow icon="calendar-outline" label="Payment Plan" value={payment.paymentPlan} />
-            <InfoRow icon="list-outline" label="Payment Schedule" value={payment.paymentSchedule} />
-            <InfoRow icon="build-outline" label="Maintenance Charges" value={payment.maintenanceCharges} />
-            <InfoRow icon="trending-up-outline" label="Floor Rise Charges" value={payment.floorRise} />
-            <InfoRow icon="pricetags-outline" label="PLC Charges" value={payment.plcCharges} />
-            <InfoRow icon="ellipsis-horizontal-outline" label="Other Charges" value={payment.otherCharges} />
-            <InfoRow icon="receipt-outline" label="Registration & Stamp Duty" value={payment.stampDuty} />
-            <InfoRow
-              icon="gift-outline"
-              label="Special Incentives"
-              value={payment.specialIncentives}
-              valueColor={colors.success}
-            />
-            <InfoRow
-              icon="return-down-back-outline"
-              label="Cashback Schemes"
-              value={payment.cashbackSchemes}
-              valueColor={colors.success}
-            />
-          </Card>
-        </>
-      )}
 
       {/* ---------------------------------------------------------------- attachments */}
       {!!project.plans?.length && (

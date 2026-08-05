@@ -32,7 +32,7 @@
             'Project type' => $property->project_type,
             'Project status' => $property->project_status,
             'Possession date' => $date($property->possession_date),
-            'Heading' => $property->tagline,
+            'Title' => $property->tagline,
             // The registered-on / valid-till dates are no longer collected on the form, so
             // they are not shown either — a read-only row for a field nothing can edit
             // reads as a broken control. Both columns still hold their existing values.
@@ -70,26 +70,25 @@
             'Land parcel' => $property->land_parcel_acres ? $trim($property->land_parcel_acres) . ' acres' : null,
             'Total project area' => $property->total_project_area_sqft
                 ? number_format($property->total_project_area_sqft) . ' sq.ft.' : null,
-            'Open / green space' => $property->open_space_percent ? $property->open_space_percent . '%' : null,
+            // Open / green space is no longer collected on the form — see the note on
+            // the RERA dates above for why a dead field is dropped rather than shown
+            // blank. The column itself still holds whatever older records have.
             'Green certification' => $property->green_certification,
             'Vastu compliant' => $property->vastu_compliant ? 'Yes' : 'No',
         ],
         // The Timeline & legal group went with its intake step. Possession date survived
         // it — that field is collected in step 1 — so it moves up to the basics it now
         // belongs with rather than heading a group of its own.
+        //
+        // Every other commercial field (payment plans, booking amount, incentives,
+        // cashback, stamp duty, maintenance/floor-rise/PLC/other charges, payment
+        // schedule notes) went the same way — step 6 only collects commission and the
+        // developer-terms document now, so this group only shows what can still be edited.
         'Commercial terms' => [
-            'Payment plans' => $list($detail?->payment_plan_options),
-            'Booking amount' => $money($detail?->booking_amount),
             'CP commission' => $detail?->cp_commission_percent !== null
                 ? $trim($detail->cp_commission_percent) . '%' : null,
-            'Special CP incentives' => $detail?->special_incentives,
-            'Cashback / discounts' => $detail?->cashback_schemes,
-            'Registration & stamp duty' => $detail?->registration_stamp_duty,
-            'Maintenance charges' => $detail?->maintenance_charges,
-            'Floor rise' => $detail?->floor_rise,
-            'PLC charges' => $detail?->plc_charges,
-            'Other charges' => $list($detail?->other_charges),
-            'Payment schedule' => $detail?->payment_schedule,
+            'FOS commission' => $detail?->fos_commission_percent !== null
+                ? $trim($detail->fos_commission_percent) . '%' : null,
         ],
         'Contact & sales' => [
             'Sales office' => $detail?->sales_office_address,
@@ -213,7 +212,7 @@
                     </button>
                 </x-slot:trigger>
 
-                <x-dropdown-item icon="users" tag="a" href="{{ route('admin.leads', ['search' => $property->name]) }}">
+                <x-dropdown-item icon="users" tag="a" href="{{ route('admin.leads.project', [$property->developer, $property]) }}">
                     View leads
                 </x-dropdown-item>
 
@@ -436,7 +435,7 @@
                         </dd>
                     </div>
 
-                    @foreach(['video' => 'Video / walkthrough', 'virtual_tour' => 'Virtual tour'] as $kind => $label)
+                    @foreach(['video' => 'Video / walkthrough', 'virtual_tour' => 'Walkthrough link'] as $kind => $label)
                         <div class="px-5 py-3 flex items-center justify-between gap-3">
                             <dt class="text-[12.5px] text-ink-3">{{ $label }}</dt>
                             <dd class="text-[12.5px] shrink-0">

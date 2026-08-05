@@ -315,8 +315,234 @@ export function addressFinder(config = {}) {
     };
 }
 
+/**
+ * The project form's coordinate picker: same search-or-click map as {@see addressFinder},
+ * but committing writes into the form's own existing latitude/longitude/pincode/maps-link
+ * fields (via $refs) instead of a single address textarea — the project form already
+ * splits the address into locality/landmark/full address, and this only owns the three
+ * fields nobody can type accurately by hand: the coordinates and the map link.
+ */
+export function locationFinder(config = {}) {
+    return {
+        endpoint: config.endpoint,
+        latitude: config.latitude ?? '',
+        longitude: config.longitude ?? '',
+
+        open: false,
+        query: '',
+        results: [],
+        busy: false,
+        error: '',
+        picked: null,
+        map: null,
+        marker: null,
+
+        async openMap() {
+            this.open = true;
+            this.error = '';
+
+            let L;
+            try {
+                L = await loadLeaflet();
+            } catch {
+                this.error = 'The map could not be loaded. Enter the coordinates by hand instead.';
+                return;
+            }
+
+            await this.$nextTick();
+
+            const centre = this.latitude && this.longitude
+                ? [Number(this.latitude), Number(this.longitude)]
+                : FALLBACK_CENTRE;
+
+            if (! this.map) {
+                this.map = L.map(this.$refs.map).setView(centre, this.latitude ? 16 : 11);
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; OpenStreetMap contributors',
+                }).addTo(this.map);
+
+                this.map.on('click', (event) => this.dropPin(event.latlng.lat, event.latlng.lng));
+            } else {
+                this.map.setView(centre, this.latitude ? 16 : 11);
+            }
+
+            setTimeout(() => this.map.invalidateSize(), 60);
+
+            if (this.latitude && this.longitude) {
+                this.setMarker(Number(this.latitude), Number(this.longitude));
+            }
+        },
+
+        closeMap() {
+            this.open = false;
+            this.results = [];
+            this.error = '';
+        },
+
+        setMarker(lat, lng) {
+            const L = window.L;
+            if (! L || ! this.map) return;
+
+            if (this.marker) {
+                this.marker.setLatLng([lat, lng]);
+            } else {
+                this.marker = L.marker([lat, lng], { draggable: true }).addTo(this.map);
+                this.marker.on('dragend', () => {
+                    const p = this.marker.getLatLng();
+                    this.dropPin(p.lat, p.lng);
+                });
+            }
+        },
+
+        async dropPin(lat, lng) {
+            this.setMarker(lat, lng);
+            this.busy = true;
+            this.error = '';
+
+            try {
+                const res = await fetch(`${this.endpoint}?lat=${lat}&lon=${lng}`, {
+                    headers: { Accept: 'application/json' },
+                });
+                const hits = (await res.json()).data ?? [];
+                this.picked = hits[0] ?? null;
+                if (! this.picked) this.error = 'No address at that point. Try somewhere nearer a road.';
+            } catch {
+                this.error = 'Could not reach the address service.';
+            } finally {
+                this.busy = false;
+            }
+        },
+
+        async search() {
+            if (this.query.trim().length < 3) return;
+            this.busy = true;
+            this.error = '';
+            this.results = [];
+
+            try {
+                const res = await fetch(`${this.endpoint}?q=${encodeURIComponent(this.query.trim())}`, {
+                    headers: { Accept: 'application/json' },
+                });
+                this.results = (await res.json()).data ?? [];
+                if (! this.results.length) this.error = 'Nothing found for that.';
+            } catch {
+                this.error = 'Could not reach the address service.';
+            } finally {
+                this.busy = false;
+            }
+        },
+
+        selectResult(hit) {
+            this.picked = hit;
+            this.results = [];
+            this.query = '';
+
+            if (this.map && hit.latitude && hit.longitude) {
+                this.map.setView([hit.latitude, hit.longitude], 16);
+                this.setMarker(hit.latitude, hit.longitude);
+            }
+        },
+
+        /**
+         * Commit the candidate into the form's own fields. Pincode is filled only when
+         * the admin has not already typed one — the project form's pincode is one of
+         * several address fields entered by hand elsewhere on this same step, unlike the
+         * developer form where the whole address (pincode included) comes from the map.
+         */
+        apply() {
+            if (! this.picked) return;
+
+            this.latitude = this.picked.latitude ?? '';
+            this.longitude = this.picked.longitude ?? '';
+
+            if (this.$refs.latitude) this.$refs.latitude.value = this.latitude;
+            if (this.$refs.longitude) this.$refs.longitude.value = this.longitude;
+
+            if (this.$refs.pincode && this.picked.pincode && ! this.$refs.pincode.value.trim()) {
+                this.$refs.pincode.value = this.picked.pincode;
+            }
+
+            if (this.$refs.mapsLink && this.latitude && this.longitude) {
+                this.$refs.mapsLink.value = `https://www.google.com/maps?q=${this.latitude},${this.longitude}`;
+            }
+
+            this.picked = null;
+            this.closeMap();
+        },
+    };
+}
+
+/**
+ * "Fetch nearby places": reads whatever latitude/longitude are currently in the form
+ * (typed by hand or filled by locationFinder — either is fine, this does not care which)
+ * and turns them into a first draft of the Connectivity highlights and Nearby social
+ * infrastructure fields.
+ *
+ * Deliberately its own component rather than folded into locationFinder: those
+ * coordinate fields sit in one grid, these text fields sit in another, and the two
+ * actions are independent — an admin can re-fetch nearby places after nudging the pin
+ * without reopening the map, or fetch once and then edit the coordinates by hand.
+ */
+export function nearbyPlacesFinder(config = {}) {
+    return {
+        endpoint: config.endpoint,
+        busy: false,
+        error: '',
+
+        async fetchNearby() {
+            const form = this.$refs.connectivity?.closest('form');
+            const lat = form?.querySelector('[name="latitude"]')?.value;
+            const lon = form?.querySelector('[name="longitude"]')?.value;
+
+            if (!lat || !lon) {
+                this.error = 'Set the location (latitude/longitude) above first.';
+                return;
+            }
+
+            this.busy = true;
+            this.error = '';
+
+            try {
+                const res = await fetch(`${this.endpoint}?lat=${lat}&lon=${lon}`, {
+                    headers: { Accept: 'application/json' },
+                });
+                const data = await res.json();
+
+                if (!data.reached) {
+                    this.error = 'Could not reach the places service. Try again shortly.';
+                    return;
+                }
+
+                if (!data.connectivity?.length && !data.social?.length) {
+                    this.error = 'Nothing found nearby — the area may be too sparsely mapped.';
+                    return;
+                }
+
+                // Appended, not replaced: an admin may have already typed something
+                // worth keeping, and a blank line separates their text from the fetch.
+                if (data.connectivity?.length && this.$refs.connectivity) {
+                    this.$refs.connectivity.value = [this.$refs.connectivity.value.trim(), data.connectivity.join('\n')]
+                        .filter(Boolean).join('\n');
+                }
+                if (data.social?.length && this.$refs.social) {
+                    this.$refs.social.value = [this.$refs.social.value.trim(), data.social.join('\n')]
+                        .filter(Boolean).join('\n');
+                }
+            } catch {
+                this.error = 'Could not reach the places service.';
+            } finally {
+                this.busy = false;
+            }
+        },
+    };
+}
+
 // Alpine loads from a CDN and evaluates its expressions from the global scope, so the
 // wizard and the credential dialogs reach these through `window` rather than an import.
 window.compressFileInputs = compressFileInputs;
 window.makePassword = makePassword;
 window.addressFinder = addressFinder;
+window.locationFinder = locationFinder;
+window.nearbyPlacesFinder = nearbyPlacesFinder;

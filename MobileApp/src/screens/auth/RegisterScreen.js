@@ -61,7 +61,11 @@ const SERVER_FIELD_TO_FORM = {
   company_name: 'companyName',
   office_address: 'officeAddress',
   company_website: 'companyWebsite',
-  social_media_handle: 'socialMediaHandle',
+  instagram: 'instagram',
+  facebook: 'facebook',
+  youtube: 'youtube',
+  twitter: 'twitter',
+  linkedin: 'linkedin',
   years_of_experience: 'yearsOfExperience',
   team_size: 'teamSize',
   pan_card: 'panCard',
@@ -97,7 +101,11 @@ const FIELD_ORDER = [
   {key: 'companyName'},
   {key: 'officeAddress'},
   {key: 'companyWebsite'},
-  {key: 'socialMediaHandle'},
+  {key: 'instagram'},
+  {key: 'facebook'},
+  {key: 'youtube'},
+  {key: 'twitter'},
+  {key: 'linkedin'},
   {key: 'yearsOfExperience'},
   {key: 'teamSize'},
   {key: 'panCard'},
@@ -131,7 +139,11 @@ const initialForm = {
   officeAddress: '',
   sameAsResidenceAddress: false,
   companyWebsite: '',
-  socialMediaHandle: '',
+  instagram: '',
+  facebook: '',
+  youtube: '',
+  twitter: '',
+  linkedin: '',
   yearsOfExperience: '',
   teamSize: '',
   panCard: '',
@@ -303,7 +315,11 @@ const RegisterScreen = ({navigation}) => {
     company_name: form.companyName.trim() || null,
     office_address: form.officeAddress.trim() || null,
     company_website: form.companyWebsite.trim() || null,
-    social_media_handle: form.socialMediaHandle.trim() || null,
+    instagram: form.instagram.trim() || null,
+    facebook: form.facebook.trim() || null,
+    youtube: form.youtube.trim() || null,
+    twitter: form.twitter.trim() || null,
+    linkedin: form.linkedin.trim() || null,
     years_of_experience: form.yearsOfExperience
       ? Number(form.yearsOfExperience)
       : null,
@@ -569,28 +585,73 @@ const RegisterScreen = ({navigation}) => {
                 />
               </View>
 
+              <Input
+                ref={registerRef('companyWebsite')}
+                label="Company website"
+                placeholder="https://..."
+                autoCapitalize="none"
+                value={form.companyWebsite}
+                onChangeText={update('companyWebsite')}
+              />
+
+              {/* One field per platform rather than a single "social media handle" box —
+                  a broker can run more than one channel, and a named field is what lets
+                  the profile screens render each as its own labelled link. */}
+              <AppText variant="captionMedium" color={colors.textSecondary} style={styles.label}>
+                Social media
+              </AppText>
               <View style={{flexDirection: 'row'}}>
                 <View style={{flex: 1, marginRight: spacing.xs}}>
                   <Input
-                    ref={registerRef('companyWebsite')}
-                    label="Company website"
-                    placeholder="https://..."
+                    ref={registerRef('instagram')}
+                    label="Instagram"
+                    placeholder="@handle or URL"
                     autoCapitalize="none"
-                    value={form.companyWebsite}
-                    onChangeText={update('companyWebsite')}
+                    value={form.instagram}
+                    onChangeText={update('instagram')}
                   />
                 </View>
                 <View style={{flex: 1, marginLeft: spacing.xs}}>
                   <Input
-                    ref={registerRef('socialMediaHandle')}
-                    label="Social media handle"
-                    placeholder="Instagram / LinkedIn"
+                    ref={registerRef('facebook')}
+                    label="Facebook"
+                    placeholder="@handle or URL"
                     autoCapitalize="none"
-                    value={form.socialMediaHandle}
-                    onChangeText={update('socialMediaHandle')}
+                    value={form.facebook}
+                    onChangeText={update('facebook')}
                   />
                 </View>
               </View>
+              <View style={{flexDirection: 'row'}}>
+                <View style={{flex: 1, marginRight: spacing.xs}}>
+                  <Input
+                    ref={registerRef('youtube')}
+                    label="YouTube"
+                    placeholder="@handle or URL"
+                    autoCapitalize="none"
+                    value={form.youtube}
+                    onChangeText={update('youtube')}
+                  />
+                </View>
+                <View style={{flex: 1, marginLeft: spacing.xs}}>
+                  <Input
+                    ref={registerRef('twitter')}
+                    label="Twitter / X"
+                    placeholder="@handle or URL"
+                    autoCapitalize="none"
+                    value={form.twitter}
+                    onChangeText={update('twitter')}
+                  />
+                </View>
+              </View>
+              <Input
+                ref={registerRef('linkedin')}
+                label="LinkedIn"
+                placeholder="@handle or URL"
+                autoCapitalize="none"
+                value={form.linkedin}
+                onChangeText={update('linkedin')}
+              />
 
               <View style={{flexDirection: 'row'}}>
                 <View style={{flex: 1, marginRight: spacing.xs}}>

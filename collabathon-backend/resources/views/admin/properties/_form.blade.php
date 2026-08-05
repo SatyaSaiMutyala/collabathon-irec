@@ -36,7 +36,7 @@
         2 => ['label' => 'Location',         'icon' => 'map-pin',     'hint' => 'Address, zone and connectivity'],
         3 => ['label' => 'Configuration',    'icon' => 'list',        'hint' => 'Unit types, areas and pricing'],
         4 => ['label' => 'Specifications',   'icon' => 'sparkles',    'hint' => 'Land, build quality and amenities'],
-        5 => ['label' => 'Media',            'icon' => 'palette',     'hint' => 'Gallery, plans and brochures'],
+        5 => ['label' => 'Master plan and gallery', 'icon' => 'palette', 'hint' => 'Gallery, plans and brochures'],
         6 => ['label' => 'Commercial terms', 'icon' => 'chart',       'hint' => 'Payment plans, charges and CP payout'],
         7 => ['label' => 'Contact & sales',  'icon' => 'phone',       'hint' => 'Sales office and booking process'],
     ];
@@ -52,15 +52,11 @@
         2 => ['country', 'state', 'city', 'locality', 'full_address', 'landmark', 'pincode', 'zone',
               'latitude', 'longitude', 'maps_link', 'connectivity_highlights', 'nearby_infrastructure'],
         3 => ['price_min', 'price_max', 'extent_metric', 'currency', 'total_units', 'towers',
-              'floors_per_tower', 'unit_types', 'unit_plans'],
-        4 => ['land_parcel_acres', 'total_project_area_sqft', 'open_space_percent',
-              'amenities', 'green_certification', 'vastu_compliant'],
+              'floors_per_tower', 'land_parcel_acres', 'total_project_area_sqft', 'unit_types', 'unit_plans'],
+        4 => ['amenities', 'green_certification', 'vastu_compliant'],
         5 => ['cover_image', 'gallery', 'site_layout', 'master_plan', 'brochure', 'price_list',
-              'video_url', 'virtual_tour_url', 'payment_schedule_file', 'payment_schedule'],
-        6 => ['payment_plan_options', 'booking_amount', 'cp_commission_percent', 'special_incentives',
-              'cashback_schemes', 'registration_stamp_duty', 'maintenance_charges', 'floor_rise',
-              'plc_charges', 'other_charges',
-              'terms_type', 'terms_title', 'terms_document', 'terms_content'],
+              'video_url', 'virtual_tour_url', 'payment_schedule_file'],
+        6 => ['cp_commission_percent', 'fos_commission_percent', 'terms_title', 'terms_document'],
         7 => ['sales_office_address', 'site_visit_timings', 'sales_contact_name', 'sales_contact_number', 'booking_process'],
     ];
 
@@ -278,12 +274,13 @@
 
                             {{-- A property always belongs to exactly one developer. Options are
                                  passed as an id-keyed map so the component resolves the current
-                                 selection itself, on edit as well as after a failed submit. --}}
-                            <x-select-field label="Developer / builder" name="developer_id" required
-                                            :options="$developers->pluck('company_name', 'id')"
-                                            hint="Leads from this listing route to this developer.">
-                                <option value="">Select a developer…</option>
-                            </x-select-field>
+                                 selection itself, on edit as well as after a failed submit.
+                                 Searchable — the roster only grows, and scanning a plain <select>
+                                 stops working well past a couple dozen developers. --}}
+                            <x-combobox label="Developer / builder" name="developer_id" required
+                                        :options="$developers->pluck('company_name', 'id')"
+                                        placeholder="Search developers…"
+                                        hint="Leads from this listing route to this developer." />
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -312,7 +309,7 @@
                                      hint="Committed handover date. Required for this project type." />
                         </div>
 
-                        <x-field label="Heading" name="tagline" placeholder="Short marketing line" />
+                        <x-field label="Title" name="tagline" placeholder="Short marketing line" />
 
                         {{-- Paired on one row: both are short, single-value identity fields, and
                              stacking them left a full-width text input above a full-width
@@ -392,30 +389,53 @@
                         <x-field label="Full address" name="full_address" type="textarea"
                                  placeholder="Plot, street, community, city" />
 
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <x-field label="Landmark / reference point" name="landmark" placeholder="e.g. opposite Marina Mall" />
-                            <x-field label="Pincode" name="pincode" placeholder="e.g. 00000" />
-                            <x-select-field label="Zone" name="zone" :options="['East', 'West', 'North', 'South', 'Central']">
-                                <option value="">Not set</option>
-                            </x-select-field>
-                        </div>
+                        <x-location-finder :latitude="data_get($formRecord ?? null, 'latitude')"
+                                            :longitude="data_get($formRecord ?? null, 'longitude')">
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <x-field label="Landmark / reference point" name="landmark" placeholder="e.g. opposite Marina Mall" />
+                                <x-field label="Pincode" name="pincode" placeholder="e.g. 00000" x-ref="pincode" />
+                                <x-select-field label="Zone" name="zone" :options="['East', 'West', 'North', 'South', 'Central']">
+                                    <option value="">Not set</option>
+                                </x-select-field>
+                            </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            {{-- step="any": a fixed 7-dp step makes a pasted coordinate with more
-                                 precision a step-mismatch, which is a needless way to fail. The
-                                 column is decimal(10,7) and the server range-checks it. --}}
-                            <x-field label="Latitude" name="latitude" type="number" step="any" placeholder="25.0762" />
-                            <x-field label="Longitude" name="longitude" type="number" step="any" placeholder="55.1390" />
-                            <x-field label="Google Maps link" name="maps_link" type="url" placeholder="https://maps.app.goo.gl/…" />
-                        </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+                                {{-- step="any": a fixed 7-dp step makes a pasted coordinate with more
+                                     precision a step-mismatch, which is a needless way to fail. The
+                                     column is decimal(10,7) and the server range-checks it. --}}
+                                <x-field label="Latitude" name="latitude" type="number" step="any" placeholder="25.0762" x-ref="latitude" />
+                                <x-field label="Longitude" name="longitude" type="number" step="any" placeholder="55.1390" x-ref="longitude" />
+                                <x-field label="Google Maps link" name="maps_link" type="url" placeholder="https://maps.app.goo.gl/…" x-ref="mapsLink" />
+                            </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <x-field label="Connectivity highlights" name="connectivity_highlights" type="textarea" rows="4"
-                                     placeholder="Metro station — 800 m&#10;Airport — 22 km&#10;Highway access — 5 min"
-                                     hint="One per line." />
-                            <x-field label="Nearby social infrastructure" name="nearby_infrastructure" type="textarea" rows="4"
-                                     placeholder="GEMS School — 1.2 km&#10;Mediclinic — 2 km&#10;Marina Mall — 900 m"
-                                     hint="One per line — schools, hospitals, malls, IT parks." />
+                            <button type="button" @click="openMap()"
+                                    class="inline-flex items-center gap-1.5 text-[12px] text-primary-dark hover:underline mt-2">
+                                <x-icon name="map-pin" class="w-3.5 h-3.5" />
+                                Fetch location from map
+                            </button>
+                        </x-location-finder>
+
+                        <div x-data="nearbyPlacesFinder({ endpoint: @js(route('admin.nearby-places')) })">
+                            <div class="flex items-center justify-between gap-3 mb-1.5">
+                                <p class="text-[12.5px] text-ink-3">
+                                    Or fetch a first draft from the project's latitude/longitude above.
+                                </p>
+                                <button type="button" @click="fetchNearby()" :disabled="busy"
+                                        class="inline-flex items-center gap-1.5 text-[12px] text-primary-dark hover:underline shrink-0 disabled:opacity-50">
+                                    <x-icon name="map-pin" class="w-3.5 h-3.5" />
+                                    <span x-text="busy ? 'Fetching…' : 'Fetch nearby places'"></span>
+                                </button>
+                            </div>
+                            <p x-show="error" x-cloak x-text="error" class="text-[11.5px] text-danger mb-1.5"></p>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <x-field label="Connectivity highlights" name="connectivity_highlights" type="textarea" rows="4"
+                                         placeholder="Metro station — 800 m&#10;Airport — 22 km&#10;Highway access — 5 min"
+                                         hint="One per line." x-ref="connectivity" />
+                                <x-field label="Nearby social infrastructure" name="nearby_infrastructure" type="textarea" rows="4"
+                                         placeholder="GEMS School — 1.2 km&#10;Mediclinic — 2 km&#10;Marina Mall — 900 m"
+                                         hint="One per line — schools, hospitals, malls, IT parks." x-ref="social" />
+                            </div>
                         </div>
                     </section>
 
@@ -448,6 +468,13 @@
                             <x-field label="Total units" name="total_units" type="number" placeholder="480" />
                             <x-field label="Towers / blocks" name="towers" type="number" placeholder="3" />
                             <x-field label="No. of floors" name="floors_per_tower" type="number" placeholder="24" />
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <x-field label="Land parcel size" name="land_parcel_acres" type="number" step="0.01"
+                                     placeholder="12.50" hint="In acres." />
+                            <x-field label="Total project area" name="total_project_area_sqft" type="number"
+                                     placeholder="544500" hint="In sq.ft." />
                         </div>
 
                         {{-- Repeatable unit types ------------------------------------- --}}
@@ -551,18 +578,9 @@
                     {{-- 4 · Project Specifications -------------------------------------- --}}
                     <section x-show="step === 4" data-step="4" x-cloak class="space-y-4">
                         <x-wizard-heading :step="4" :of="count($steps)" title="Project specifications"
-                                          subtitle="Land, build quality and the amenity set." />
+                                          subtitle="Build quality and the amenity set." />
 
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <x-field label="Land parcel size" name="land_parcel_acres" type="number" step="0.01"
-                                     placeholder="12.50" hint="In acres." />
-                            <x-field label="Total project area" name="total_project_area_sqft" type="number"
-                                     placeholder="544500" hint="In sq.ft." />
-                            <x-field label="Open / green space %" name="open_space_percent" type="number"
-                                     min="0" max="100" placeholder="65" />
-                        </div>
-
-                        <div class="border-t border-line-soft pt-4 space-y-3">
+                        <div class="space-y-3">
                             <x-checkbox-group label="Amenities" name="amenities" :options="$amenityOptions" :columns="3" />
 
                         </div>
@@ -576,7 +594,7 @@
 
                     {{-- 5 · Media & Marketing Assets ------------------------------------ --}}
                     <section x-show="step === 5" data-step="5" x-cloak class="space-y-4">
-                        <x-wizard-heading :step="5" :of="count($steps)" title="Media & marketing assets"
+                        <x-wizard-heading :step="5" :of="count($steps)" title="Master plan and gallery"
                                           subtitle="Everything channel partners see and share." />
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -630,103 +648,53 @@
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <x-field label="Project video / walkthrough link" name="video_url" type="url"
+                            <x-field label="Project video" name="video_url" type="url"
                                      placeholder="https://youtube.com/…" icon="external" />
-                            <x-field label="Virtual tour / 3D walkthrough link" name="virtual_tour_url" type="url"
+                            <x-field label="Walkthrough link" name="virtual_tour_url" type="url"
                                      placeholder="https://my.matterport.com/…" icon="external" />
                         </div>
 
-                        <div class="border-t border-line-soft pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div class="border-t border-line-soft pt-4">
                             <x-file-field label="Payment schedule" name="payment_schedule_file" accept="application/pdf" hint="PDF." :current="$firstMedia('payment_schedule')?->path" />
-                            <x-field label="Payment schedule notes" name="payment_schedule" type="textarea"
-                                     placeholder="20% on booking, 50% construction-linked, 30% on handover" />
                         </div>
                     </section>
 
                     {{-- 6 · Commercial Terms -------------------------------------------- --}}
                     <section x-show="step === 6" data-step="6" x-cloak class="space-y-4">
                         <x-wizard-heading :step="6" :of="count($steps)" title="Commercial terms"
-                                          subtitle="What the buyer pays, and what the channel partner earns." />
-
-                        <x-checkbox-group label="Payment plan options" name="payment_plan_options"
-                                          :options="['Construction-linked', 'Down payment', 'Flexi plan']" :columns="3" />
+                                          subtitle="What the channel partner earns, and the terms they work under." />
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <x-field label="Booking amount" name="booking_amount" type="number" placeholder="100000" />
                             <x-field label="CP commission %" name="cp_commission_percent" type="number" step="0.01"
                                      placeholder="2.50" hint="Overrides the developer default for this project." />
+                            <x-field label="FOS commission %" name="fos_commission_percent" type="number" step="0.01"
+                                     placeholder="1.00" hint="Payout for feet-on-street field sales agents." />
                         </div>
-
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <x-field label="Special CP incentives / schemes" name="special_incentives" type="textarea"
-                                     placeholder="Time-bound offers for channel partners" />
-                            <x-field label="Cashback / discount schemes" name="cashback_schemes" type="textarea"
-                                     placeholder="Active buyer-side offers" />
-                        </div>
-
-                        <div class="border-t border-line-soft pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <x-field label="Registration & stamp duty" name="registration_stamp_duty"
-                                     placeholder="e.g. 4% of value (indicative)" />
-                            <x-field label="Maintenance charges" name="maintenance_charges"
-                                     placeholder="e.g. ₹14 per sq.ft. / month" />
-                            <x-field label="Floor rise" name="floor_rise" placeholder="e.g. ₹15 per sq.ft. per floor" />
-                            <x-field label="PLC charges" name="plc_charges" placeholder="e.g. 3% for park-facing" />
-                        </div>
-
-                        <x-field label="Other charges" name="other_charges" type="textarea" rows="4"
-                                 placeholder="Club membership — ₹25,000&#10;Legal — ₹5,000&#10;Infrastructure development — ₹40,000"
-                                 hint="One per line — itemised where possible." />
 
                         {{-- Developer terms ------------------------------------------------
                              One artefact per project, shown to the developer and to every
-                             broker in the app. Two ways in because both happen: a signed PDF
-                             the developer already has, or terms typed here. `terms_type`
-                             decides which one is live — the other is kept, not cleared, so
-                             switching to draft some text does not throw away the PDF. --}}
-                        <div class="border-t border-line-soft pt-4"
-                             x-data="{ termsType: @js(old('terms_type', data_get($formRecord ?? null, 'terms_type') ?? '')) }">
+                             broker in the app. No type toggle any more — the form only ever
+                             offers a document, so the server derives `terms_type` from
+                             whether one is actually on file rather than the client stating
+                             it (see PropertyController::termsAttributes). --}}
+                        <div class="border-t border-line-soft pt-4">
                             <div class="flex items-baseline justify-between gap-3 mb-1">
                                 <h3 class="text-[13.5px] font-medium text-ink">Developer terms</h3>
                                 <span class="text-[11.5px] text-ink-3">Visible to the developer and to channel partners</span>
                             </div>
                             <p class="text-[12px] text-ink-3 mb-3 max-w-[68ch] leading-relaxed">
-                                The terms document for this project. Attach the signed copy, or type the
-                                terms in directly — whichever you pick is what the app shows.
+                                The terms document for this project. Attach the signed copy —
+                                channel partners can read it in the app and download it.
                             </p>
 
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div>
-                                    <label class="block text-[12.5px] font-medium text-ink-2 mb-1.5">Terms format</label>
-                                    <select name="terms_type" x-model="termsType"
-                                            class="w-full h-9 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink
-                                                   focus:border-primary-ring focus:outline-none transition-colors">
-                                        <option value="">No terms for this project</option>
-                                        <option value="document">Upload a document</option>
-                                        <option value="text">Type the content</option>
-                                    </select>
-                                    @error('terms_type')
-                                        <p class="text-[11.5px] text-danger mt-1.5">{{ $message }}</p>
-                                    @enderror
-                                </div>
-
-                                <div x-show="termsType" x-cloak>
-                                    <x-field label="Title shown in the app" name="terms_title"
-                                             placeholder="e.g. Channel Partner Agreement"
-                                             hint="Leave blank to use “Developer terms”." />
-                                </div>
-                            </div>
-
-                            <div x-show="termsType === 'document'" x-cloak class="mt-3">
+                                <x-field label="Title shown in the app" name="terms_title"
+                                         placeholder="e.g. Channel Partner Agreement"
+                                         hint="Leave blank to use “Developer terms”." />
                                 <x-file-field label="Terms document" name="terms_document"
                                               accept=".pdf,.doc,.docx"
                                               :current="data_get($formRecord ?? null, 'terms_document_path')"
-                                              hint="PDF, DOC or DOCX, up to 20 MB. Channel partners can read it in the app and download it." />
-                            </div>
-
-                            <div x-show="termsType === 'text'" x-cloak class="mt-3">
-                                <x-rich-text-field name="terms_content" label="Terms content"
-                                                   placeholder="Commission structure, payout schedule, obligations…"
-                                                   hint="Formatting is preserved in the app." />
+                                              hint="PDF, DOC or DOCX, up to 20 MB." />
                             </div>
                         </div>
                     </section>

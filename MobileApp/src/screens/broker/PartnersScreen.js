@@ -118,17 +118,6 @@ const PartnersScreen = ({navigation}) => {
                       </AppText>
                     </View>
                   )}
-                  {!!item.developer.cp_payout_percent && (
-                    <View style={styles.row}>
-                      <Icon name="pricetag-outline" size={moderateScale(13)} color={colors.primary} />
-                      <AppText
-                        variant="caption"
-                        color={colors.textSecondary}
-                        style={styles.value}>
-                        {item.developer.cp_payout_percent}% channel partner payout
-                      </AppText>
-                    </View>
-                  )}
                 </View>
               )
             }
