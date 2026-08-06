@@ -381,37 +381,9 @@ class DatabaseSeeder extends Seeder
         Setting::put('accent_color', '#000000');
         Setting::put('app_name', 'iREC');
 
-        $broker = [
-            ['full_name', 'Full Name', true, true, true],
-            ['mobile', 'Mobile Number', true, true, true],
-            ['email', 'Email', true, true, true],
-            ['company_name', 'Company Name', true, false, false],
-            ['rera_number', 'RERA Number', true, true, true],
-            ['gst_number', 'GST Number', true, false, false],
-            ['years_of_experience', 'Years of Experience', false, false, false],
-        ];
-
-        foreach ($broker as $i => [$key, $label, $enabled, $required, $core]) {
-            FormField::updateOrCreate(
-                ['form' => FormField::FORM_BROKER, 'field_key' => $key],
-                ['label' => $label, 'enabled' => $enabled, 'required' => $required, 'is_core' => $core, 'sort_order' => $i]
-            );
-        }
-
-        $property = [
-            ['project_name', 'Project Name', true, true, true],
-            ['price_range', 'Price Range', true, true, true],
-            ['location', 'Location', true, true, true],
-            ['amenities', 'Amenities', true, false, false],
-            ['cp_commission', 'CP Commission %', true, true, false],
-            ['construction_progress', 'Construction Progress', false, false, false],
-        ];
-
-        foreach ($property as $i => [$key, $label, $enabled, $required, $core]) {
-            FormField::updateOrCreate(
-                ['form' => FormField::FORM_PROPERTY, 'field_key' => $key],
-                ['label' => $label, 'enabled' => $enabled, 'required' => $required, 'is_core' => $core, 'sort_order' => $i]
-            );
-        }
+        // Field definitions live in FormFieldSeeder so they can be seeded on their own,
+        // without the demo developers/brokers/properties this class also creates. One
+        // copy of the list, two entry points.
+        $this->call(FormFieldSeeder::class);
     }
 }
