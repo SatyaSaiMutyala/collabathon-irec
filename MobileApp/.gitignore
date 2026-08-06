@@ -33,6 +33,10 @@ local.properties
 .cxx/
 *.keystore
 !debug.keystore
+# Release signing. The upload key and its passwords never belong in the repo — anyone with
+# both can publish an update under this listing.
+*.jks
+android/key.properties
 
 # node.js
 #

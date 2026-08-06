@@ -1646,7 +1646,7 @@ PODS:
     - React-utils (= 0.75.4)
   - RNCAsyncStorage (1.24.0):
     - React-Core
-  - RNDateTimePicker (8.2.0):
+  - RNDateTimePicker (8.6.0):
     - React-Core
   - RNFBApp (24.0.0):
     - DoubleConversion
@@ -2090,7 +2090,7 @@ SPEC CHECKSUMS:
   leveldb-library: cc8b8f8e013647a295ad3f8cd2ddf49a6f19be19
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
   PromisesObjC: 752c3227f599e3467650e47ea36f433eeb10c273
-  RCT-Folly: 4464f4d875961fce86008d45f4ecf6cef6de0740
+  RCT-Folly: 34124ae2e667a0e5f0ea378db071d27548124321
   RCTDeprecation: 726d24248aeab6d7180dac71a936bbca6a994ed1
   RCTRequired: a94e7febda6db0345d207e854323c37e3a31d93b
   RCTTypeSafety: 28e24a6e44f5cbf912c66dde6ab7e07d1059a205
@@ -2154,7 +2154,7 @@ SPEC CHECKSUMS:
   ReactCodegen: f961bc28110632dd4c8e8d95c1a80f5344022cd2
   ReactCommon: 23eed247b5c8e57b59a823ce209353883da61dd2
   RNCAsyncStorage: b6410dead2732b5c72a7fdb1ecb5651bbcf4674b
-  RNDateTimePicker: 818460dc31b0dc5ec58289003e27dd8d022fb79c
+  RNDateTimePicker: 39a7b97196b9daaa1d52d71fb835da924a9c5776
   RNFBApp: 16e5281a2aae61628a543aabe15fb8f2ccacdde5
   RNFBDatabase: 06668478d17dfb8977160b1c9af555ca85fab932
   RNFBMessaging: 815c55b341e0bb2b63cdcf373743f430e35765c8

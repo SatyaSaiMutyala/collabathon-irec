@@ -1,9 +1,13 @@
 buildscript {
     ext {
-        buildToolsVersion = "34.0.0"
+        // 35, not the RN 0.75 template's 34: Play refuses a production release that targets
+        // below 35. Android 15 enforces edge-to-edge for apps targeting 35, so every screen
+        // now draws under the status and navigation bars — the app already wraps its screens
+        // in SafeAreaView, which is what keeps that from clipping content.
+        buildToolsVersion = "35.0.0"
         minSdkVersion = 23
-        compileSdkVersion = 34
-        targetSdkVersion = 34
+        compileSdkVersion = 35
+        targetSdkVersion = 35
         // 26.1.10909125 is what the RN 0.75 template pins, but that install is a broken
         // 4 KB stub with no source.properties — AGP rejects it outright. 27.3 is present
         // and complete, and the only module compiling C++ here is react-native-screens,

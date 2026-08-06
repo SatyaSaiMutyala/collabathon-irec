@@ -38,7 +38,17 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<!-- All three location keys are present because the linked geolocation library
+	     references all three APIs, and App Store validation rejects the build (90683) when
+	     a referenced API has no purpose string — whether or not the app ever calls it.
+	     The app itself only ever asks for when-in-use; it detects the city once, on the
+	     home screen, and never tracks in the background. The wording is the same for all
+	     three so the prompt reads honestly whichever one iOS decides to show. -->
 	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Collabathon uses your location to show developers and projects near you.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Collabathon uses your location to show developers and projects near you.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
 	<string>Collabathon uses your location to show developers and projects near you.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Collabathon needs access to your photos to upload your profile photo.</string>
