@@ -39,11 +39,67 @@ class LeadController extends Controller
         'status' => 'status',
     ];
 
-    /** Shared SQL for the four counts every tier of this drill-down shows. */
+    /**
+     * Aggregate expressions for the stat cards and the trend chart.
+     *
+     * Still raw SUM(CASE ...) because those two queries select nothing but aggregates —
+     * funnelStats has no GROUP BY at all, and requestTrend groups by the same `yw` alias
+     * it selects. Neither trips ONLY_FULL_GROUP_BY, so neither needed rewriting.
+     */
     private const REQUESTS_SQL = "SUM(CASE WHEN leads.status != 'viewed' THEN 1 ELSE 0 END)";
     private const ACCEPTED_SQL = "SUM(CASE WHEN leads.status = 'accepted' THEN 1 ELSE 0 END)";
     private const DECLINED_SQL = "SUM(CASE WHEN leads.status = 'declined' THEN 1 ELSE 0 END)";
     private const PENDING_SQL = "SUM(CASE WHEN leads.status = 'interested' THEN 1 ELSE 0 END)";
+
+    /** The four buckets every tier of this drill-down counts. */
+    private const BUCKETS = [
+        'requests_count' => 'requests',      // anything past a passive view
+        'accepted_count' => 'accepted',
+        'declined_count' => 'declined',
+        'pending_count' => 'interested',
+    ];
+
+    /**
+     * A correlated COUNT over `leads`, as a subquery.
+     *
+     * These four counts used to come from a leftJoin plus `GROUP BY developers.id` with
+     * `SELECT developers.*`. That only works if the database can infer that every other
+     * column is functionally dependent on the grouped primary key — MySQL 5.7.5+ does,
+     * MariaDB does not. With ONLY_FULL_GROUP_BY on (Laravel's `'strict' => true`), MariaDB
+     * answered every request to these screens with
+     *
+     *   SQLSTATE[42000]: 1055 'developers.user_id' isn't in GROUP BY
+     *
+     * A subquery per bucket needs no GROUP BY at all, so it behaves the same on both
+     * engines. It also drops the join fan-out, where a developer row repeated once per
+     * lead before being collapsed again.
+     *
+     * @param  string  $foreignKey  the column on `leads` that points at the outer row
+     * @param  string  $correlate   the outer column it must match
+     * @param  string  $bucket      one of self::BUCKETS
+     */
+    private function leadCount(string $foreignKey, string $correlate, string $bucket, ?string $propertyId = null): \Illuminate\Database\Eloquent\Builder
+    {
+        return Lead::query()
+            ->selectRaw('COUNT(*)')
+            ->whereColumn("leads.{$foreignKey}", $correlate)
+            ->when($propertyId, fn ($q) => $q->where('leads.property_id', $propertyId))
+            ->when(
+                $bucket === 'requests',
+                fn ($q) => $q->where('leads.status', '!=', 'viewed'),
+                fn ($q) => $q->where('leads.status', $bucket),
+            );
+    }
+
+    /** Adds all four bucket counts to a query as correlated subqueries. */
+    private function withLeadCounts($query, string $foreignKey, string $correlate, ?string $propertyId = null)
+    {
+        foreach (self::BUCKETS as $alias => $bucket) {
+            $query->selectSub($this->leadCount($foreignKey, $correlate, $bucket, $propertyId), $alias);
+        }
+
+        return $query;
+    }
 
     /** Tier 1 — every developer with a request funnel, ranked by volume. */
     public function index(Request $request): View
@@ -57,22 +113,13 @@ class LeadController extends Controller
         $ownerId = $propertyId ? Property::whereKey($propertyId)->value('developer_id') : null;
 
         $developers = Developer::query()
-            ->leftJoin('leads', function ($join) use ($propertyId) {
-                $join->on('leads.developer_id', '=', 'developers.id');
-                if ($propertyId) {
-                    $join->where('leads.property_id', $propertyId);
-                }
-            })
+            ->select('developers.*')
             ->when($ownerId, fn ($q) => $q->where('developers.id', $ownerId))
-            ->when($search !== '', fn ($q) => $q->where('developers.company_name', 'like', "%{$search}%"))
-            ->groupBy('developers.id')
-            ->selectRaw(
-                'developers.*, '
-                . self::REQUESTS_SQL . ' as requests_count, '
-                . self::ACCEPTED_SQL . ' as accepted_count, '
-                . self::DECLINED_SQL . ' as declined_count, '
-                . self::PENDING_SQL . ' as pending_count'
-            )
+            ->when($search !== '', fn ($q) => $q->where('developers.company_name', 'like', "%{$search}%"));
+
+        $this->withLeadCounts($developers, 'developer_id', 'developers.id', $propertyId);
+
+        $developers = $developers
             ->orderByDesc('requests_count')
             ->paginate($this->perPage($request))
             ->withQueryString();
@@ -96,18 +143,14 @@ class LeadController extends Controller
         $projectType = $request->query('project_type');
 
         $properties = Property::query()
-            ->leftJoin('leads', 'leads.property_id', '=', 'properties.id')
+            ->select('properties.*')
             ->where('properties.developer_id', $developer->id)
             ->when($search !== '', fn ($q) => $q->where('properties.name', 'like', "%{$search}%"))
-            ->when($projectType, fn ($q) => $q->where('properties.project_type', $projectType))
-            ->groupBy('properties.id')
-            ->selectRaw(
-                'properties.*, '
-                . self::REQUESTS_SQL . ' as requests_count, '
-                . self::ACCEPTED_SQL . ' as accepted_count, '
-                . self::DECLINED_SQL . ' as declined_count, '
-                . self::PENDING_SQL . ' as pending_count'
-            )
+            ->when($projectType, fn ($q) => $q->where('properties.project_type', $projectType));
+
+        $this->withLeadCounts($properties, 'property_id', 'properties.id');
+
+        $properties = $properties
             ->orderByDesc('requests_count')
             ->paginate($this->perPage($request))
             ->withQueryString();
@@ -271,15 +314,18 @@ class LeadController extends Controller
     private function topDevelopers(?string $propertyId): array
     {
         return Developer::query()
-            ->leftJoin('leads', function ($join) use ($propertyId) {
-                $join->on('leads.developer_id', '=', 'developers.id');
-                if ($propertyId) {
-                    $join->where('leads.property_id', $propertyId);
-                }
+            ->select('developers.id', 'developers.company_name', 'developers.city')
+            ->selectSub(
+                $this->leadCount('developer_id', 'developers.id', 'requests', $propertyId),
+                'requests_count'
+            )
+            // The subquery alias is not visible to WHERE, and HAVING without GROUP BY
+            // would collapse the result to a single group — so the filter is expressed
+            // against a repeat of the same subquery instead.
+            ->whereHas('leads', function ($q) use ($propertyId) {
+                $q->where('leads.status', '!=', 'viewed')
+                    ->when($propertyId, fn ($w) => $w->where('leads.property_id', $propertyId));
             })
-            ->groupBy('developers.id')
-            ->selectRaw('developers.id, developers.company_name, developers.city, ' . self::REQUESTS_SQL . ' as requests_count')
-            ->having('requests_count', '>', 0)
             ->orderByDesc('requests_count')
             ->limit(5)
             ->get()
