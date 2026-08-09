@@ -35,7 +35,29 @@
       "Bash(DELAY=1.0 /private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/sim tap 200 468)",
       "Bash(DELAY=2 /private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/sim tap 200 551)",
       "Bash(/private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/pdfpage /private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/pdf/out.pdf 30 /private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/pdf)",
-      "Bash(sips -Z 1100 /private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/pdf/page30.png --out /private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/pdf/s30.png)"
+      "Bash(sips -Z 1100 /private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/pdf/page30.png --out /private/tmp/claude-501/-Users-pavankumar-SatyaApps-collabathon-irec/631bb6f5-eac0-4f68-9027-e17e421a8a20/scratchpad/pdf/s30.png)",
+      "Bash(php -l app/Http/Controllers/Admin/DashboardController.php)",
+      "Bash(php artisan *)",
+      "Bash(mysql -h127.0.0.1 -uroot -proot irec_2026 -e ' *)",
+      "Bash(lsof -nP -iTCP:5173 -sTCP:LISTEN)",
+      "Bash(lsof -nP -iTCP:8000 -sTCP:LISTEN)",
+      "Bash(curl -sS http://127.0.0.1:8000/admin/dashboard -o /dev/null -w \"%{http_code}\\\\n\")",
+      "Bash(date -v+0S \"+%Y_%m_%d_%H%M%S\")",
+      "Bash(php -l app/Models/OtpCode.php)",
+      "Bash(php -l app/Services/OtpSender.php)",
+      "Bash(php -l app/Http/Controllers/Api/AuthController.php)",
+      "Bash(php -l routes/api.php)",
+      "Bash(mysql -h127.0.0.1 -uroot -proot irec_2026 -e \"SELECT mobile FROM users WHERE role='broker' LIMIT 5;\")",
+      "Bash(curl -s -X POST http://127.0.0.1:8000/api/v1/auth/otp/send -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{\"mobile\":\"9876543210\"}')",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s -X POST http://127.0.0.1:8000/api/v1/auth/otp/verify -H 'Accept: application/json' -H 'Content-Type: application/json' -w '\\\\nHTTP %{http_code}\\\\n' -d '{\"mobile\":\"9876543210\",\"code\":\"000000\"}')",
+      "Bash(curl -s -X POST http://127.0.0.1:8000/api/v1/auth/otp/verify -H 'Accept: application/json' -H 'Content-Type: application/json' -w '\\\\nHTTP %{http_code}\\\\n' -d '{\"mobile\":\"9876543210\",\"code\":\"490356\"}')",
+      "Bash(curl -s -X POST http://127.0.0.1:8000/api/v1/auth/register -H 'Accept: application/json' -H 'Content-Type: application/json' -w '\\\\nHTTP %{http_code}\\\\n' -d '{ *)",
+      "Bash(mysql -h127.0.0.1 -uroot -proot irec_2026 -e \"UPDATE users SET status='active' WHERE mobile='9876543210';\")",
+      "Bash(npx eslint *)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(curl -s \"http://127.0.0.1:8081/index.bundle?platform=ios&dev=true\" -o /tmp/bundle_config_check.js -w \"HTTP %{http_code}, size %{size_download} bytes\\\\n\")",
+      "Bash(curl -s \"http://127.0.0.1:8081/index.bundle?platform=ios&dev=true\" -o /tmp/bundle_autofill_check.js -w \"HTTP %{http_code}, size %{size_download} bytes\\\\n\")"
     ]
   }
 }

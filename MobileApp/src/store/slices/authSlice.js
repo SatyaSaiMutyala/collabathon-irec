@@ -6,11 +6,15 @@ import {showSnackbar} from './uiSlice';
 import {unregisterDevice} from '../../services/push';
 
 /**
- * Auth against the Laravel API. Email + password is the login key for both mobile
- * roles; the mobile number is profile data only.
+ * Auth against the Laravel API — two different mechanisms for two different roles.
+ * Developers sign in with email + password (`login`, admin-provisioned accounts).
+ * Channel partners sign in with mobile number + OTP (`sendOtp` then `verifyOtp`) —
+ * there is no password for this role at all, on either side of the API.
  *
  * `registrationStatus` mirrors the server's approval gate — a broker who registers
- * is `pending` and receives no token until an admin approves them.
+ * is `pending` and receives no token until an admin approves them. That gate applies
+ * the same way whichever door was used, so `verifyOtp` can land on it too, not just
+ * `login`.
  */
 
 const initialState = {
@@ -22,6 +26,19 @@ const initialState = {
   status: 'idle', // idle | loading | succeeded | failed
   error: null,
   fieldErrors: {},
+
+  // The OTP challenge in flight, if any. Deliberately holds only what a screen needs
+  // to render itself (mobile, timing, the last error) — never the verification_token
+  // a successful 'register' result carries, which stays a one-time hand-off between
+  // screens via navigation params instead of living in (and being persisted by)
+  // Redux state.
+  otp: {
+    mobile: '',
+    status: 'idle', // idle | sending | sent | verifying | error
+    error: null,
+    expiresIn: null,
+    debugCode: null, // dev-only, only ever present when the API's own env is local
+  },
 };
 
 // ---------------------------------------------------------------- thunks
@@ -64,6 +81,53 @@ export const login = createAsyncThunk(
       if (normalised.status === 403) {
         normalised.pendingApproval = true;
       }
+      return rejectWithValue(normalised);
+    }
+  },
+);
+
+// ---------------------------------------------------------------- channel-partner OTP
+
+export const sendOtp = createAsyncThunk(
+  'auth/sendOtp',
+  async (mobile, {rejectWithValue}) => {
+    try {
+      const {data} = await authApi.sendOtp(mobile);
+      return {mobile, ...data};
+    } catch (error) {
+      return rejectWithValue(extractError(error));
+    }
+  },
+);
+
+export const verifyOtp = createAsyncThunk(
+  'auth/verifyOtp',
+  async ({mobile, code}, {dispatch, rejectWithValue}) => {
+    try {
+      const {data} = await authApi.verifyOtp({mobile, code});
+
+      if (data.status === 'login') {
+        dispatch(
+          showSnackbar({
+            message: `Welcome back, ${data.data?.name ?? ''}`.trim(),
+            tone: 'success',
+          }),
+        );
+      }
+
+      return data;
+    } catch (error) {
+      const normalised = extractError(error);
+
+      // The approval gate answers 403 with its own {status: 'pending'|'rejected'} in
+      // the body — kept here under a distinct key rather than overwriting
+      // `normalised.status` (that one is the *HTTP* status, 403, which `login`'s
+      // rejected-branch above already reads for the same purpose).
+      if (normalised.status === 403) {
+        normalised.pendingApproval = true;
+        normalised.approvalStatus = error.response?.data?.status;
+      }
+
       return rejectWithValue(normalised);
     }
   },
@@ -120,6 +184,11 @@ const authSlice = createSlice({
       setAuthToken(null);
       return initialState;
     },
+    /** Mount-time reset for the mobile-number screen — no stale error/mobile from a
+     *  previous attempt bleeding into a fresh one. */
+    resetOtp: state => {
+      state.otp = initialState.otp;
+    },
   },
 
   extraReducers: builder => {
@@ -173,6 +242,60 @@ const authSlice = createSlice({
         }
       })
 
+      // ------------------------------------------------ channel-partner OTP
+      .addCase(sendOtp.pending, (state, action) => {
+        state.otp.status = 'sending';
+        state.otp.mobile = action.meta.arg;
+        state.otp.error = null;
+      })
+      .addCase(sendOtp.fulfilled, (state, action) => {
+        state.otp.status = 'sent';
+        state.otp.mobile = action.payload.mobile;
+        state.otp.expiresIn = action.payload.expires_in ?? null;
+        state.otp.debugCode = action.payload.debug_code ?? null;
+      })
+      .addCase(sendOtp.rejected, (state, action) => {
+        state.otp.status = 'error';
+        state.otp.error = action.payload?.message ?? 'Could not send the code.';
+      })
+
+      .addCase(verifyOtp.pending, state => {
+        state.otp.status = 'verifying';
+        state.otp.error = null;
+      })
+      .addCase(verifyOtp.fulfilled, (state, action) => {
+        const payload = action.payload;
+        state.otp.status = 'idle';
+        state.otp.error = null;
+
+        // Only the 'login' branch changes session state — 'register' hands the
+        // screen a verification_token to carry forward on its own (see the thunk),
+        // and there is nothing yet to consider "signed in" about it.
+        if (payload.status === 'login') {
+          const {token, data} = payload;
+          setAuthToken(token);
+
+          state.token = token;
+          state.user = data;
+          state.role = data.role;
+          state.isLoggedIn = true;
+          state.registrationStatus = 'approved';
+        }
+      })
+      .addCase(verifyOtp.rejected, (state, action) => {
+        state.otp.status = 'error';
+        state.otp.error = action.payload?.message ?? 'Verification failed.';
+
+        if (action.payload?.pendingApproval) {
+          // Only a broker ever reaches this branch — developers don't call
+          // verifyOtp — so this is safe to set unconditionally. PendingApprovalScreen
+          // reads it to decide which sign-in screen "back" should return to.
+          state.role = 'broker';
+          state.registrationStatus =
+            action.payload?.approvalStatus === 'rejected' ? 'rejected' : 'pendingApproval';
+        }
+      })
+
       // ------------------------------------------------ me
       .addCase(fetchMe.fulfilled, (state, action) => {
         state.user = action.payload;
@@ -184,7 +307,7 @@ const authSlice = createSlice({
   },
 });
 
-export const {setRole, clearAuthError, hydrateAuth, sessionExpired, resetAuth} =
+export const {setRole, clearAuthError, hydrateAuth, sessionExpired, resetAuth, resetOtp} =
   authSlice.actions;
 
 export default authSlice.reducer;

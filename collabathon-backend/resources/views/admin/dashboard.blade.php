@@ -17,6 +17,14 @@ $accepted = $funnel[2]['value'] ?: 0;
 
 <x-layouts.admin active="dashboard" title="Dashboard" section="Overview">
 
+    {{-- Dashboard-only: every card/container here (KPI tiles, the drill-down panel,
+         the chart panels, "Recent activity"/"Awaiting your review") gets a 4px corner
+         instead of the rest of the app's deliberately square ones — see the scoped
+         `.dashboard-rounded-cards` rule in app.css. Wrapping the whole page rather than
+         each component keeps this a one-page opt-in, not a change to `rounded-xl`
+         itself, which every other admin page also uses. --}}
+    <div class="dashboard-rounded-cards">
+
     <x-page-header
         title="Dashboard"
         subtitle="Platform activity across every developer, channel partner and listing on iREC.">
@@ -31,15 +39,26 @@ $accepted = $funnel[2]['value'] ?: 0;
         @foreach($stats as $stat)
             @if(!empty($stat['route']))
                 {{-- The one tile that is a drill-down rather than a number to read —
-                     hover state says so before the click does. --}}
-                <a href="{{ $stat['route'] }}" class="block">
+                     hover lifts it, a press eases it back down, so the click reads as
+                     "opening" this card rather than an instant page swap. Slowed to
+                     300ms with an ease-out curve to match the panel's own reveal. --}}
+                {{-- `h-full` on both: the grid stretches this <a> to the row's height
+                     automatically, but a plain block child does not inherit that — the
+                     card itself has to be told to fill it, or a tile with slightly less
+                     content (e.g. "Total actions" has no coloured icon badge) renders
+                     its bordered box shorter than its siblings instead of matching them. --}}
+                <a href="{{ $stat['route'] }}" class="block h-full">
                     <x-stat-card
                         :icon="$stat['icon']"
                         :label="$stat['label']"
                         :value="$stat['value']"
                         :good-when-up="$stat['goodWhenUp'] ?? true"
+                        :color="$stat['color'] ?? null"
                         :spark="$stat['spark'] ?? []"
-                        class="hover:border-primary-ring transition-colors cursor-pointer" />
+                        data-kpi-tile="{{ $stat['key'] }}"
+                        :class="(request('panel') === $stat['key'] ? 'border-primary-ring shadow-md ' : '')
+                            . 'h-full hover:border-primary-ring hover:shadow-md hover:-translate-y-0.5
+                               active:translate-y-0 active:shadow-card transition-all duration-300 ease-out cursor-pointer'" />
                 </a>
             @else
                 <x-stat-card
@@ -47,9 +66,21 @@ $accepted = $funnel[2]['value'] ?: 0;
                     :label="$stat['label']"
                     :value="$stat['value']"
                     :good-when-up="$stat['goodWhenUp'] ?? true"
-                    :spark="$stat['spark']" />
+                    :color="$stat['color'] ?? null"
+                    :spark="$stat['spark']"
+                    class="h-full" />
             @endif
         @endforeach
+    </div>
+
+    {{-- ------------------- KPI drill-down panel ------------------- --}}
+    {{-- `#panel-wrap` is the AJAX target in resources/js/app.js: clicking a tile above
+         fetches admin/dashboard/panel and swaps this div's contents in place, so the
+         row list opens right below the cards without a page reload. The real
+         `?panel=…` href stays underneath as the no-JS/deep-link fallback — with
+         JavaScript off this still works exactly as a normal link + full reload. --}}
+    <div id="panel-wrap">
+        @include('admin.partials.dashboard-panel')
     </div>
 
     {{-- ------------------- Trend + funnel ------------------- --}}
@@ -134,5 +165,7 @@ $accepted = $funnel[2]['value'] ?: 0;
                                description="Every channel partner registration has been reviewed." />
             @endforelse
         </x-panel>
+    </div>
+
     </div>
 </x-layouts.admin>

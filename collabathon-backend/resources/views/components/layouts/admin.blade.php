@@ -20,7 +20,7 @@ $navGroups = [
         ['key' => 'approvals', 'icon' => 'user-check', 'label' => 'Pending Approvals', 'route' => route('admin.approvals'), 'count' => $pendingCount],
         // The roster of brokers already through approval — the queue's output, kept
         // next to it rather than buried as a tab on a page about outstanding work.
-        ['key' => 'cp', 'icon' => 'users', 'label' => 'CP', 'route' => route('admin.cp')],
+        ['key' => 'cp', 'icon' => 'users', 'label' => 'Channel Partners', 'route' => route('admin.cp')],
         ['key' => 'developers', 'icon' => 'building', 'label' => 'Developers', 'route' => route('admin.developers')],
         ['key' => 'properties', 'icon' => 'list', 'label' => 'Projects', 'route' => route('admin.properties')],
         ['key' => 'leads', 'icon' => 'chart', 'label' => 'Approvals', 'route' => route('admin.leads')],
@@ -121,7 +121,7 @@ $toneClasses = [
     <div class="flex h-dvh">
 
         {{-- ============================ Sidebar ============================ --}}
-        <aside class="fixed inset-y-0 left-0 z-40 w-[236px] shrink-0 h-dvh bg-nav flex flex-col overflow-hidden
+        <aside class="fixed inset-y-0 left-0 z-40 w-[264px] shrink-0 h-dvh bg-nav flex flex-col overflow-hidden
                       transition-transform duration-200 lg:translate-x-0 lg:static lg:z-auto"
                :class="mobileNav ? 'translate-x-0' : '-translate-x-full'">
 
@@ -300,7 +300,7 @@ $toneClasses = [
                 </div>
             </header>
 
-            <main class="flex-1 min-h-0 overflow-y-auto scrollbar-slim">
+            <main class="flex-1 min-h-0 overflow-y-auto scrollbar-slim scroll-smooth">
                 <div x-show="navigating" x-cloak aria-busy="true" aria-live="polite">
                     <x-page-skeleton />
                 </div>

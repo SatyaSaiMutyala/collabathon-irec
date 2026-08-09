@@ -22,15 +22,18 @@ $coords = [];
 for ($i = 0; $i < $n; $i++) {
     $coords[] = $pt($i);
 }
-$line = implode(' ', array_map(fn ($c) => "{$c[0]},{$c[1]}", $coords));
+// Monotone cubic, not a straight polyline — see SmoothPath's own docblock. Sparse
+// data (long flat run then a late jump, typical of a 12-week window over a handful
+// of records) drew as a jagged "hockey stick" angle; this reads as a trend line.
+$line = \App\Support\SmoothPath::line($coords);
 $last = $coords ? end($coords) : null;
 @endphp
 
 @if($n > 1)
     <svg viewBox="0 0 {{ $w }} {{ $h }}" width="{{ $w }}" height="{{ $h }}" fill="none"
          {{ $attributes->merge(['class' => 'overflow-visible shrink-0']) }} aria-hidden="true">
-        <polyline points="{{ $line }}" fill="none" stroke="{{ $color }}" stroke-width="2"
-                  stroke-linecap="round" stroke-linejoin="round" opacity="0.55" />
+        <path d="{{ $line }}" fill="none" stroke="{{ $color }}" stroke-width="2.25"
+              stroke-linecap="round" stroke-linejoin="round" opacity="0.85" />
         {{-- Current period in the accent; 2px surface ring keeps it legible over the line. --}}
         <circle cx="{{ $last[0] }}" cy="{{ $last[1] }}" r="3.25"
                 fill="{{ $color }}" stroke="var(--color-panel)" stroke-width="2" />

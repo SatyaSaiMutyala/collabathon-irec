@@ -63,9 +63,21 @@ export const authApi = {
           headers: {'Content-Type': 'multipart/form-data'},
         })
       : client.post('/auth/register', payload),
+  /** Developer sign-in only — channel partners use sendOtp/verifyOtp below. */
   login: payload => client.post('/auth/login', payload),
   me: () => client.get('/auth/me'),
   logout: () => client.post('/auth/logout'),
+
+  // ---------------------------------------------------------------- channel-partner OTP
+  /** Issues (or re-issues) a 6-digit code for a mobile number. */
+  sendOtp: mobile => client.post('/auth/otp/send', {mobile}),
+  /**
+   * The fork point: `status` in the response is 'login' (token + user), 'register'
+   * (no account yet — carries a verification_token for `register()`), or 'pending' /
+   * 'rejected' (an account exists but the approval gate hasn't opened yet).
+   */
+  verifyOtp: ({mobile, code}) =>
+    client.post('/auth/otp/verify', {mobile, code, device_name: 'mobile'}),
 };
 
 export const dashboardApi = {

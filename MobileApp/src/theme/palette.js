@@ -74,6 +74,13 @@ export function buildPalette(primary) {
   };
 }
 
-/** Default seed theme — monochrome: black accent on white. Admin can swap `primary`. */
-export const DEFAULT_PRIMARY = '#000000';
+/**
+ * Default seed theme. Pulled from the brand mark itself (the indigo ribbon in
+ * `assets/images/logo-mark.png`, the same hue WelcomeScreen already uses for its
+ * "WELCOME TO" label and trust badge) rather than left flat black, so every screen
+ * past Welcome — which keeps its own richer one-off palette, see that screen's
+ * top-of-file note — reads as the same app instead of jumping to monochrome the
+ * moment sign-in starts. Still fully admin-swappable via `setPrimaryColor`.
+ */
+export const DEFAULT_PRIMARY = '#6C4FE0';
 export const defaultPalette = buildPalette(DEFAULT_PRIMARY);

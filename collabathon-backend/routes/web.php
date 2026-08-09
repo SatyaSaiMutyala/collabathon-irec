@@ -56,6 +56,13 @@ Route::prefix('admin')
 
         Route::get('/dashboard', DashboardController::class)->name('dashboard')
             ->middleware("can:view-module,'dashboard'");
+        // The KPI tiles' row list, as an HTML fragment — fetched in place so opening,
+        // searching, filtering or paging it never reloads the whole dashboard. Every
+        // link the fragment itself renders (search, filters, sort, pagination, close)
+        // resolves back to this same route, so the AJAX layer in app.js has one URL
+        // shape to intercept. See DashboardController::fragment().
+        Route::get('/dashboard/panel', [DashboardController::class, 'fragment'])->name('dashboard.panel')
+            ->middleware("can:view-module,'dashboard'");
         Route::get('/activity', [ActivityController::class, 'index'])->name('activity')
             ->middleware("can:view-module,'dashboard'");
 

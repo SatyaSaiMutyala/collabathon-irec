@@ -48,14 +48,14 @@ const MAX_EXPIRY = new Date(
 /**
  * Every field the API can reject, mapped to the form field that shows it.
  *
- * Previously only email, password and mobile were mapped, so a 422 on any of the other
- * twenty fields painted no error anywhere — the request failed and the form looked idle.
+ * `verification_token` has no field of its own — the mobile number it protects is
+ * locked, read-only, display-only on this screen — so a rejection there (the OTP
+ * verification aged out while the form was being filled in) surfaces as the general
+ * submit error instead of pointing at a field there is nothing to fix on.
  */
 const SERVER_FIELD_TO_FORM = {
   name: 'fullNameAsRera',
   email: 'emailId',
-  password: 'password',
-  mobile: 'mobileNumber',
   alternate_mobile: 'alternateMobile',
   residence_address: 'residenceAddress',
   company_name: 'companyName',
@@ -88,14 +88,13 @@ const SERVER_FIELD_TO_FORM = {
  *
  * `focusVia` is for the controls that cannot take keyboard focus — an attachment box, a
  * calendar field, a checkbox — and names the nearest text input above them, which lands
- * the user in the right part of the form rather than nowhere.
+ * the user in the right part of the form rather than nowhere. `mobileNumber` is not in
+ * this list: it is locked, so it can never be the field a failed submit points at.
  */
 const FIELD_ORDER = [
   {key: 'fullNameAsRera'},
-  {key: 'mobileNumber'},
   {key: 'alternateMobile'},
   {key: 'emailId'},
-  {key: 'password'},
   {key: 'residenceAddress'},
   {key: 'photoAttachment', focusVia: 'residenceAddress'},
   {key: 'companyName'},
@@ -125,13 +124,12 @@ const FIELD_ORDER = [
   {key: 'signature'},
 ];
 
-const initialForm = {
+const buildInitialForm = mobile => ({
   suffix: '',
   fullNameAsRera: '',
-  mobileNumber: '',
+  mobileNumber: mobile ?? '',
   alternateMobile: '',
   emailId: '',
-  password: '',
   residenceAddress: '',
   photoAttachment: '',
   isCompany: false,
@@ -164,12 +162,23 @@ const initialForm = {
   operatesMultipleStates: false,
   confirmAccuracy: false,
   hasSignature: false,
-};
+});
 
-const RegisterScreen = ({navigation}) => {
+/**
+ * The channel-partner empanelment form — reached only after OtpVerifyScreen has
+ * already confirmed the mobile number and found no account for it (see
+ * AuthController::verifyOtp's `status: 'register'` branch). What used to be a
+ * password field here is gone: a broker account has no password at all any more,
+ * mobile + OTP is the only sign-in path, and this screen submits the
+ * `verification_token` that proves the number was actually checked instead.
+ */
+const CompleteProfileScreen = ({navigation, route}) => {
   const {colors, spacing} = useAppTheme();
   const dispatch = useAppDispatch();
-  const [form, setForm] = useState(initialForm);
+  const mobile = route.params?.mobile;
+  const verificationToken = route.params?.verificationToken;
+
+  const [form, setForm] = useState(() => buildInitialForm(mobile));
   const [errors, setErrors] = useState({});
   const [isScrollEnabled, setIsScrollEnabled] = useState(true);
 
@@ -203,9 +212,6 @@ const RegisterScreen = ({navigation}) => {
 
   const validate = () => {
     const next = {};
-    if (!/^\+?[0-9]{7,15}$/.test(form.mobileNumber.trim())) {
-      next.mobileNumber = 'Enter a valid mobile number';
-    }
     if (
       form.alternateMobile.trim() &&
       !/^\+?[0-9]{7,15}$/.test(form.alternateMobile.trim())
@@ -214,9 +220,6 @@ const RegisterScreen = ({navigation}) => {
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.emailId.trim())) {
       next.emailId = 'Enter a valid email';
-    }
-    if (!form.password || form.password.length < 8) {
-      next.password = 'Password must be at least 8 characters';
     }
     if (!form.residenceAddress.trim()) {
       next.residenceAddress = 'Enter your address of communication';
@@ -275,7 +278,7 @@ const RegisterScreen = ({navigation}) => {
       (first && fieldErrors[first.key]) ||
       fallbackMessage ||
       'Please check the form and try again.';
-    const remaining = Math.max(failed.length - 1, 0);
+    const remaining = Math.max(failed.length - (first ? 1 : 0), 0);
 
     dispatch(
       showSnackbar({
@@ -304,10 +307,9 @@ const RegisterScreen = ({navigation}) => {
 
   /** Maps the empanelment form onto the API's register contract. */
   const toPayload = () => ({
+    verification_token: verificationToken,
     name: [form.suffix, form.fullNameAsRera].filter(Boolean).join(' ').trim(),
     email: form.emailId.trim(),
-    password: form.password,
-    mobile: form.mobileNumber.trim(),
 
     alternate_mobile: form.alternateMobile.trim() || null,
     residence_address: form.residenceAddress.trim(),
@@ -379,10 +381,17 @@ const RegisterScreen = ({navigation}) => {
 
     // Every field the server rejected, painted on the field that owns it — the message
     // is the server's own wording, so a rule that changes in Laravel changes here too
-    // without the app having to be taught about it.
+    // without the app having to be taught about it. `verification_token` has no field
+    // of its own (see SERVER_FIELD_TO_FORM's docblock), so it becomes the submit error.
     const serverErrors = result.payload?.errors ?? {};
     const mapped = {};
+    let submitMessage;
+
     Object.entries(serverErrors).forEach(([apiField, messages]) => {
+      if (apiField === 'verification_token') {
+        submitMessage = messages?.[0];
+        return;
+      }
       const formField = SERVER_FIELD_TO_FORM[apiField];
       if (formField) {
         mapped[formField] = messages?.[0];
@@ -392,9 +401,9 @@ const RegisterScreen = ({navigation}) => {
     const message = result.payload?.message;
     setErrors({
       ...mapped,
-      submit: Object.keys(mapped).length === 0 ? message : undefined,
+      submit: submitMessage ?? (Object.keys(mapped).length === 0 ? message : undefined),
     });
-    reportErrors(mapped, message);
+    reportErrors(mapped, submitMessage ?? message);
   };
 
   return (
@@ -420,20 +429,21 @@ const RegisterScreen = ({navigation}) => {
             />
           </TouchableOpacity>
           <AppText variant="h1" style={{marginLeft: spacing.sm}}>
-            Register
+            Complete your profile
           </AppText>
         </View>
         <AppText
           variant="caption"
           color={colors.textSecondary}
           style={{
-            // Aligned under "Register", not the back chevron — matches the icon's
-            // width plus the gap before "Register" in the row above.
+            // Aligned under the title, not the back chevron — matches the icon's
+            // width plus the gap before the title in the row above.
             marginLeft: moderateScale(22) + spacing.sm,
             marginTop: spacing.xxs,
             marginBottom: spacing.xl,
           }}>
-          Broker / CP / Agent — empanelment form
+          {mobile ? `${mobile} is verified — ` : ''}a few more details and you're
+          ready for admin review.
         </AppText>
 
         {/* Step 1 — Personal info */}
@@ -461,15 +471,14 @@ const RegisterScreen = ({navigation}) => {
             </View>
           </View>
 
+          {/* Locked, not just pre-filled: this is the number OtpVerifyScreen already
+              confirmed belongs to whoever is filling in this form — letting it be
+              edited here would submit a profile for a number nobody proved they hold. */}
           <Input
-            ref={registerRef('mobileNumber')}
-            label="Mobile number *"
-            placeholder="10-digit mobile"
+            label="Mobile number"
             leftIcon="call-outline"
-            keyboardType="phone-pad"
             value={form.mobileNumber}
-            onChangeText={update('mobileNumber')}
-            error={errors.mobileNumber}
+            editable={false}
           />
           <Input
             ref={registerRef('alternateMobile')}
@@ -492,17 +501,6 @@ const RegisterScreen = ({navigation}) => {
             value={form.emailId}
             onChangeText={update('emailId')}
             error={errors.emailId}
-          />
-          {/* Email + password is the login credential once an admin approves. */}
-          <Input
-            ref={registerRef('password')}
-            label="Password *"
-            placeholder="At least 8 characters"
-            leftIcon="lock-closed-outline"
-            isPassword
-            value={form.password}
-            onChangeText={update('password')}
-            error={errors.password}
           />
           <Input
             ref={registerRef('residenceAddress')}
@@ -882,13 +880,11 @@ const RegisterScreen = ({navigation}) => {
 
         <View style={styles.footerRow}>
           <AppText variant="body" color={colors.textSecondary}>
-            Already registered?{' '}
+            Wrong number?{' '}
           </AppText>
-          <TouchableOpacity
-            onPress={() => navigation.replace('Login')}
-            hitSlop={8}>
+          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={8}>
             <AppText variant="bodyMedium" color={colors.primary}>
-              Log In
+              Start over
             </AppText>
           </TouchableOpacity>
         </View>
@@ -912,4 +908,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default RegisterScreen;
+export default CompleteProfileScreen;

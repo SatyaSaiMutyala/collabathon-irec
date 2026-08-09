@@ -27,6 +27,14 @@ Route::prefix('v1')->group(function () {
     Route::post('auth/login', [AuthController::class, 'login'])
         ->middleware('throttle:10,1');
 
+    // Channel-partner sign-in. Tighter than the above: a code costs money to deliver
+    // once a real SMS provider is wired in, so this is the one endpoint worth
+    // rate-limiting below the site-wide default even before that's true.
+    Route::post('auth/otp/send', [AuthController::class, 'sendOtp'])
+        ->middleware('throttle:6,1');
+    Route::post('auth/otp/verify', [AuthController::class, 'verifyOtp'])
+        ->middleware('throttle:15,1');
+
     // ---------------------------------------------------------------- authenticated
     Route::middleware('auth:sanctum')->group(function () {
 

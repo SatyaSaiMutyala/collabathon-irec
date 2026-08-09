@@ -122,30 +122,32 @@ $showEndLabels = count($series) < 2 || $minGap >= 26;
              saturated block. Drawn before the lines so the 2px stroke stays crisp
              on top; drawn in series order so the first (primary) series' wash sits
              under the others, which is the same stacking a reader's eye expects
-             from "the metric this chart leads with". --}}
+             from "the metric this chart leads with". Monotone cubic curve, not a
+             straight-segment polygon — see SmoothPath's docblock: sparse real data
+             (long flat runs, a late jump) drew as sharp angular "mountain" peaks. --}}
         @foreach($series as $s)
             @php
                 $baseline = round($yAt(0), 2);
-                $area = [round($xAt(0), 2) . ',' . $baseline];
+                $coords = [];
                 foreach ($points as $i => $p) {
-                    $area[] = round($xAt($i), 2) . ',' . round($yAt((float) ($p[$s['key']] ?? 0)), 2);
+                    $coords[] = [round($xAt($i), 2), round($yAt((float) ($p[$s['key']] ?? 0)), 2)];
                 }
-                $area[] = round($xAt($n - 1), 2) . ',' . $baseline;
             @endphp
-            <polygon points="{{ implode(' ', $area) }}" fill="{{ $s['color'] }}" fill-opacity="0.1" stroke="none" />
+            <path d="{{ \App\Support\SmoothPath::area($coords, $baseline) }}"
+                  fill="{{ $s['color'] }}" fill-opacity="0.1" stroke="none" />
         @endforeach
 
-        {{-- Series: 2px lines, round caps --}}
+        {{-- Series: 2px curves, round caps --}}
         @foreach($series as $s)
             @php
-                $d = [];
+                $coords = [];
                 foreach ($points as $i => $p) {
-                    $d[] = round($xAt($i), 2) . ',' . round($yAt((float) ($p[$s['key']] ?? 0)), 2);
+                    $coords[] = [round($xAt($i), 2), round($yAt((float) ($p[$s['key']] ?? 0)), 2)];
                 }
                 $lastVal = (float) ($points[$n - 1][$s['key']] ?? 0);
             @endphp
-            <polyline points="{{ implode(' ', $d) }}" fill="none" stroke="{{ $s['color'] }}"
-                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="{{ \App\Support\SmoothPath::line($coords) }}" fill="none" stroke="{{ $s['color'] }}"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
 
             {{-- End marker: r>=4 with a 2px surface ring --}}
             <circle cx="{{ round($xAt($n - 1), 2) }}" cy="{{ round($yAt($lastVal), 2) }}" r="4"

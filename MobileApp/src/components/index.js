@@ -1,5 +1,6 @@
 export {default as ActionSheet} from './ActionSheet';
 export {default as AppText} from './AppText';
+export {default as AuthHeader} from './AuthHeader';
 export {default as Button} from './Button';
 export {default as Input} from './Input';
 export {default as Avatar} from './Avatar';
@@ -37,3 +38,4 @@ export * from './Skeletons';
 export {default as Snackbar} from './Snackbar';
 export {default as ConfirmDialog} from './ConfirmDialog';
 export {default as ProjectDecisionPanel} from './ProjectDecisionPanel';
+export {default as OtpInput} from './OtpInput';

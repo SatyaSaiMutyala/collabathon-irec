@@ -34,11 +34,15 @@ const DEV_PORT = 8000;
 // Every endpoint in api/endpoints.js is written relative — '/auth/login', '/leads' — so
 // the version prefix belongs here. Without it those resolve to /auth/login on the host
 // root, which Laravel answers with a 404 the client reports as "cannot reach the server".
-export const API_BASE_URL = 'https://brown-hedgehog-768805.hostingersite.com/api/v1';
+// export const API_BASE_URL = 'https://brown-hedgehog-768805.hostingersite.com/api/v1';
 
-// LOCAL DEV — set LAN_HOST above and swap in this line instead to point at
-// `php artisan serve --host=0.0.0.0` on this machine.
-// export const API_BASE_URL = `http://${DEV_HOST}:${DEV_PORT}/api/v1`;
+// TEMPORARY — the mobile+OTP sign-in work (migration, AuthController::sendOtp/
+// verifyOtp, routes) exists only on this machine so far, not yet deployed to the
+// Hostinger host above. Pointed at local `php artisan serve` (already running on
+// :8000) so the flow can actually be tested end to end. Swap the line above back in
+// once that backend work is deployed and migrated on Hostinger — don't ship a build
+// with this line active, 127.0.0.1 only resolves on this Mac.
+export const API_BASE_URL = `http://${DEV_HOST}:${DEV_PORT}/api/v1`;
 
 /** Matches the server-side cap in HandlesListQueries. */
 export const DEFAULT_PAGE_SIZE = 20;

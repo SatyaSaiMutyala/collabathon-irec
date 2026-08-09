@@ -6,22 +6,33 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Models\BrokerProfile;
 use App\Models\DeviceToken;
+use App\Models\OtpCode;
 use App\Models\User;
+use App\Services\OtpSender;
 use App\Services\PushNotifier;
 use App\Support\SocialPlatforms;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Mobile auth. Email + password (Sanctum tokens) for both mobile roles.
+ * Mobile auth. Two different mechanisms for two different roles:
  *
- * The approval gate lives here: a broker registers as `pending` and is issued NO token
- * until an admin approves. Returning a token first and checking status later would let a
- * rejected broker keep a valid credential.
+ *  - Developers sign in with email + password — accounts an admin provisions, so a
+ *    credential handed over once is the right shape.
+ *  - Channel partners sign in with mobile number + OTP (`sendOtp`/`verifyOtp`) —
+ *    self-registering, so a phone the person actually holds is a better proof of
+ *    identity than a password they choose once and probably reuse elsewhere. A broker
+ *    account has no usable password at all: `register()` fills the column with random
+ *    bytes so it satisfies the schema, and nothing ever checks it.
+ *
+ * The approval gate lives here regardless of which door was used: a broker registers
+ * as `pending` and is issued NO token until an admin approves. Returning a token first
+ * and checking status later would let a rejected broker keep a valid credential.
  */
 class AuthController extends Controller
 {
@@ -40,14 +51,21 @@ class AuthController extends Controller
         'signature_file' => 'signature_path',
     ];
 
-    /** Broker self-registration. Creates the user + profile, issues no token. */
+    /**
+     * Broker self-registration. Creates the user + profile, issues no token.
+     *
+     * No `mobile` field to validate and no `password` at all: the mobile number comes
+     * from `verification_token` (see `verifyOtp`) rather than the request body, so it
+     * cannot be swapped for a number that was never actually OTP-verified, and a
+     * broker account has no password to check going forward — `mobile` + OTP is the
+     * only sign-in path for this role.
+     */
     public function register(Request $request, PushNotifier $push): JsonResponse
     {
         $data = $request->validate([
+            'verification_token' => ['required', 'string'],
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8'],
-            'mobile' => ['required', 'string', 'max:32'],
 
             'alternate_mobile' => ['nullable', 'string', 'max:32'],
             'residence_address' => ['nullable', 'string'],
@@ -94,6 +112,24 @@ class AuthController extends Controller
                 ->all(),
         ]);
 
+        $mobile = OtpCode::mobileForVerificationToken($data['verification_token']);
+
+        if (! $mobile) {
+            throw ValidationException::withMessages([
+                'verification_token' => ['Verify your mobile number again before continuing.'],
+            ]);
+        }
+
+        // Replay guard: the same token resolves to the same mobile on a second call
+        // (nothing marks it "spent" on its own), so a second registration attempt is
+        // only ever caught here — cleanly, as a 422 — rather than as a raw unique-
+        // constraint 500 from the insert below.
+        if (User::where('mobile', $mobile)->exists()) {
+            throw ValidationException::withMessages([
+                'verification_token' => ['This mobile number is already registered.'],
+            ]);
+        }
+
         // Stored before the transaction so a failed insert cannot leave a half-written
         // row pointing at nothing; an orphaned file is the cheaper failure.
         $data['photo_path'] = $request->hasFile('photo')
@@ -106,12 +142,15 @@ class AuthController extends Controller
                 : null;
         }
 
-        $user = DB::transaction(function () use ($data) {
+        $user = DB::transaction(function () use ($data, $mobile) {
             $user = User::create([
                 'name' => $data['name'],
                 'email' => $data['email'],
-                'password' => $data['password'],
-                'mobile' => $data['mobile'],
+                // No password is ever checked for a broker — OTP is the only sign-in
+                // path — but the column is NOT NULL, so this fills it with bytes
+                // nobody knows rather than migrating the schema for one role.
+                'password' => Str::random(40),
+                'mobile' => $mobile,
                 'role' => User::ROLE_BROKER,
                 'status' => User::STATUS_PENDING,
             ]);
@@ -152,7 +191,98 @@ class AuthController extends Controller
         ], 201);
     }
 
-    /** Login for brokers and developers. */
+    /**
+     * POST /api/auth/otp/send — issues a fresh 6-digit code for a mobile number.
+     *
+     * Deliberately answers the same shape whether or not an account exists for that
+     * number: the two paths (sign in vs. complete your profile) only fork after the
+     * code is verified, so this endpoint can't be used to check which mobile numbers
+     * are already registered.
+     */
+    public function sendOtp(Request $request, OtpSender $sender): JsonResponse
+    {
+        $data = $request->validate([
+            'mobile' => ['required', 'digits:10'],
+        ]);
+
+        $otp = OtpCode::issueFor($data['mobile']);
+        $sender->send($data['mobile'], $otp->rawCode());
+
+        return response()->json([
+            'message' => 'OTP sent.',
+            'expires_in' => OtpCode::TTL_MINUTES * 60,
+            // Local/testing only, and only because nothing here actually texts the
+            // code anywhere yet (see OtpSender) — without this there would be no way
+            // to finish the flow short of tailing the Laravel log.
+            'debug_code' => app()->environment(['local', 'testing']) ? $otp->rawCode() : null,
+        ]);
+    }
+
+    /**
+     * POST /api/auth/otp/verify — the fork point: an existing, active broker gets a
+     * token (`status: login`); an existing pending/rejected one gets told why not
+     * (`status: pending`/`rejected`); a mobile with no account at all gets a
+     * short-lived `verification_token` to finish registering with (`status:
+     * register`) — see `register()`, which trusts that token instead of a password.
+     */
+    public function verifyOtp(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'mobile' => ['required', 'digits:10'],
+            'code' => ['required', 'digits:6'],
+            'device_name' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $otp = OtpCode::activeFor($data['mobile']);
+
+        if (! $otp || $otp->isLocked()) {
+            throw ValidationException::withMessages([
+                'code' => ['That code has expired. Request a new one.'],
+            ]);
+        }
+
+        if (! $otp->matches($data['code'])) {
+            $otp->registerFailedAttempt();
+
+            throw ValidationException::withMessages([
+                'code' => ['That code is incorrect.'],
+            ]);
+        }
+
+        $otp->consume();
+
+        $user = User::where('mobile', $data['mobile'])->where('role', User::ROLE_BROKER)->first();
+
+        if (! $user) {
+            return response()->json([
+                'status' => 'register',
+                'mobile' => $data['mobile'],
+                'verification_token' => $otp->verificationToken(),
+            ]);
+        }
+
+        if (! $user->isActive()) {
+            return response()->json([
+                'status' => $user->status === User::STATUS_REJECTED ? 'rejected' : 'pending',
+                'message' => match ($user->status) {
+                    User::STATUS_PENDING => 'Your registration is awaiting admin approval.',
+                    User::STATUS_REJECTED => 'Your registration was not approved.',
+                    default => 'This account is not active.',
+                },
+            ], 403);
+        }
+
+        $user->forceFill(['last_login_at' => now()])->save();
+        $this->loadProfile($user);
+
+        return response()->json([
+            'status' => 'login',
+            'token' => $user->createToken($data['device_name'] ?? 'mobile')->plainTextToken,
+            'data' => new UserResource($user),
+        ]);
+    }
+
+    /** Login for developers. Brokers sign in with mobile + OTP instead — see `verifyOtp`. */
     public function login(Request $request): JsonResponse
     {
         $data = $request->validate([

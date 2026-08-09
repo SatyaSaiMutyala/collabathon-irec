@@ -546,3 +546,136 @@ window.makePassword = makePassword;
 window.addressFinder = addressFinder;
 window.locationFinder = locationFinder;
 window.nearbyPlacesFinder = nearbyPlacesFinder;
+
+/* ------------------------------------------------------------------ dashboard KPI panel */
+
+/**
+ * The dashboard's six KPI tiles open a filtered/searchable/paginated row list right
+ * below the cards. Every link/form involved — a tile, and everything the panel itself
+ * renders (search, filters, sort headers, pagination, close) — is a plain link to
+ * `/admin/dashboard` or `/admin/dashboard/panel`, so the feature is a real, working
+ * page with JavaScript off. This layer intercepts only those same-page requests and
+ * swaps `#panel-wrap`'s contents in place instead of letting the browser navigate —
+ * opening, searching or paging a panel no longer reloads the whole dashboard. A row's
+ * own link (developer/project/broker/lead) and "Open full page" point elsewhere and
+ * are deliberately left alone, so those still leave the page normally.
+ *
+ * `history.pushState` keeps the address bar matching what's on screen, for deep links
+ * and refresh. Back/forward just reloads — correctness over animating a rare path.
+ */
+(() => {
+    const DASHBOARD_PATH = '/admin/dashboard';
+
+    const panelWrap = () => document.getElementById('panel-wrap');
+
+    const isDashboardUrl = (href) => {
+        try {
+            return new URL(href, window.location.origin).pathname.startsWith(DASHBOARD_PATH);
+        } catch {
+            return false;
+        }
+    };
+
+    // The fragment route is always `.../dashboard/panel` with the same query string —
+    // whichever of the two shapes a link already carries, this normalises to that one.
+    const fragmentUrl = (href) => {
+        const url = new URL(href, window.location.origin);
+        if (!url.pathname.endsWith('/panel')) {
+            url.pathname = url.pathname.replace(/\/dashboard\/?$/, '/dashboard/panel');
+        }
+        return url;
+    };
+
+    // The inverse, for the address bar — a fetch always goes to .../panel, but the
+    // pretty URL a person sees (and can reload or share) stays plain /dashboard.
+    const displayUrl = (href) => {
+        const url = new URL(href, window.location.origin);
+        url.pathname = url.pathname.replace(/\/dashboard\/panel\/?$/, '/dashboard');
+        return url;
+    };
+
+    const syncActiveTile = (openKey) => {
+        document.querySelectorAll('[data-kpi-tile]').forEach((tile) => {
+            const active = tile.dataset.kpiTile === openKey;
+            tile.classList.toggle('border-primary-ring', active);
+            tile.classList.toggle('shadow-md', active);
+        });
+    };
+
+    // The layout's <body x-data="{ navigating: false }"> shows a full-page skeleton on
+    // every link click (see admin.blade.php) and only clears it once the browser
+    // finishes navigating. Since this panel never actually navigates, that flag has to
+    // be put back by hand or the skeleton is stuck on screen forever over a panel that
+    // in fact loaded fine underneath it.
+    const clearNavigatingSkeleton = () => {
+        const data = window.Alpine?.$data?.(document.body);
+        if (data) data.navigating = false;
+    };
+
+    let inFlight = null;
+
+    async function loadPanel(href) {
+        const target = panelWrap();
+        if (!target) return;
+
+        clearNavigatingSkeleton();
+
+        inFlight?.abort();
+        inFlight = new AbortController();
+
+        target.classList.add('opacity-60', 'pointer-events-none', 'transition-opacity', 'duration-150');
+        if (!target.innerHTML.trim()) {
+            target.innerHTML = '<div class="py-16 text-center text-[13px] text-ink-3">Loading…</div>';
+        }
+
+        try {
+            const response = await fetch(fragmentUrl(href), {
+                headers: {'X-Requested-With': 'XMLHttpRequest'},
+                signal: inFlight.signal,
+            });
+
+            target.innerHTML = await response.text();
+            target.classList.remove('opacity-60', 'pointer-events-none');
+
+            const shown = displayUrl(href);
+            history.pushState({panel: shown.href}, '', shown.href);
+            syncActiveTile(shown.searchParams.get('panel'));
+
+            target.querySelector('#panel')?.scrollIntoView({behavior: 'smooth', block: 'start'});
+        } catch (error) {
+            if (error.name === 'AbortError') return;
+
+            // The href underneath still works — a real navigation beats a panel that
+            // silently never updates.
+            window.location.href = href;
+        }
+    }
+
+    // Capture phase, and deliberately registered on `document` rather than a nearer
+    // ancestor: capture listeners fire root-to-target, so this runs — and calls
+    // preventDefault() — before admin.blade.php's own `x-on:click.capture` on <body>
+    // gets to check `$event.defaultPrevented` and (wrongly) flag a real navigation.
+    document.addEventListener('click', (event) => {
+        // Off the dashboard page entirely, e.g. the sidebar's own "Dashboard" link
+        // clicked from elsewhere: let it navigate there normally.
+        if (!panelWrap()) return;
+
+        const link = event.target.closest('a[href]');
+        if (!link || !isDashboardUrl(link.href)) return;
+
+        event.preventDefault();
+        loadPanel(link.href);
+    }, true);
+
+    document.addEventListener('submit', (event) => {
+        const form = event.target.closest('#panel-wrap form');
+        if (!form) return;
+
+        event.preventDefault();
+        const url = new URL(form.getAttribute('action') || window.location.href, window.location.origin);
+        url.search = new URLSearchParams(new FormData(form)).toString();
+        loadPanel(url.href);
+    }, true);
+
+    window.addEventListener('popstate', () => window.location.reload());
+})();

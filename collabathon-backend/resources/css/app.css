@@ -110,6 +110,9 @@
        --------------------------------------------------------------- */
     --color-chart-1: #1d5fa8;
     --color-chart-2: #a1521c;
+    /* Soft tint of chart-2, for the dashboard KPI tiles' icon badges — same
+       recipe as the status `-soft` pairs above, just for the chart hue. */
+    --color-chart-2-soft: #f7ede4;
     --color-funnel-1: #86b0df;
     --color-funnel-2: #3c7bc0;
     --color-funnel-3: #17518f;
@@ -206,6 +209,27 @@
         }
     }
 
+    /* ---------------------------------------------------------------
+       Panel reveal — the KPI tile drill-down on the dashboard arriving
+       below the cards. Settles in over 420ms rather than snapping into
+       place, so a full-page reload with `?panel=` reads as the same
+       tile "opening" rather than a jump to a different screen.
+       --------------------------------------------------------------- */
+    .panel-reveal {
+        animation: panel-reveal 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    @keyframes panel-reveal {
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .panel-reveal {
+            animation: none;
+        }
+    }
+
     .scrollbar-slim {
         scrollbar-width: thin;
         scrollbar-color: var(--color-line) transparent;
@@ -223,6 +247,20 @@
 
     .scrollbar-slim::-webkit-scrollbar-track {
         background: transparent;
+    }
+
+    /* ---------------------------------------------------------------
+       Dashboard-only exception to "square everywhere" (see --radius-xl
+       above): every card/container on that one page — KPI tiles, the
+       KPI drill-down panel/table, the chart panels, activity/queue
+       lists — gets a soft 4px corner instead. Scoped to the
+       `.dashboard-rounded-cards` wrapper in admin/dashboard.blade.php
+       rather than touching `--radius-xl` itself, which every other
+       admin page also builds its cards from and stays square.
+       --------------------------------------------------------------- */
+    .dashboard-rounded-cards .rounded-xl,
+    .dashboard-rounded-cards .rounded-b-xl {
+        border-radius: 4px;
     }
 }
 

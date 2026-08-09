@@ -14,6 +14,9 @@ const PendingApprovalScreen = ({navigation}) => {
   // so this screen can only report status, never grant it.
   const user = useAppSelector(state => state.auth.user);
   const status = useAppSelector(state => state.auth.registrationStatus);
+  // Reached by both roles' sign-in paths, which are two different screens now — a
+  // broker (mobile + OTP) must not be sent back to the developer email/password form.
+  const role = useAppSelector(state => state.auth.role);
 
   return (
     <ScreenContainer edges={['top', 'bottom']} style={{justifyContent: 'center'}}>
@@ -81,7 +84,7 @@ const PendingApprovalScreen = ({navigation}) => {
         icon="arrow-back-outline"
         onPress={() => {
           dispatch(clearAuthError());
-          navigation.replace('Login');
+          navigation.replace(role === 'broker' ? 'MobileOtpLogin' : 'Login');
         }}
       />
     </ScreenContainer>

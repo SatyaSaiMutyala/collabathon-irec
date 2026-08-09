@@ -2,18 +2,28 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Concerns\HandlesListQueries;
 use App\Http\Controllers\Controller;
 use App\Models\Developer;
 use App\Models\Lead;
 use App\Models\Property;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
-    public function __invoke(): View
+    use HandlesListQueries;
+
+    /** A peek, not the full page's row count — "Open full page" is one click away. */
+    protected function defaultPerPage(): int
+    {
+        return 8;
+    }
+
+    public function __invoke(Request $request): View
     {
         $developers = Developer::count();
         $brokers = User::role(User::ROLE_BROKER)->status(User::STATUS_ACTIVE)->count();
@@ -25,20 +35,33 @@ class DashboardController extends Controller
         $actions = ActivityController::baseQuery()->count();
 
         return view('admin.dashboard', [
+            // Every tile drills into a row list scoped to that number, expanded inline
+            // below the KPI row (`panel()`) rather than navigating to a different page —
+            // "Open full page" in the panel header is the way out to the real page for
+            // anything the peek doesn't cover. `color` tints only these six tiles (see
+            // stat-card.blade.php) — every stat-card elsewhere in the app is untouched.
             'stats' => [
                 ['key' => 'developers', 'icon' => 'building', 'label' => 'Developers', 'value' => $developers,
+                    'color' => 'info', 'route' => route('admin.dashboard', ['panel' => 'developers']) . '#panel',
                     'spark' => $this->weeklySeries(Developer::query())],
                 ['key' => 'brokers', 'icon' => 'users', 'label' => 'Active brokers', 'value' => $brokers,
+                    'color' => 'primary', 'route' => route('admin.dashboard', ['panel' => 'brokers']) . '#panel',
                     'spark' => $this->weeklySeries(User::role(User::ROLE_BROKER)->status(User::STATUS_ACTIVE))],
                 ['key' => 'properties', 'icon' => 'list', 'label' => 'Listings', 'value' => $properties,
+                    // Not chart-2 (a burnt sienna) — it sat right next to 'primary' (a
+                    // burnt orange) and the two badges were indistinguishable. See the
+                    // palette note in stat-card.blade.php.
+                    'color' => 'danger', 'route' => route('admin.dashboard', ['panel' => 'properties']) . '#panel',
                     'spark' => $this->weeklySeries(Property::query())],
                 ['key' => 'pending', 'icon' => 'clock', 'label' => 'Pending approvals', 'value' => $pending,
-                    'goodWhenUp' => false,
+                    'goodWhenUp' => false, 'color' => 'warning',
+                    'route' => route('admin.dashboard', ['panel' => 'pending']) . '#panel',
                     'spark' => $this->weeklySeries(User::role(User::ROLE_BROKER)->status(User::STATUS_PENDING))],
                 ['key' => 'matches', 'icon' => 'chart', 'label' => 'Confirmed matches', 'value' => $matches,
+                    'color' => 'success', 'route' => route('admin.dashboard', ['panel' => 'matches']) . '#panel',
                     'spark' => $this->weeklySeries(Lead::where('status', Lead::STATUS_ACCEPTED))],
                 ['key' => 'actions', 'icon' => 'chart', 'label' => 'Total actions', 'value' => $actions,
-                    'route' => route('admin.activity'),
+                    'color' => 'neutral', 'route' => route('admin.dashboard', ['panel' => 'actions']) . '#panel',
                     'spark' => $this->activityWeeklySeries()],
             ],
 
@@ -52,7 +75,132 @@ class DashboardController extends Controller
                 ->latest()
                 ->limit(4)
                 ->get(),
+
+            'panel' => $this->panel($request),
         ]);
+    }
+
+    /**
+     * The panel alone, no layout — what `admin/dashboard/panel` in app.js's fetch()
+     * calls resolves to. Same `panel()` build as the full page, so a hard refresh on
+     * `?panel=…` and an AJAX open of the same tile can never render differently.
+     */
+    public function fragment(Request $request): View
+    {
+        return view('admin.partials.dashboard-panel', ['panel' => $this->panel($request)]);
+    }
+
+    private const PANELS = ['developers', 'brokers', 'properties', 'pending', 'matches', 'actions'];
+
+    /**
+     * Row data for whichever KPI tile is expanded below the KPI row, if any. Each
+     * branch reuses the exact same role/status scope its tile's count above is built
+     * from, so what a tile says and what its panel lists can never disagree. Search
+     * only — not the full filter set the dedicated page has, since this is a peek,
+     * not a replacement for that page (still one click away via "Open full page").
+     */
+    private function panel(Request $request): ?array
+    {
+        $panel = $request->query('panel');
+
+        if (! in_array($panel, self::PANELS, true)) {
+            return null;
+        }
+
+        $search = trim((string) $request->query('search', ''));
+
+        return match ($panel) {
+            'developers' => [
+                'key' => 'developers', 'title' => 'Developers', 'color' => 'info',
+                'subtitle' => 'Every developer company on the platform.',
+                'label' => 'developers', 'fullRoute' => route('admin.developers'),
+                'searchPlaceholder' => 'Search by company, contact or email…',
+                'rows' => Developer::query()
+                    ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
+                        ->where('company_name', 'like', "{$search}%")
+                        ->orWhere('contact_person', 'like', "{$search}%")
+                        ->orWhere('email', 'like', "{$search}%")))
+                    ->when($request->query('status'), fn ($q, $v) => $q->where('status', $v))
+                    ->latest()
+                    ->paginate($this->perPage($request))
+                    ->withQueryString(),
+            ],
+            'brokers' => [
+                'key' => 'brokers', 'title' => 'Active brokers', 'color' => 'primary',
+                'subtitle' => 'Channel partners already through approval.',
+                'label' => 'brokers', 'fullRoute' => route('admin.cp'),
+                'searchPlaceholder' => 'Search by name, company or email…',
+                'rows' => User::role(User::ROLE_BROKER)->status(User::STATUS_ACTIVE)
+                    ->with('brokerProfile:id,user_id,company_name,city')
+                    ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
+                        ->where('name', 'like', "{$search}%")
+                        ->orWhere('email', 'like', "{$search}%")
+                        ->orWhereHas('brokerProfile', fn ($p) => $p
+                            ->where('company_name', 'like', "{$search}%"))))
+                    ->latest()
+                    ->paginate($this->perPage($request))
+                    ->withQueryString(),
+            ],
+            'properties' => [
+                'key' => 'properties', 'title' => 'Listings', 'color' => 'danger',
+                'subtitle' => 'Every project, live or not, across every developer.',
+                'label' => 'listings', 'fullRoute' => route('admin.properties'),
+                'searchPlaceholder' => 'Search by project name…',
+                'rows' => Property::query()
+                    ->with('developer:id,company_name')
+                    ->when($search !== '', fn ($q) => $q->where('name', 'like', "{$search}%"))
+                    ->when($request->query('status'), fn ($q, $v) => $q->where('listing_status', $v))
+                    ->latest()
+                    ->paginate($this->perPage($request))
+                    ->withQueryString(),
+            ],
+            'pending' => [
+                'key' => 'pending', 'title' => 'Pending approvals', 'color' => 'warning',
+                'subtitle' => 'Channel partners waiting on a decision.',
+                'label' => 'registrations', 'fullRoute' => route('admin.approvals'),
+                'searchPlaceholder' => 'Search by name, company or email…',
+                'rows' => User::role(User::ROLE_BROKER)->status(User::STATUS_PENDING)
+                    ->with('brokerProfile:id,user_id,company_name,city')
+                    ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
+                        ->where('name', 'like', "{$search}%")
+                        ->orWhere('email', 'like', "{$search}%")
+                        ->orWhereHas('brokerProfile', fn ($p) => $p
+                            ->where('company_name', 'like', "{$search}%"))))
+                    ->latest()
+                    ->paginate($this->perPage($request))
+                    ->withQueryString(),
+            ],
+            'matches', 'actions' => $this->activityPanel($panel, $search, $request),
+        };
+    }
+
+    /** "Confirmed matches" and "Total actions" are the same feed, one type-filtered. */
+    private function activityPanel(string $panel, string $search, Request $request): array
+    {
+        $type = $panel === 'matches' ? 'lead_accepted' : '';
+
+        $rows = ActivityController::baseQuery()
+            ->when($type !== '', fn ($q) => $q->where('type', $type))
+            ->when($search !== '', fn ($q) => $q->where(fn ($qq) => $qq
+                ->where('actor_name', 'like', "%{$search}%")
+                ->orWhere('subject_name', 'like', "%{$search}%")))
+            ->orderByDesc('occurred_at')
+            ->orderByDesc('ref_id')
+            ->paginate($this->perPage($request))
+            ->withQueryString();
+
+        return [
+            'key' => 'activity',
+            'title' => $panel === 'matches' ? 'Confirmed matches' : 'Total actions',
+            'color' => $panel === 'matches' ? 'success' : null,
+            'subtitle' => $panel === 'matches'
+                ? 'Every interest a developer has accepted.'
+                : 'Every recorded action across the platform.',
+            'label' => $panel === 'matches' ? 'matches' : 'actions',
+            'fullRoute' => route('admin.activity', $type !== '' ? ['type' => $type] : []),
+            'searchPlaceholder' => 'Search by person or project…',
+            'rows' => $rows,
+        ];
     }
 
     /**
