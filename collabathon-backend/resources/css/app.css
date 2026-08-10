@@ -12,68 +12,81 @@
         'Segoe UI Symbol', 'Noto Color Emoji';
 
     /* ---------------------------------------------------------------
-       Brand — Collabothon orange over the black shell. Every weight below is the
-       logo hue #FF7800 scaled toward black or white, so the hue angle never drifts.
-
-       The logo hue itself is only 2.65:1 on white, and the views resolve `primary`
-       both ways — `text-primary` on the panel/canvas *and* `bg-primary text-white`.
-       So `primary` is the darkest weight that still reads orange and clears 4.5:1
-       in both directions; the undimmed hue lives in `primary-light` and is used
-       only where it sits on the dark sidebar, which is the one surface bright
-       enough orange can hold. `primary-dark` is the hover/text weight and is now a
-       genuine step *darker* — the monochrome ramp had to go lighter because black
-       cannot be darkened; a hue can.
-       `-soft-dark`/`-ring-dark` are for the dark sidebar surface, where the
-       light-mode `-soft`/`-ring` pair is too pale to read.
-       Ratios (see the pairs the views actually use):
-         text-primary on panel 4.92 · on canvas 4.52 · on primary-soft 4.68
-         white on bg-primary 4.92 · text-primary-dark on white 7.21
-         primary-light on nav 6.36 · nav ink on primary-light 6.36
+       Brand — deep navy, replacing the earlier burgundy system.
+       `primary` is the workhorse weight (buttons, active states, links);
+       `primary-dark` is its hover/pressed step; `primary-light` is the
+       undimmed mid-tone used on dark surfaces (login hero, dialog headers)
+       where the deeper weights read muddy. `-soft`/`-ring` are the pale
+       blue-grey tint and border used for active nav pills, soft badges and
+       focus rings on the light sidebar/panels; `-soft-dark`/`-ring-dark`
+       are the equivalent pair for the few remaining dark surfaces.
        --------------------------------------------------------------- */
-    --color-primary: #b55500;
-    --color-primary-dark: #8d4200;
-    --color-primary-light: #ff7800;
-    --color-primary-soft: #fff8f1;
-    --color-primary-ring: #ffcc9e;
-    --color-primary-soft-dark: #421f00;
-    --color-primary-ring-dark: #853e00;
+    --color-primary: #1e3a5f;
+    --color-primary-dark: #14283f;
+    --color-primary-light: #3b6ea5;
+    --color-primary-soft: #eaf0f7;
+    --color-primary-ring: #b7cbe0;
+    --color-primary-soft-dark: #142338;
+    --color-primary-ring-dark: #3e5d82;
 
-    /* Dark neutral surface — sidebar, dark buttons/pills. No alpha anywhere:
-       hover/active/text states are solid tokens, not white-on-dark opacity. */
-    --color-nav: #1d1d1f;
-    --color-nav-soft: #2c2c2e;
-    --color-nav-line: #38383a;
-    --color-nav-hover: #2a2a2c;
-    --color-nav-active: #323234;
+    /* Extra accent hues — stat tile badges, donut/ring chart segments. Kept
+       out of the reserved status set (success/danger/warning/info below)
+       so a badge colour never doubles as a status read. */
+    --color-accent-orange: #f97316;
+    --color-accent-orange-soft: #fff1e7;
+    --color-accent-teal: #14b8a6;
+    --color-accent-teal-soft: #e6fbf7;
+    --color-accent-violet: #a855f7;
+    --color-accent-violet-soft: #f6ecff;
+    --color-accent-sky: #0ea5e9;
+    --color-accent-sky-soft: #e7f6fd;
+
+    /* Dark neutral surface — login hero, primary buttons, pagination's active
+       pill, dialog headers. Tinted a deep navy-black rather than pure grey so
+       these still read as part of the same brand family as `primary`. */
+    --color-nav: #0b1526;
+    --color-nav-soft: #14213a;
+    --color-nav-line: #223452;
+    --color-nav-hover: #101b30;
+    --color-nav-active: #1a2a47;
     --color-nav-text: #f5f5f7;
-    --color-nav-text-2: #98989d;
-    --color-nav-text-3: #6e6e73;
+    --color-nav-text-2: #9fb0c7;
+    --color-nav-text-3: #6d7f99;
+
+    /* Sidebar — a light surface now, distinct from the dark tokens above.
+       `-active` is the soft blue-grey pill behind the current nav item. */
+    --color-sidebar: #ffffff;
+    --color-sidebar-line: #e7edf5;
+    --color-sidebar-hover: #f4f7fb;
+    --color-sidebar-active: #eaf0f7;
+    --color-sidebar-text: #101b2e;
+    --color-sidebar-text-2: #71829a;
+    --color-sidebar-text-3: #9fadc2;
 
     /* Modal/drawer/mobile-nav scrim.
        Translucent, not opaque: at full opacity the page vanished and a dialog read as
        floating on a black screen, with no sense of what it was opened from. A light 20%
        veil is enough to push the dialog forward while the table behind it stays clearly
-       legible — the panel's own shadow and ring do most of the separating.
-       Neutral grey, not the 29/29/31 ink: over a large flat area that 2-point blue lean
-       showed up as a cool cast rather than a dim. */
-    --color-scrim: rgb(29 29 29 / 0.2);
+       legible — the panel's own shadow and ring do most of the separating. */
+    --color-scrim: rgb(16 27 46 / 0.24);
 
-    /* Text ink */
-    --color-ink: #1d1d1f;
-    --color-ink-2: #6e6e73;
-    --color-ink-3: #86868b;
+    /* Text ink — a hair of navy in the near-black, so body text sits in the
+       same family as the brand hue instead of a flat neutral grey. */
+    --color-ink: #101b2e;
+    --color-ink-2: #5c6b84;
+    --color-ink-3: #8b97ac;
 
-    /* Surfaces & lines */
-    --color-canvas: #f5f5f7;
+    /* Surfaces & lines — a soft cool blue-grey canvas behind white panels/cards. */
+    --color-canvas: #f4f6fa;
     --color-panel: #ffffff;
-    --color-line: #d2d2d7;
-    --color-line-soft: #e8e8ed;
+    --color-line: #dee4ee;
+    --color-line-soft: #edf1f6;
 
     /* Legacy aliases kept so the guest layout / welcome page keep working */
-    --color-surface: #f5f5f7;
-    --color-border: #d2d2d7;
-    --color-text-secondary: #6e6e73;
-    --color-text-muted: #86868b;
+    --color-surface: #f4f6fa;
+    --color-border: #dee4ee;
+    --color-text-secondary: #5c6b84;
+    --color-text-muted: #8b97ac;
 
     /* Status — reserved. Never reused as a chart series. */
     --color-success: #157347;
@@ -98,42 +111,38 @@
     --color-toast-info: #17518f;
 
     /* ---------------------------------------------------------------
-       Chart palette — validated with the dataviz validator against the
-       white panel surface. Do not hand-edit without re-running it.
-         chart-1 / chart-2 — categorical pair
-           CVD ΔE 21.1 · normal-vision ΔE 25.5 · both >= 3:1
-         chart-2 was gold; replaced when the brand went monochrome. It is a
-         burnt sienna rather than a red so it cannot be mistaken for the
-         reserved danger status colour.
-         funnel-1..3 — single-hue ordinal ramp
-           monotone L · adjacent ΔL >= 0.06 · light end 2.26:1
+       Chart palette — chart-1/2 drive the two-series trend & bar charts;
+       chart-3/4 extend it for the donut and progress-ring charts, which
+       need three-to-four segments in one glance. All four stay clear of
+       the reserved status hues (success/danger/warning/info below) so a
+       chart colour never gets misread as a status.
+         funnel-1..3 — single-hue ordinal ramp, light -> dark navy.
        --------------------------------------------------------------- */
-    --color-chart-1: #1d5fa8;
-    --color-chart-2: #a1521c;
-    /* Soft tint of chart-2, for the dashboard KPI tiles' icon badges — same
-       recipe as the status `-soft` pairs above, just for the chart hue. */
-    --color-chart-2-soft: #f7ede4;
-    --color-funnel-1: #86b0df;
-    --color-funnel-2: #3c7bc0;
-    --color-funnel-3: #17518f;
-    --color-grid: #ecebe6;
+    --color-chart-1: #1e3a5f;
+    --color-chart-2: #f97316;
+    --color-chart-2-soft: #fff1e7;
+    --color-chart-3: #14b8a6;
+    --color-chart-4: #a855f7;
+    --color-funnel-1: #b7cbe0;
+    --color-funnel-2: #5d82ab;
+    --color-funnel-3: #14283f;
+    --color-grid: #edf1f6;
 
     /* ---------------------------------------------------------------
-       Corners — square everywhere. Zeroing the scale here means every
-       named corner utility resolves to 0, so the classes left in the markup
-       are inert rather than needing to be hunted down one by one.
-       The pill variant and arbitrary bracket values do NOT read these tokens,
-       so those are stripped from the markup directly. Note this file is itself
-       scanned for class names — naming those utilities here would regenerate them.
+       Corners — soft and rounded everywhere, mirroring the reference
+       card-based layout. Cards sit at `xl`/`2xl`, controls at `lg`,
+       compact chips at `md`/`sm`. The pill variant (`radius-badge` etc.
+       below) and arbitrary bracket values do NOT read this scale, so
+       those stay full-round independent of it.
        --------------------------------------------------------------- */
-    --radius-xs: 0px;
-    --radius-sm: 0px;
-    --radius-md: 0px;
-    --radius-lg: 0px;
-    --radius-xl: 0px;
-    --radius-2xl: 0px;
-    --radius-3xl: 0px;
-    --radius-4xl: 0px;
+    --radius-xs: 6px;
+    --radius-sm: 8px;
+    --radius-md: 10px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --radius-2xl: 20px;
+    --radius-3xl: 24px;
+    --radius-4xl: 28px;
 
     /* The exceptions to the square rule, mirroring the four the mobile app carves
        out in MobileApp/src/theme/metrics.js — keep the two lists in step. These are
@@ -148,11 +157,13 @@
     --radius-control: 9999px;      /* icon-only buttons — bell, menu, close, log out */
     --radius-avatar: 9999px;       /* initials avatars, in the panel and the sidebar */
 
-    /* Elevation — shallow and layered; panels are defined by line, not shadow */
-    --shadow-card: 0 1px 2px rgb(20 23 31 / 0.04);
-    --shadow-raised: 0 1px 3px rgb(20 23 31 / 0.06), 0 4px 12px rgb(20 23 31 / 0.05);
-    --shadow-pop: 0 4px 12px rgb(20 23 31 / 0.08), 0 16px 32px rgb(20 23 31 / 0.10);
-    --shadow-modal: 0 24px 64px rgb(20 23 31 / 0.24);
+    /* Elevation — soft navy-tinted shadows so cards read as floating just
+       above the blue-grey canvas, closer to the reference than a neutral-grey
+       shadow would sit against it. */
+    --shadow-card: 0 1px 2px rgb(16 27 46 / 0.04), 0 1px 1px rgb(16 27 46 / 0.03);
+    --shadow-raised: 0 2px 8px rgb(16 27 46 / 0.06), 0 8px 24px rgb(16 27 46 / 0.05);
+    --shadow-pop: 0 8px 24px rgb(16 27 46 / 0.10), 0 20px 40px rgb(16 27 46 / 0.10);
+    --shadow-modal: 0 24px 64px rgb(16 27 46 / 0.28);
 }
 
 @layer base {
@@ -161,11 +172,11 @@
         text-rendering: optimizeLegibility;
     }
 
-    /* One focus treatment everywhere, keyboard-only. Square, like everything else. */
+    /* One focus treatment everywhere, keyboard-only. Inherits whatever corner
+       radius the focused element already has rather than forcing one. */
     :focus-visible {
         outline: 2px solid var(--color-primary-dark);
         outline-offset: 2px;
-        border-radius: 0;
     }
 
     [x-cloak] {
@@ -249,19 +260,6 @@
         background: transparent;
     }
 
-    /* ---------------------------------------------------------------
-       Dashboard-only exception to "square everywhere" (see --radius-xl
-       above): every card/container on that one page — KPI tiles, the
-       KPI drill-down panel/table, the chart panels, activity/queue
-       lists — gets a soft 4px corner instead. Scoped to the
-       `.dashboard-rounded-cards` wrapper in admin/dashboard.blade.php
-       rather than touching `--radius-xl` itself, which every other
-       admin page also builds its cards from and stays square.
-       --------------------------------------------------------------- */
-    .dashboard-rounded-cards .rounded-xl,
-    .dashboard-rounded-cards .rounded-b-xl {
-        border-radius: 4px;
-    }
 }
 
 /* -------------------------------------------------------------------------

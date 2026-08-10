@@ -40,7 +40,7 @@
                             @if($page == $paginator->currentPage())
                                 <span aria-current="page"
                                       class="inline-flex items-center justify-center min-w-8 h-8 px-2 rounded-lg
-                                             bg-nav text-white text-[12.5px] font-medium nums">{{ $page }}</span>
+                                             bg-primary text-white text-[12.5px] font-medium nums">{{ $page }}</span>
                             @else
                                 <a href="{{ $url }}"
                                    class="inline-flex items-center justify-center min-w-8 h-8 px-2 rounded-lg

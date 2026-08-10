@@ -121,29 +121,27 @@ $toneClasses = [
     <div class="flex h-dvh">
 
         {{-- ============================ Sidebar ============================ --}}
-        <aside class="fixed inset-y-0 left-0 z-40 w-[264px] shrink-0 h-dvh bg-nav flex flex-col overflow-hidden
+        <aside class="fixed inset-y-0 left-0 z-40 w-[264px] shrink-0 h-dvh bg-sidebar border-r border-sidebar-line flex flex-col overflow-hidden
                       transition-transform duration-200 lg:translate-x-0 lg:static lg:z-auto"
                :class="mobileNav ? 'translate-x-0' : '-translate-x-full'">
 
             <div class="h-[60px] flex items-center gap-2.5 px-5 shrink-0">
-                {{-- Brand tile carries the undimmed logo orange with dark ink, the same
-                     pairing as the sidebar's other marks — see components/nav-link. --}}
-                <div class="w-[30px] h-[30px] rounded-lg bg-primary-light flex items-center justify-center shrink-0">
-                    <span class="text-nav font-bold text-[11.5px] tracking-tight">iR</span>
+                <div class="w-[30px] h-[30px] rounded-xl bg-primary flex items-center justify-center shrink-0">
+                    <span class="text-white font-bold text-[11.5px] tracking-tight">iR</span>
                 </div>
                 <div class="min-w-0">
-                    <p class="text-white font-semibold text-[13.5px] leading-tight tracking-[-0.01em]">iREC Admin</p>
-                    <p class="text-nav-text-2 text-[10.5px] leading-tight">Platform control</p>
+                    <p class="text-sidebar-text font-semibold text-[13.5px] leading-tight tracking-[-0.01em]">iREC Admin</p>
+                    <p class="text-sidebar-text-2 text-[10.5px] leading-tight">Platform control</p>
                 </div>
                 <button type="button" @click="mobileNav = false"
-                        class="ml-auto lg:hidden text-nav-text-2 hover:text-white p-1 -mr-1" aria-label="Close navigation">
+                        class="ml-auto lg:hidden text-sidebar-text-2 hover:text-sidebar-text p-1 -mr-1" aria-label="Close navigation">
                     <x-icon name="x" class="w-4.5 h-4.5" />
                 </button>
             </div>
 
             <nav class="flex-1 px-3 pt-3 overflow-y-auto scrollbar-slim" aria-label="Main">
                 @foreach($navGroups as $groupLabel => $items)
-                    <p class="px-3.5 pt-4 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.09em] text-nav-text-3">
+                    <p class="px-3.5 pt-4 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.09em] text-sidebar-text-3">
                         {{ $groupLabel }}
                     </p>
                     <div class="space-y-0.5">
@@ -160,15 +158,15 @@ $toneClasses = [
                 @endforeach
             </nav>
 
-            <div class="p-3 shrink-0 border-t border-nav-line">
-                <div class="flex items-center gap-2.5 px-2 py-2 rounded-lg">
-                    <span class="w-8 h-8 rounded-avatar bg-primary-soft-dark text-primary-light ring-1 ring-inset ring-primary-ring-dark
+            <div class="p-3 shrink-0 border-t border-sidebar-line">
+                <div class="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-sidebar-hover transition-colors">
+                    <span class="w-8 h-8 rounded-avatar bg-primary-soft text-primary-dark ring-1 ring-inset ring-primary-ring
                                  inline-flex items-center justify-center text-[12px] font-semibold shrink-0">
                         {{ Str::upper(Str::substr(auth()->user()->name, 0, 1)) }}
                     </span>
                     <div class="min-w-0 flex-1">
-                        <p class="text-[12.5px] font-medium text-nav-text truncate">{{ auth()->user()->name }}</p>
-                        <p class="text-[11px] text-nav-text-2 truncate">{{ auth()->user()->email }}</p>
+                        <p class="text-[12.5px] font-medium text-sidebar-text truncate">{{ auth()->user()->name }}</p>
+                        <p class="text-[11px] text-sidebar-text-2 truncate">{{ auth()->user()->email }}</p>
                     </div>
                     <form method="POST" action="{{ route('logout') }}" class="shrink-0"
                         x-on:submit.prevent="$dispatch('confirm-request', {
@@ -180,7 +178,7 @@ $toneClasses = [
                         })" >
                         @csrf
                         <button type="submit" title="Log out" aria-label="Log out"
-                                class="text-nav-text-2 hover:text-nav-text hover:bg-nav-hover rounded-control p-1.5 transition-colors block">
+                                class="text-sidebar-text-2 hover:text-sidebar-text hover:bg-sidebar rounded-control p-1.5 transition-colors block">
                             <x-icon name="logout" class="w-4 h-4" />
                         </button>
                     </form>
@@ -196,7 +194,7 @@ $toneClasses = [
         <div class="flex-1 min-w-0 h-dvh flex flex-col overflow-hidden">
 
             {{-- Fixed by layout, not by `sticky` — only <main> below it scrolls. --}}
-            <header class="h-[60px] z-20 bg-panel border-b border-line
+            <header class="h-[60px] z-20 bg-panel border-b border-line-soft
                            flex items-center gap-4 px-5 lg:px-7 shrink-0">
 
                 <button type="button" @click="mobileNav = true"
@@ -218,18 +216,6 @@ $toneClasses = [
                 <p class="sm:hidden min-w-0 truncate text-[14px] font-semibold text-ink tracking-[-0.01em]">{{ $title }}</p>
 
                 <div class="flex items-center gap-2 ml-auto">
-                    {{-- Global search --}}
-                    <label class="relative hidden md:block">
-                        <span class="sr-only">Search the platform</span>
-                        <x-icon name="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-3 pointer-events-none" />
-                        <input type="search" placeholder="Search…"
-                               class="w-[210px] h-9 pl-9 pr-12 rounded-lg bg-canvas border border-transparent text-[13px] text-ink
-                                      placeholder:text-ink-3 hover:border-line focus:bg-panel focus:border-primary-ring
-                                      focus:outline-none focus:w-[260px] transition-all duration-200">
-                        <kbd class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-ink-3 bg-panel border border-line
-                                    px-1.5 py-0.5 font-sans pointer-events-none">⌘K</kbd>
-                    </label>
-
                     {{-- Notifications --}}
                     <x-dropdown width="w-80">
                         <x-slot:trigger>

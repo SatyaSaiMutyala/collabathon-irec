@@ -50,6 +50,8 @@ $palette = [
     'warning' => ['badge' => 'bg-warning/32 text-warning',      'spark' => 'var(--color-warning)'],
     'danger'  => ['badge' => 'bg-danger/32 text-danger',        'spark' => 'var(--color-danger)'],
     'chart-2' => ['badge' => 'bg-[var(--color-chart-2)]/32 text-[var(--color-chart-2)]', 'spark' => 'var(--color-chart-2)'],
+    'teal'    => ['badge' => 'bg-[var(--color-accent-teal)]/32 text-[var(--color-accent-teal)]', 'spark' => 'var(--color-accent-teal)'],
+    'violet'  => ['badge' => 'bg-[var(--color-accent-violet)]/32 text-[var(--color-accent-violet)]', 'spark' => 'var(--color-accent-violet)'],
     // Deliberately muted rather than colourless — for a tile that is a rollup rather
     // than its own category (e.g. "Total actions" summing every other tile). A plain
     // `bg-canvas` badge was literally the same hex as the page background (invisible),
@@ -62,7 +64,7 @@ $tone = $palette[$color] ?? null;
 $sparkColor = $tone['spark'] ?? 'var(--color-chart-1)';
 @endphp
 
-<div {{ $attributes->merge(['class' => 'bg-panel border border-line rounded-xl px-4 py-3.5 shadow-card flex flex-col gap-2.5 min-w-0']) }}>
+<div {{ $attributes->merge(['class' => 'bg-panel border border-line rounded-2xl px-4 py-3.5 shadow-card flex flex-col gap-2.5 min-w-0']) }}>
 
     <div class="flex items-center gap-2 min-w-0">
         @if($icon)

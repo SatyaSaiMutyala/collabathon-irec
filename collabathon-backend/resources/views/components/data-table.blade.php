@@ -15,7 +15,7 @@
     silently drop a filter, and `page` is deliberately dropped so a new search starts
     at page 1 rather than a page that may no longer exist.
 --}}
-<div {{ $attributes->merge(['class' => 'bg-panel border border-line rounded-xl shadow-card flex flex-col min-w-0']) }}>
+<div {{ $attributes->merge(['class' => 'bg-panel border border-line rounded-2xl shadow-card flex flex-col min-w-0']) }}>
 
     @if($searchable || isset($filters) || isset($actions))
         <div class="px-4 py-3 border-b border-line-soft flex flex-wrap items-center gap-2.5 shrink-0">

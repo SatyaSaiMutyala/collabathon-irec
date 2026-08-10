@@ -1,6 +1,6 @@
 @props(['title' => null, 'subtitle' => null, 'flush' => false, 'padded' => false])
 
-<section {{ $attributes->merge(['class' => 'bg-panel border border-line rounded-xl shadow-card flex flex-col min-w-0']) }}>
+<section {{ $attributes->merge(['class' => 'bg-panel border border-line rounded-2xl shadow-card flex flex-col min-w-0']) }}>
     @if($title || isset($actions))
         <header class="px-5 py-3.5 border-b border-line-soft flex flex-wrap items-center justify-between gap-x-4 gap-y-2 shrink-0">
             <div class="min-w-0">
@@ -20,7 +20,7 @@
     <div @class([
         'min-w-0 flex-1',
         'px-5 py-4' => $padded,
-        'overflow-hidden rounded-b-xl' => ! $flush,
+        'overflow-hidden rounded-b-2xl' => ! $flush,
     ])>
         {{ $slot }}
     </div>

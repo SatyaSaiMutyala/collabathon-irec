@@ -26,16 +26,35 @@ for ($i = 0; $i < $n; $i++) {
 // data (long flat run then a late jump, typical of a 12-week window over a handful
 // of records) drew as a jagged "hockey stick" angle; this reads as a trend line.
 $line = \App\Support\SmoothPath::line($coords);
+$area = \App\Support\SmoothPath::area($coords, $h);
 $last = $coords ? end($coords) : null;
+
+// Stable per-instance id — two sparklines on the same page (every KPI tile has
+// one) must not share a <linearGradient>, or the second silently paints with
+// whatever the first one's `id` last resolved to.
+$gradientId = 'spark-fade-' . substr(md5($color . implode(',', $values)), 0, 8);
 @endphp
 
 @if($n > 1)
     <svg viewBox="0 0 {{ $w }} {{ $h }}" width="{{ $w }}" height="{{ $h }}" fill="none"
          {{ $attributes->merge(['class' => 'overflow-visible shrink-0']) }} aria-hidden="true">
-        <path d="{{ $line }}" fill="none" stroke="{{ $color }}" stroke-width="2.25"
-              stroke-linecap="round" stroke-linejoin="round" opacity="0.85" />
+        <defs>
+            <linearGradient id="{{ $gradientId }}" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="{{ $color }}" stop-opacity="0.28" />
+                <stop offset="100%" stop-color="{{ $color }}" stop-opacity="0" />
+            </linearGradient>
+        </defs>
+
+        {{-- Soft area wash under the curve — the same recipe the dashboard trend
+             chart uses, scaled down. Turns the bare line into a small "mountain",
+             which reads far richer at this size than a stroke alone. --}}
+        <path d="{{ $area }}" fill="url(#{{ $gradientId }})" stroke="none" />
+
+        <path d="{{ $line }}" fill="none" stroke="{{ $color }}" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round" />
+
         {{-- Current period in the accent; 2px surface ring keeps it legible over the line. --}}
-        <circle cx="{{ $last[0] }}" cy="{{ $last[1] }}" r="3.25"
-                fill="{{ $color }}" stroke="var(--color-panel)" stroke-width="2" />
+        <circle cx="{{ $last[0] }}" cy="{{ $last[1] }}" r="3.5"
+                fill="{{ $color }}" stroke="var(--color-panel)" stroke-width="2.25" />
     </svg>
 @endif

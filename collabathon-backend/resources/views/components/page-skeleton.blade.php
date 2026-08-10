@@ -19,9 +19,9 @@
         <x-skeleton w="w-full max-w-md" h="h-3" class="mt-3" />
 
         {{-- Stat cards --}}
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mt-6">
             @for($i = 0; $i < 4; $i++)
-                <div class="bg-panel border border-line p-4">
+                <div class="bg-panel border border-line rounded-2xl p-4">
                     <x-skeleton w="w-24" h="h-3" />
                     <x-skeleton w="w-16" h="h-7" class="mt-3" />
                 </div>
@@ -30,13 +30,13 @@
 
         {{-- Toolbar --}}
         <div class="flex items-center gap-3 mt-6">
-            <x-skeleton w="w-full max-w-sm" h="h-9" />
-            <x-skeleton w="w-32" h="h-9" />
-            <x-skeleton w="w-24" h="h-9" class="ml-auto hidden sm:block" />
+            <x-skeleton w="w-full max-w-sm" h="h-9" class="rounded-full" />
+            <x-skeleton w="w-32" h="h-9" class="rounded-lg" />
+            <x-skeleton w="w-24" h="h-9" class="ml-auto hidden sm:block rounded-lg" />
         </div>
 
         {{-- Table --}}
-        <div class="bg-panel border border-line mt-4">
+        <div class="bg-panel border border-line rounded-2xl mt-4 overflow-hidden">
             <div class="px-4 py-3 border-b border-line-soft flex gap-4">
                 <x-skeleton w="w-32" h="h-3" />
                 <x-skeleton w="w-40" h="h-3" class="hidden md:block" />
@@ -52,7 +52,7 @@
                     </div>
                     <x-skeleton w="w-40" h="h-3" class="hidden md:block" />
                     <x-skeleton w="w-24" h="h-3" class="hidden lg:block" />
-                    <x-skeleton w="w-20" h="h-7" class="ml-auto" />
+                    <x-skeleton w="w-20" h="h-7" class="ml-auto rounded-lg" />
                 </div>
             @endfor
         </div>

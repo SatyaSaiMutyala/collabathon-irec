@@ -12,18 +12,28 @@ $activityTones = [
 ];
 
 $viewed = $funnel[0]['value'] ?: 0;
+$interested = $funnel[1]['value'] ?: 0;
 $accepted = $funnel[2]['value'] ?: 0;
+
+// The funnel's three stages are strict subsets of one another (accepted <= interested
+// <= viewed), so turning them into donut segments means the *exclusive* slice each
+// lead ended up in — not the raw nested counts, which wouldn't sum to a meaningful
+// total. Same 3-step ramp chart-funnel.blade.php uses elsewhere, so a lead's stage
+// reads as the same colour wherever it's shown on this page.
+$funnelSegments = [
+    ['label' => 'Viewed only',     'value' => max($viewed - $interested, 0), 'color' => 'var(--color-funnel-1)'],
+    ['label' => 'Interested only', 'value' => max($interested - $accepted, 0), 'color' => 'var(--color-funnel-2)'],
+    ['label' => 'Accepted',        'value' => $accepted,                     'color' => 'var(--color-funnel-3)'],
+];
+
+$conversionRings = [
+    ['label' => 'Interest rate', 'value' => $viewed > 0 ? $interested / $viewed * 100 : 0, 'color' => 'var(--color-funnel-1)'],
+    ['label' => 'Accept rate',   'value' => $interested > 0 ? $accepted / $interested * 100 : 0, 'color' => 'var(--color-funnel-2)'],
+    ['label' => 'Overall',       'value' => $viewed > 0 ? $accepted / $viewed * 100 : 0, 'color' => 'var(--color-funnel-3)'],
+];
 @endphp
 
 <x-layouts.admin active="dashboard" title="Dashboard" section="Overview">
-
-    {{-- Dashboard-only: every card/container here (KPI tiles, the drill-down panel,
-         the chart panels, "Recent activity"/"Awaiting your review") gets a 4px corner
-         instead of the rest of the app's deliberately square ones — see the scoped
-         `.dashboard-rounded-cards` rule in app.css. Wrapping the whole page rather than
-         each component keeps this a one-page opt-in, not a change to `rounded-xl`
-         itself, which every other admin page also uses. --}}
-    <div class="dashboard-rounded-cards">
 
     <x-page-header
         title="Dashboard"
@@ -57,8 +67,8 @@ $accepted = $funnel[2]['value'] ?: 0;
                         :spark="$stat['spark'] ?? []"
                         data-kpi-tile="{{ $stat['key'] }}"
                         :class="(request('panel') === $stat['key'] ? 'border-primary-ring shadow-md ' : '')
-                            . 'h-full hover:border-primary-ring hover:shadow-md hover:-translate-y-0.5
-                               active:translate-y-0 active:shadow-card transition-all duration-300 ease-out cursor-pointer'" />
+                            . 'h-full hover:border-primary-ring hover:shadow-md
+                               transition-[border-color,box-shadow] duration-200 ease-out cursor-pointer'" />
                 </a>
             @else
                 <x-stat-card
@@ -93,19 +103,13 @@ $accepted = $funnel[2]['value'] ?: 0;
             <x-chart-trend :points="$trend" :series="$series" :height="250" />
         </x-panel>
 
-        <x-panel title="Conversion funnel" subtitle="All recorded activity" padded>
-            <div class="pt-1">
-                <x-chart-funnel :stages="$funnel" />
-            </div>
+        <x-panel title="Lead funnel" subtitle="Where every recorded lead ended up" padded>
+            <x-chart-donut :segments="$funnelSegments" center-label="Total leads" />
 
-            <div class="mt-5 pt-4 border-t border-line-soft flex items-center justify-between">
-                <div>
-                    <p class="text-[11.5px] text-ink-3">View → accepted</p>
-                    <p class="text-[19px] font-semibold text-ink mt-0.5 tracking-[-0.01em]">
-                        {{ $viewed > 0 ? number_format($accepted / $viewed * 100, 1) : '0.0' }}%
-                    </p>
-                </div>
-                <x-icon name="trending-up" class="w-5 h-5 text-success" />
+            <div class="mt-5 pt-4 border-t border-line-soft flex items-center justify-center gap-3">
+                @foreach($conversionRings as $ring)
+                    <x-chart-progress-ring :value="$ring['value']" :label="$ring['label']" :color="$ring['color']" :size="72" :stroke="7" />
+                @endforeach
             </div>
         </x-panel>
     </div>
@@ -114,7 +118,7 @@ $accepted = $funnel[2]['value'] ?: 0;
     <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
 
         <x-panel title="Most in-demand listings" subtitle="By channel partner interests" padded>
-            <x-chart-bars :rows="$topProperties" color="var(--color-chart-1)" />
+            <x-chart-bar-vertical :rows="$topProperties" color="var(--color-chart-1)" :height="180" />
         </x-panel>
 
         <x-panel title="Recent activity" flush>
@@ -165,7 +169,5 @@ $accepted = $funnel[2]['value'] ?: 0;
                                description="Every channel partner registration has been reviewed." />
             @endforelse
         </x-panel>
-    </div>
-
     </div>
 </x-layouts.admin>
