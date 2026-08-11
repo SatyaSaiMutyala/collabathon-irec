@@ -36,7 +36,7 @@ const ROLES = [
     key: 'broker',
     icon: 'briefcase-outline',
     title: 'Channel partners',
-    body: 'Browse live inventory, register interest, and track your introductions.',
+    body: 'Browse live inventory, mark projects of interest, and follow your requests through to close.',
     accent: '#7B61FF',
     soft: '#EFE9FD',
     // Mobile number + OTP — see MobileOtpLoginScreen. No password, on either side.
@@ -46,7 +46,7 @@ const ROLES = [
     key: 'developer',
     icon: 'business-outline',
     title: 'Developers',
-    body: 'Publish listings and respond to the channel partners chasing your inventory.',
+    body: 'List your projects and respond to partner interest as it comes in.',
     accent: '#3E8EF7',
     soft: '#E8F1FE',
     // Email + password — admin-provisioned accounts, no self-serve path.
@@ -162,7 +162,7 @@ const WelcomeScreen = ({navigation}) => {
               color={MUTED}
               align="center"
               style={{marginTop: spacing.md, paddingHorizontal: spacing.sm}}>
-              Where developers and channel partners work the same inventory, in one place.
+              A single, private marketplace — developers and channel partners working from the same inventory.
             </AppText>
           </View>
 
@@ -197,20 +197,13 @@ const WelcomeScreen = ({navigation}) => {
 
           <View style={{flex: 1}} />
 
-          <View style={styles.footerRow}>
+          <View style={[styles.footerRow, {marginBottom: spacing.lg}]}>
             <View style={styles.footerLine} />
             <View style={styles.footerBadge}>
               <Icon name="shield-checkmark-outline" size={moderateScale(16)} color={INDIGO} />
             </View>
             <View style={styles.footerLine} />
           </View>
-          <AppText
-            variant="caption"
-            color="#8B90A0"
-            align="center"
-            style={{marginTop: spacing.sm, marginBottom: spacing.md}}>
-            Developer accounts are created by the Collabathon team.
-          </AppText>
         </View>
       </SafeAreaView>
     </View>

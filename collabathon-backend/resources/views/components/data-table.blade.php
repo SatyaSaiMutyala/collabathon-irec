@@ -32,7 +32,7 @@
                         <x-icon name="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-3 pointer-events-none" />
                         <input type="search" name="search" value="{{ request('search') }}"
                                placeholder="{{ $searchPlaceholder }}"
-                               class="w-full h-9 pl-9 pr-3 rounded-lg bg-canvas border border-transparent text-[13px] text-ink
+                               class="w-full h-9 pl-9 pr-3 rounded-lg bg-canvas border border-transparent shadow-card text-[13px] text-ink
                                       placeholder:text-ink-3 hover:border-line focus:bg-panel focus:border-primary-ring
                                       focus:outline-none transition-colors">
                     </label>

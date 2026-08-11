@@ -52,12 +52,14 @@ const OtpInput = ({
               key={index}
               style={[
                 styles.box,
+                isCursor ? styles.shadowActive : styles.shadowResting,
                 {
                   borderColor: error
                     ? colors.danger
                     : isCursor
                     ? colors.primary
                     : colors.border,
+                  // Radius stays 0 — same square-corners rule as every other field.
                   borderRadius: radius.sm,
                   backgroundColor: colors.background,
                   marginRight: index === length - 1 ? 0 : spacing.xs,
@@ -98,6 +100,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // Same resting/active shadow language as Input/Dropdown/DateField — the digit
+  // currently being typed into lifts slightly, same as a focused text field.
+  shadowResting: {
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  shadowActive: {
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 3,
   },
   // Invisible but present and focusable — opacity 0 rather than display:none, which
   // some Android keyboards refuse to open a keyboard for.

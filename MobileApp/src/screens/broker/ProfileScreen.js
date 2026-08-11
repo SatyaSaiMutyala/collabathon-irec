@@ -10,6 +10,7 @@ import {
   Button,
   Card,
   ConfirmDialog,
+  formatLongDate,
   ScreenContainer,
   SectionHeader,
 } from '../../components';
@@ -101,7 +102,7 @@ const ProfileScreen = () => {
               {broker.emailId}
             </AppText>
             <View style={{marginTop: spacing.sm}}>
-              <Badge label="Approved Channel Partner" tone="success" />
+              <Badge label="Verified Partner" tone="success" />
             </View>
           </View>
         </Card>
@@ -151,7 +152,7 @@ const ProfileScreen = () => {
             valueColor={broker.aadhaarAttachment ? colors.success : colors.textMuted}
           />
           <InfoRow icon="shield-checkmark-outline" label="RERA Number" value={fallback(broker.reraNumber)} />
-          <InfoRow icon="calendar-outline" label="RERA Certificate Expiry" value={fallback(broker.reraCertificateExpiry)} />
+          <InfoRow icon="calendar-outline" label="RERA Certificate Expiry" value={fallback(formatLongDate(broker.reraCertificateExpiry))} />
           <InfoRow
             icon="document-attach-outline"
             label="RERA Certificate Attachment"

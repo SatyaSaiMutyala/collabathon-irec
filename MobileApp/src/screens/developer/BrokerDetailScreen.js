@@ -10,6 +10,7 @@ import {
   Button,
   Card,
   Chip,
+  formatLongDate,
   InfoRow,
   ProjectMiniCard,
   ScreenContainer,
@@ -224,7 +225,7 @@ const BrokerDetailScreen = ({route, navigation}) => {
           <InfoRow
             icon="calendar-outline"
             label="RERA valid until"
-            value={broker.rera_certificate_expiry}
+            value={formatLongDate(broker.rera_certificate_expiry)}
           />
           <InfoRow icon="receipt-outline" label="GST number" value={broker.gst_number} />
           <InfoRow

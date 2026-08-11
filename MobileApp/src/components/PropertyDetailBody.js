@@ -35,7 +35,13 @@ function hasAny(obj, keys) {
   });
 }
 
-const PropertyDetailBody = ({project}) => {
+/**
+ * `highlightCommission`: the channel-partner view (broker/ProjectDetailScreen) sets this
+ * true — a CP's reason to open a project is what it pays *them*, so commission gets a
+ * coloured, full-width strip instead of a plain badge. The developer's own view
+ * (PropertyLeadsScreen) leaves it false and keeps the small badge it always had.
+ */
+const PropertyDetailBody = ({project, highlightCommission = false}) => {
   const {colors, spacing} = useAppTheme();
   // Pulled from context rather than threaded through as a prop: this component is
   // rendered by two screens in two different navigators, and both already sit inside
@@ -43,14 +49,18 @@ const PropertyDetailBody = ({project}) => {
   const navigation = useNavigation();
   const details = project.details ?? {};
   const {overview, configuration, location, specs, sales} = details;
+  // A legacy two-field record's priceUnit carries a "– <max>" range suffix (see
+  // normalizers.js) — correct on the admin sheet this mirrors, but reads as a stray
+  // dash sitting under the price on a compact mobile card. Only "onwards" (or nothing)
+  // shows here; the range itself is still the real number underneath if anyone taps in.
+  const priceSuffix = project.priceUnit?.startsWith('–') ? '' : project.priceUnit;
 
   return (
     <View style={{paddingHorizontal: spacing.lg, marginTop: spacing.lg}}>
       <View style={{flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between'}}>
         <View style={{flex: 1}}>
           {/* Currency here, "onwards" on the suffix below — together they read as the
-              admin sheet's "From ₹X". A legacy record that still has an upper end shows
-              the range instead, which the suffix carries. */}
+              admin sheet's "From ₹X". */}
           <AppText variant="overline" color={colors.textMuted}>
             {project.currency ?? 'INR'}
           </AppText>
@@ -58,15 +68,17 @@ const PropertyDetailBody = ({project}) => {
             <AppText variant="h1" color={colors.primaryDark}>
               {formatPrice(project.price)}
             </AppText>
-            <AppText
-              variant="bodyMedium"
-              color={colors.textSecondary}
-              style={{marginLeft: moderateScale(4), marginBottom: moderateScale(2)}}>
-              {project.priceUnit}
-            </AppText>
+            {!!priceSuffix && (
+              <AppText
+                variant="bodyMedium"
+                color={colors.textSecondary}
+                style={{marginLeft: moderateScale(4), marginBottom: moderateScale(2)}}>
+                {priceSuffix}
+              </AppText>
+            )}
           </View>
         </View>
-        {(!!project.commissionPercent || !!project.fosCommissionPercent) && (
+        {!highlightCommission && (!!project.commissionPercent || !!project.fosCommissionPercent) && (
           <View style={{alignItems: 'flex-end'}}>
             {!!project.commissionPercent && (
               <Badge label={`${project.commissionPercent}% CP Commission`} tone="warning" />
@@ -79,6 +91,26 @@ const PropertyDetailBody = ({project}) => {
           </View>
         )}
       </View>
+
+      {highlightCommission && !!project.commissionPercent && (
+        // Bold coloured text, not a filled box — a solid, full-width, centred pill is
+        // exactly Button's own shape (see components/Button.js), and this isn't tappable.
+        // Left-aligned inline text with an icon reads as emphasis, not as a control.
+        <View style={{flexDirection: 'row', alignItems: 'center', marginTop: spacing.xs}}>
+          <Icon name="cash-outline" size={moderateScale(18)} color={colors.warning} />
+          <AppText
+            variant="h3"
+            color={colors.warning}
+            style={{marginLeft: moderateScale(6)}}>
+            {project.commissionPercent}% CP Commission
+          </AppText>
+          {!!project.fosCommissionPercent && (
+            <AppText variant="caption" color={colors.textMuted} style={{marginLeft: moderateScale(6)}}>
+              (+{project.fosCommissionPercent}% FOS)
+            </AppText>
+          )}
+        </View>
+      )}
 
       {overview && (
         <View style={{flexDirection: 'row', flexWrap: 'wrap', marginTop: spacing.sm}}>

@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useState} from 'react';
-import {TouchableOpacity, View} from 'react-native';
+import {StyleSheet, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../../theme';
@@ -116,6 +116,7 @@ const HomeScreen = ({navigation}) => {
         value={query}
         onChangeText={setQuery}
         autoCapitalize="none"
+        containerStyle={styles.searchShadow}
       />
 
       {activeCity && (
@@ -129,15 +130,12 @@ const HomeScreen = ({navigation}) => {
         </View>
       )}
 
-      <View
-        style={{
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          marginBottom: spacing.sm,
-        }}>
-        <AppText variant="h3">All Developers</AppText>
-        <AppText variant="caption" color={colors.textMuted}>
-          {list.total} found
+      <View style={{marginBottom: spacing.sm}}>
+        <AppText variant="h3">
+          All Developers{' '}
+          <AppText variant="caption" color={colors.textMuted}>
+            · {list.total} Found
+          </AppText>
         </AppText>
       </View>
 
@@ -173,5 +171,13 @@ const HomeScreen = ({navigation}) => {
     </ScreenContainer>
   );
 };
+
+const styles = StyleSheet.create({
+  // Input now carries its own resting/focused shadow by default — this screen's
+  // search bar only needs to opt out of the default border on top of that.
+  searchShadow: {
+    borderWidth: 0,
+  },
+});
 
 export default HomeScreen;

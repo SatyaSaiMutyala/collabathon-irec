@@ -7,11 +7,15 @@
 ])
 
 @php
+// Every variant carries `shadow-card` (a plain `bg-*` colour has nothing else to
+// lift it off the page) except the two `-ghost` variants, which are meant to sit
+// flush with whatever they're next to — a shadow under transparent-background
+// text would float a rectangle with nothing visibly inside it.
 $variants = [
     'primary'       => 'bg-nav text-white hover:bg-nav-soft shadow-card',
     'gold'          => 'bg-primary text-white hover:bg-primary-dark shadow-card',
-    'outline'       => 'bg-panel border border-line text-ink hover:bg-canvas hover:border-ink-3',
-    'subtle'        => 'bg-canvas text-ink-2 hover:bg-line-soft hover:text-ink',
+    'outline'       => 'bg-panel border border-line text-ink hover:bg-canvas hover:border-ink-3 shadow-card',
+    'subtle'        => 'bg-canvas text-ink-2 hover:bg-line-soft hover:text-ink shadow-card',
     'ghost'         => 'text-ink-2 hover:bg-canvas hover:text-ink',
     'danger'        => 'bg-danger text-white hover:brightness-110 shadow-card',
     'danger-ghost'  => 'text-danger hover:bg-danger-soft',

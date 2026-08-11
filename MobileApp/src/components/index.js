@@ -17,7 +17,7 @@ export {default as SectionHeader} from './SectionHeader';
 export {default as Checkbox} from './Checkbox';
 export {AttachBox} from './AttachField';
 export {default as SignaturePad} from './SignaturePad';
-export {default as DateField, formatDisplayDate, toApiDate} from './DateField';
+export {default as DateField, formatDisplayDate, formatLongDate, toApiDate} from './DateField';
 export {default as Dropdown} from './Dropdown';
 export {default as EmptyState} from './EmptyState';
 export {default as TrendChart} from './TrendChart';

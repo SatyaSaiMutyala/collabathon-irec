@@ -37,7 +37,7 @@ const DeveloperCard = ({developer, onPress}) => {
 
   return (
     <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={{marginBottom: spacing.sm}}>
-      <Card style={{paddingVertical: spacing.sm}}>
+      <Card style={{paddingVertical: spacing.sm, borderWidth: 0}}>
         <View style={{flexDirection: 'row', alignItems: 'center'}}>
           <Avatar
             uri={developer.logo_url}

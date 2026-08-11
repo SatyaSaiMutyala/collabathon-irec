@@ -104,7 +104,14 @@ const LoginScreen = ({navigation}) => {
           label={isSubmitting ? 'Signing in…' : 'Continue'}
           onPress={handleLogin}
           disabled={isSubmitting}
-          style={{marginTop: spacing.sm}}
+          style={{
+            marginTop: spacing.sm,
+            shadowColor: '#000',
+            shadowOffset: {width: 0, height: 2},
+            shadowOpacity: 0.15,
+            shadowRadius: 6,
+            elevation: 4,
+          }}
         />
 
         {/* Stated at the point of consent, per the language pass. */}

@@ -76,10 +76,18 @@ const Dropdown = ({
           alignItems: 'center',
           borderWidth: 1,
           borderColor: error ? colors.danger : isOpen ? colors.primary : colors.border,
+          // Radius stays 0 — same square-corners rule as every other field.
           borderRadius: radius.sm,
           height: TRIGGER_HEIGHT,
           paddingHorizontal: spacing.sm,
           backgroundColor: colors.background,
+          // Same resting/open shadow as Input, so a form of mixed field types
+          // (text, dropdown, date) reads as one consistent control set.
+          shadowColor: '#000',
+          shadowOffset: {width: 0, height: isOpen ? 2 : 1},
+          shadowOpacity: isOpen ? 0.1 : 0.05,
+          shadowRadius: isOpen ? 5 : 3,
+          elevation: isOpen ? 3 : 1,
         }}>
         <AppText
           variant="body"
@@ -148,8 +156,31 @@ const Dropdown = ({
                     <AppText variant="body" color={isSelected(option) ? colors.primaryDark : colors.textPrimary}>
                       {option}
                     </AppText>
-                    {isSelected(option) && (
-                      <Icon name="checkmark" size={moderateScale(15)} color={colors.primary} />
+                    {multiSelect ? (
+                      // A real checkbox, not just a checkmark that appears once picked —
+                      // an empty box on every row up front says "you can pick several of
+                      // these" before the first tap, which the single-select list (a
+                      // highlighted row is enough there, since only one can ever be true)
+                      // doesn't need to say.
+                      <View
+                        style={{
+                          width: moderateScale(20),
+                          height: moderateScale(20),
+                          borderRadius: 0,
+                          borderWidth: 1.5,
+                          borderColor: isSelected(option) ? colors.primary : colors.border,
+                          backgroundColor: isSelected(option) ? colors.primary : colors.background,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                        {isSelected(option) && (
+                          <Icon name="checkmark" size={moderateScale(13)} color={colors.textInverse} />
+                        )}
+                      </View>
+                    ) : (
+                      isSelected(option) && (
+                        <Icon name="checkmark" size={moderateScale(15)} color={colors.primary} />
+                      )
                     )}
                   </TouchableOpacity>
                 ))}

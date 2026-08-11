@@ -18,6 +18,7 @@ const Input = React.forwardRef(
       isPassword = false,
       multiline = false,
       style,
+      containerStyle,
       ...rest
     },
     ref,
@@ -45,13 +46,18 @@ const Input = React.forwardRef(
         <View
           style={[
             styles.container,
+            isFocused ? styles.shadowFocused : styles.shadowResting,
             {
               borderColor,
+              // Radius stays 0 — square corners are the one rule every surface in
+              // this app follows (see theme/metrics.js), so a field must not grow
+              // its own rounding even as everything else about it gets richer.
               borderRadius: radius.sm,
               backgroundColor: colors.background,
               paddingHorizontal: spacing.sm,
             },
             multiline && styles.containerMultiline,
+            containerStyle,
           ]}>
           {leftIcon && (
             <Icon
@@ -120,6 +126,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     height: verticalScale(42),
+  },
+  // Resting vs. focused shadow — a field lifts slightly once it's the one being
+  // typed into, the same "active surface" feedback the focus border already gives,
+  // just carried into elevation too.
+  shadowResting: {
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  shadowFocused: {
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 3,
   },
   containerMultiline: {
     height: undefined,

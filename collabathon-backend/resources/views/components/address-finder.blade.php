@@ -96,7 +96,7 @@ $currentLng = old('longitude', $longitude);
                             <x-icon name="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-3 pointer-events-none" />
                             <input type="search" x-model="query" @keydown.enter.prevent="search()"
                                    placeholder="e.g. 560085, or Gachibowli Hyderabad"
-                                   class="w-full h-9 pl-9 pr-3 rounded-lg bg-panel border border-line text-[13px] text-ink
+                                   class="w-full h-9 pl-9 pr-3 rounded-lg bg-panel border border-line shadow-card text-[13px] text-ink
                                           placeholder:text-ink-3 focus:outline-none focus:border-primary
                                           focus:ring-[3px] focus:ring-primary-ring transition-[border-color,box-shadow]">
                         </div>

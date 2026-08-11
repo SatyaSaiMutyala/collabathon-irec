@@ -75,7 +75,7 @@ const ProjectDetailScreen = ({route, navigation}) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{paddingBottom: spacing.xxxl}}>
         <PropertyHero project={project} onBack={() => navigation.goBack()} />
-        <PropertyDetailBody project={project} />
+        <PropertyDetailBody project={project} highlightCommission />
       </ScrollView>
 
       <View

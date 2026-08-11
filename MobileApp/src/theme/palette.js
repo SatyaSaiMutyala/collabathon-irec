@@ -75,12 +75,17 @@ export function buildPalette(primary) {
 }
 
 /**
- * Default seed theme. Pulled from the brand mark itself (the indigo ribbon in
- * `assets/images/logo-mark.png`, the same hue WelcomeScreen already uses for its
- * "WELCOME TO" label and trust badge) rather than left flat black, so every screen
- * past Welcome — which keeps its own richer one-off palette, see that screen's
- * top-of-file note — reads as the same app instead of jumping to monochrome the
- * moment sign-in starts. Still fully admin-swappable via `setPrimaryColor`.
+ * Default seed theme. Pulled from the brand mark itself — specifically its blue ribbon
+ * petal in `assets/images/logo-mark.png` (sampled: #0090D0), darkened ~20% to
+ * `#0073A6` for a clean 5.25:1 contrast on white (the raw petal hue only clears
+ * 3.56:1, too low for reliable button/link text). Blue over the mark's other hues
+ * because this is a broker/real-estate B2B platform — blue reads as trust and
+ * professionalism, and is the de facto convention across the category (99acres,
+ * Housing.com, Zillow), where the mark's purple or orange read more "creative/luxury"
+ * than the audience here is going for. Every screen past Welcome — which keeps its own
+ * richer one-off palette, see that screen's top-of-file note — reads as the same app
+ * instead of jumping to monochrome the moment sign-in starts. Still fully
+ * admin-swappable via `setPrimaryColor`.
  */
-export const DEFAULT_PRIMARY = '#6C4FE0';
+export const DEFAULT_PRIMARY = '#0073A6';
 export const defaultPalette = buildPalette(DEFAULT_PRIMARY);

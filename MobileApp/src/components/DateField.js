@@ -94,10 +94,18 @@ const DateField = ({
             : isOpen
             ? colors.primary
             : colors.border,
+          // Radius stays 0 — same square-corners rule as every other field.
           borderRadius: radius.sm,
           height: TRIGGER_HEIGHT,
           paddingHorizontal: spacing.sm,
           backgroundColor: colors.background,
+          // Same resting/open shadow as Input, so a form of mixed field types
+          // (text, dropdown, date) reads as one consistent control set.
+          shadowColor: '#000',
+          shadowOffset: {width: 0, height: isOpen ? 2 : 1},
+          shadowOpacity: isOpen ? 0.1 : 0.05,
+          shadowRadius: isOpen ? 5 : 3,
+          elevation: isOpen ? 3 : 1,
         }}>
         <Icon
           name="calendar-outline"
@@ -199,6 +207,23 @@ export function formatDisplayDate(date) {
   return `${pad(date.getDate())}/${pad(
     date.getMonth() + 1,
   )}/${date.getFullYear()}`;
+}
+
+/**
+ * "20 September 2022" — the one long-form date reading used across both apps
+ * (RERA certificate expiry, etc.). Takes the API's raw ISO string directly
+ * (a record with no expiry has no field to show at all, so callers already
+ * guard on that before reaching here) rather than a parsed `Date`, since every
+ * call site is a straight passthrough from a profile/broker API response.
+ */
+export function formatLongDate(iso) {
+  if (!iso) {
+    return null;
+  }
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? null
+    : date.toLocaleDateString('en-GB', {day: 'numeric', month: 'long', year: 'numeric'});
 }
 
 /**
