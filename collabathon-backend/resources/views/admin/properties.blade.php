@@ -7,24 +7,24 @@
     $devLabel = ['accepted' => 'Accepted', 'pending' => 'Awaiting', 'declined' => 'Declined'];
 @endphp
 
-<x-layouts.admin active="properties" title="Projects" section="Manage">
+<x-layouts.admin active="properties" title="Listings" section="Manage">
 
     <x-page-header
-        title="Projects"
-        subtitle="Every listing and the developer it belongs to. A project reaches channel partners only once it is Active AND the developer has accepted it.">
+        title="Listings"
+        subtitle="Every listing and the developer it belongs to. A listing reaches channel partners only once it is Active AND the developer has accepted it.">
         <x-slot:actions>
             {{-- The full project sheet is ~70 fields across nine sections — too much for a
                  modal, so intake lives on its own page. --}}
             <x-button variant="gold" icon="plus" tag="a" href="{{ route('admin.properties.create') }}">
-                Add project
+                Add listing
             </x-button>
         </x-slot:actions>
     </x-page-header>
 
 
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-5">
-        <x-stat-card icon="list" label="Total projects" :value="$totals['all']" />
-        <x-stat-card icon="check" label="Live to partners" :value="$totals['live']" />
+        <x-stat-card icon="list" label="Total listings" :value="$totals['all']" />
+        <x-stat-card icon="check" label="Live to Channel Partners" :value="$totals['live']" />
         <x-stat-card icon="clock" label="Awaiting developer" :value="$totals['awaiting']" :good-when-up="false" />
         <x-stat-card icon="x" label="Declined" :value="$totals['declined']" :good-when-up="false" />
     </div>
@@ -32,9 +32,9 @@
     <x-data-table
         :paginator="$properties"
         label="listings"
-        search-placeholder="Search by project, locality or city…"
+        search-placeholder="Search by listing, locality or city…"
         empty-title="No listings match"
-        empty-description="Adjust the search or filters to see more projects.">
+        empty-description="Adjust the search or filters to see more listings.">
 
         <x-slot:filters>
             <x-filter-select name="developer_id" :options="$developers->pluck('company_name', 'id')" placeholder="All developers" />
@@ -51,7 +51,7 @@
         </x-slot:filters>
 
         <x-slot:head>
-            <x-th sort="name">Project</x-th>
+            <x-th sort="name">Listing</x-th>
             <x-th hide="lg">Developer</x-th>
             <x-th hide="xl">Location</x-th>
             <x-th hide="xl">Type</x-th>
@@ -122,9 +122,9 @@
                         {{ $devLabel[$p->developer_status] ?? ucfirst($p->developer_status) }}
                     </x-badge>
                     @if($p->listing_status === 'active' && $p->developer_status === 'accepted')
-                        <p class="text-[10.5px] text-success mt-1">Live to partners</p>
+                        <p class="text-[10.5px] text-success mt-1">Live to Channel Partners</p>
                     @elseif($p->developer_status === 'pending')
-                        <p class="text-[10.5px] text-ink-3 mt-1">Hidden from partners</p>
+                        <p class="text-[10.5px] text-ink-3 mt-1">Hidden from Channel Partners</p>
                     @endif
                 </td>
 
@@ -141,7 +141,7 @@
                             View details
                         </x-dropdown-item>
                         <x-dropdown-item icon="cog" tag="a" href="{{ route('admin.properties.edit', $p) }}">
-                            Edit project
+                            Edit listing
                         </x-dropdown-item>
                         <x-dropdown-item icon="users" tag="a" href="{{ route('admin.leads.project', [$p->developer, $p]) }}">
                             View leads
@@ -165,15 +165,15 @@
                         {{-- Soft delete: leads cascade on a hard delete, so the row is kept. --}}
                         <form method="POST" action="{{ route('admin.properties.destroy', $p) }}"
                               x-on:submit.prevent="$dispatch('confirm-request', {
-                                  title: 'Delete this project?',
+                                  title: 'Delete this listing?',
                                   message: @js('"' . $p->name . '" will be removed from every listing and from channel partner view. Leads already raised against it are kept.'),
-                                  confirmLabel: 'Delete project',
+                                  confirmLabel: 'Delete listing',
                                   tone: 'danger',
                                   form: $el,
                               }); close()">
                             @csrf @method('DELETE')
                             <x-dropdown-item icon="x" tone="danger" tag="button" type="submit">
-                                Delete project
+                                Delete listing
                             </x-dropdown-item>
                         </form>
                     </x-dropdown>

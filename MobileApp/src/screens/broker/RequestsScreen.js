@@ -49,7 +49,7 @@ const RequestsScreen = ({navigation}) => {
         onEndReached={handleEndReached}
         emptyIcon="paper-plane-outline"
         emptyTitle="No requests yet"
-        emptyMessage="Projects you mark as Interested appear here while you wait on the developer."
+        emptyMessage="Listings you mark as Interested appear here while you wait on the developer."
         renderItem={({item}) => (
           <LeadCard
             lead={item}

@@ -59,33 +59,33 @@ const STATUS_CONFIG = {
     accepted: {
       icon: 'checkmark-done-circle',
       tone: 'success',
-      title: 'Match confirmed',
+      title: 'Introduction Confirmed',
       message: lead =>
-        `You accepted ${lead.broker?.name ?? 'a broker'}'s interest in ${
+        `You accepted ${lead.broker?.name ?? 'a channel partner'}'s interest in ${
           lead.property?.name ?? 'a property'
-        }. Admin has been notified to follow up.`,
+        }. Our team has been notified to follow up.`,
     },
     declined: {
       icon: 'close-circle',
       tone: 'neutral',
-      title: 'Lead declined',
+      title: 'Interest Declined',
       message: lead =>
-        `You declined ${lead.broker?.name ?? 'a broker'}'s interest in ${
+        `You declined ${lead.broker?.name ?? 'a channel partner'}'s interest in ${
           lead.property?.name ?? 'a property'
         }.`,
     },
     interested: {
       icon: 'star',
       tone: 'primary',
-      title: 'New interested lead',
+      title: 'New Interest',
       message: lead =>
-        `${lead.broker?.name ?? 'A broker'} marked interest in ${lead.property?.name ?? 'a property'}.`,
+        `${lead.broker?.name ?? 'A channel partner'} expressed interest in ${lead.property?.name ?? 'a listing'}.`,
     },
     viewed: {
       icon: 'eye',
       tone: 'neutral',
-      title: 'Property viewed',
-      message: lead => `${lead.broker?.name ?? 'A broker'} viewed ${lead.property?.name ?? 'a property'}.`,
+      title: 'Listing Viewed',
+      message: lead => `${lead.broker?.name ?? 'A channel partner'} viewed ${lead.property?.name ?? 'a property'}.`,
     },
   },
 };

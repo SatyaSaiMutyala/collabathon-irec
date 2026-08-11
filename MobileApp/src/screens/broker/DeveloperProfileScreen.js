@@ -23,6 +23,7 @@ import {
   selectDeveloperProperties,
 } from '../../store/slices/developersSlice';
 import {canLoadMore} from '../../store/paginated';
+import {openLink} from '../../utils/openLink';
 import {SOCIAL_ICONS} from '../../utils/socialIcons';
 
 /**
@@ -93,7 +94,7 @@ const DeveloperProfileScreen = ({route, navigation}) => {
         onEndReached={handleEndReached}
         emptyIcon="business-outline"
         emptyTitle="No listings yet"
-        emptyMessage="This developer has no active properties right now."
+        emptyMessage="This developer has no active listings right now."
         ListHeaderComponent={
           <View style={{marginBottom: spacing.lg}}>
             <Card>
@@ -108,12 +109,13 @@ const DeveloperProfileScreen = ({route, navigation}) => {
                 <AppText variant="h2" align="center" style={{marginTop: spacing.md}}>
                   {developer.company_name}
                 </AppText>
+                {/* Where they are, not what they are registered as — RERA has its own
+                    row below now, and printing it twice made the sub-line wrap. */}
                 <AppText
                   variant="caption"
                   color={colors.textMuted}
                   style={{marginTop: moderateScale(2)}}>
-                  {developer.city}
-                  {developer.rera_number ? ` · RERA ${developer.rera_number}` : ''}
+                  {[developer.city, developer.state].filter(Boolean).join(', ')}
                 </AppText>
               </View>
 
@@ -152,24 +154,44 @@ const DeveloperProfileScreen = ({route, navigation}) => {
               )}
             </Card>
 
-            {/* The rest of DeveloperResource. A channel partner working a lead needs the
-                contact route and the RERA/registration facts, not just the headline. */}
+            {/* The rest of DeveloperResource, in the order the admin panel's Company
+                panel lists it — a channel partner working a lead needs the contact
+                route and the registration facts, not just the headline.
+
+                The key contact (person, designation, mobile, email) is the one part of
+                the admin record that never appears here: it is the internal relationship
+                owner, and DeveloperResource does not send it. */}
             <Card style={{marginTop: spacing.md, paddingVertical: spacing.xxs}}>
+              <InfoRow icon="shield-checkmark-outline" label="RERA / Licence" value={developer.rera_number} />
+              <InfoRow
+                icon="globe-outline"
+                label="Website"
+                value={developer.website}
+                valueColor={colors.primary}
+                onPress={() => openLink(developer.website)}
+              />
               <InfoRow icon="person-outline" label="Contact Person" value={developer.contact_person} />
+              <InfoRow icon="briefcase-outline" label="Designation" value={developer.contact_designation} />
               <InfoRow icon="call-outline" label="Mobile" value={developer.mobile} />
               <InfoRow icon="mail-outline" label="Email" value={developer.email} />
               <InfoRow
                 icon="location-outline"
                 label="Location"
-                value={[developer.city, developer.state].filter(Boolean).join(', ') || null}
+                value={
+                  [developer.city, developer.state, developer.country, developer.pincode]
+                    .filter(Boolean)
+                    .join(', ') || null
+                }
               />
-              <InfoRow icon="shield-checkmark-outline" label="RERA Number" value={developer.rera_number} />
+              <InfoRow icon="navigate-outline" label="Address" value={developer.address} />
               {(developer.social_links ?? []).map(link => (
                 <InfoRow
                   key={link.key}
                   icon={SOCIAL_ICONS[link.key] ?? 'link-outline'}
                   label={link.label}
                   value={link.value}
+                  valueColor={colors.primary}
+                  onPress={() => openLink(link.value)}
                 />
               ))}
               <InfoRow

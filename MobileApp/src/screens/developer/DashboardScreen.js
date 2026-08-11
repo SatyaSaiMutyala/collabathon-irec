@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {RefreshControl, ScrollView, View} from 'react-native';
 import {useAppTheme} from '../../theme';
-import {firstName} from '../../utils/name';
+import {firstName, greeting} from '../../utils/name';
 import {
   EmptyState,
   AppText,
@@ -98,7 +98,7 @@ const DashboardScreen = ({navigation}) => {
             <Avatar uri={developer?.logo_url} name={developer?.company_name} size="sm" />
             <View style={{marginLeft: spacing.sm, flex: 1}}>
               <AppText variant="caption" color={colors.textMuted}>
-                Hi, {firstName(user?.name, 'Developer')}
+                {greeting()}, {firstName(user?.name, 'Developer')}
               </AppText>
               <AppText variant="h3" numberOfLines={1}>
                 {developer?.company_name ?? 'Your Company'}
@@ -119,9 +119,9 @@ const DashboardScreen = ({navigation}) => {
             stats={[
               inventory?.pending
                 ? {value: String(inventory.pending), label: 'Awaiting you'}
-                : {value: String(inventory?.live ?? stats?.properties ?? 0), label: 'Live projects'},
-              {value: String(stats?.interested ?? 0), label: 'Interested Leads'},
-              {value: String(stats?.accepted ?? 0), label: 'Matches'},
+                : {value: String(inventory?.live ?? stats?.properties ?? 0), label: 'Active Listings'},
+              {value: String(stats?.interested ?? 0), label: 'CP Interest'},
+              {value: String(stats?.accepted ?? 0), label: 'Introductions'},
             ]}
           />
         </Card>
@@ -134,7 +134,7 @@ const DashboardScreen = ({navigation}) => {
             marginTop: spacing.xl,
             marginBottom: spacing.xs,
           }}>
-          <AppText variant="h3">Lead activity</AppText>
+          <AppText variant="h3">CP Engagement</AppText>
           <AppText variant="caption" color={colors.textMuted}>
             {totalInRange} {trendRange === 'week' ? 'this week' : 'in 5 weeks'}
           </AppText>
@@ -167,7 +167,7 @@ const DashboardScreen = ({navigation}) => {
             marginTop: spacing.xl,
             marginBottom: spacing.sm,
           }}>
-          <AppText variant="h3">My Properties</AppText>
+          <AppText variant="h3">My Listings</AppText>
           <AppText
             variant="captionMedium"
             color={colors.primary}
@@ -189,8 +189,8 @@ const DashboardScreen = ({navigation}) => {
         {topProperties.length === 0 && (
           <EmptyState
             icon="business-outline"
-            title="No projects yet"
-            message="Projects the admin assigns to you appear here once you accept them."
+            title="No listings yet"
+            message="Listings our team assigns to you appear here once you accept them."
           />
         )}
       </ScrollView>

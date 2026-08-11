@@ -36,7 +36,7 @@ const ROLES = [
     key: 'broker',
     icon: 'briefcase-outline',
     title: 'Channel partners',
-    body: 'Browse live inventory, register interest, and track your leads.',
+    body: 'Browse live inventory, register interest, and track your introductions.',
     accent: '#7B61FF',
     soft: '#EFE9FD',
     // Mobile number + OTP — see MobileOtpLoginScreen. No password, on either side.
@@ -46,7 +46,7 @@ const ROLES = [
     key: 'developer',
     icon: 'business-outline',
     title: 'Developers',
-    body: 'Publish projects and respond to the partners chasing your inventory.',
+    body: 'Publish listings and respond to the channel partners chasing your inventory.',
     accent: '#3E8EF7',
     soft: '#E8F1FE',
     // Email + password — admin-provisioned accounts, no self-serve path.

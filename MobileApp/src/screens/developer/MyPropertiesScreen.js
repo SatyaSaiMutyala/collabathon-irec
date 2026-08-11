@@ -216,7 +216,7 @@ const MyPropertiesScreen = ({navigation}) => {
   return (
     <ScreenContainer edges={['top']}>
       <View style={styles.heading(spacing)}>
-        <AppText variant="h1">My Projects</AppText>
+        <AppText variant="h1">My Listings</AppText>
         <TouchableOpacity onPress={openDrawer} hitSlop={10} style={styles.filterButton}>
           <Icon name="options-outline" size={moderateScale(20)} color={colors.textPrimary} />
           {activeCount > 0 && (
@@ -230,7 +230,7 @@ const MyPropertiesScreen = ({navigation}) => {
       </View>
 
       <Input
-        placeholder="Search project, locality or city"
+        placeholder="Search listing, locality or city"
         leftIcon="search-outline"
         autoCapitalize="none"
         autoCorrect={false}
@@ -240,8 +240,8 @@ const MyPropertiesScreen = ({navigation}) => {
 
       <View style={styles.summary(spacing)}>
         <AppText variant="caption" color={colors.textMuted}>
-          {list.total} {list.total === 1 ? 'project' : 'projects'} · {statusLabel}
-          {summary ? ` · ${summary.live} live to partners` : ''}
+          {list.total} {list.total === 1 ? 'Listing' : 'Listings'} · {statusLabel}
+          {summary ? ` · ${summary.live} Live to Channel Partners` : ''}
         </AppText>
       </View>
 
@@ -258,15 +258,15 @@ const MyPropertiesScreen = ({navigation}) => {
         emptyFiltered={hasQuery}
         emptyTitle={
           hasQuery
-            ? 'No projects match'
+            ? 'No listings match'
             : applied.status === 'pending'
               ? 'Nothing awaiting you'
-              : 'No projects here'
+              : 'No listings here'
         }
         emptyMessage={
           hasQuery
             ? 'Try a different search or clear the filters.'
-            : 'Projects the admin assigns to you will appear here for review.'
+            : 'Listings our team assigns to you will appear here for review.'
         }
         renderItem={({item}) => (
           <View>
@@ -275,16 +275,23 @@ const MyPropertiesScreen = ({navigation}) => {
               onPress={() => navigation.navigate('PropertyLeads', {projectId: item.id})}
             />
 
-            {/* The gate, stated on the card: partners can only reach a project once
-                the developer has accepted AND the admin has it active. */}
+            {/* The gate, stated on the card: channel partners can only reach a listing
+                once the developer has accepted AND our team has it active. */}
             <View style={styles.cardMeta(spacing)}>
+              {/* "Live" is the primary state label per the language pass, but it is only
+                  true once the listing is actually published — an accepted listing still
+                  waiting on us is not live, so the badge reads Accepted until it is. */}
               <Badge
-                label={STATUS_LABEL[item.developerStatus] ?? item.developerStatus}
+                label={
+                  item.isLive
+                    ? 'Live'
+                    : (STATUS_LABEL[item.developerStatus] ?? item.developerStatus)
+                }
                 tone={STATUS_TONE[item.developerStatus] ?? 'muted'}
               />
               {item.isLive && (
                 <AppText variant="caption" color={colors.success} style={{marginLeft: spacing.xs}}>
-                  Live to partners
+                  Live to Channel Partners
                 </AppText>
               )}
               {item.developerStatus === 'accepted' && !item.isLive && (
@@ -292,7 +299,7 @@ const MyPropertiesScreen = ({navigation}) => {
                   variant="caption"
                   color={colors.textMuted}
                   style={{marginLeft: spacing.xs}}>
-                  Not published by admin yet
+                  Not published yet
                 </AppText>
               )}
               {item.interestsCount > 0 && (

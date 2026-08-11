@@ -3,6 +3,7 @@ import {TouchableOpacity, View} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
+import {openLink} from '../utils/openLink';
 import {roundedRadius, useAppTheme} from '../theme';
 import AppText from './AppText';
 import AttachmentList from './AttachmentList';
@@ -41,22 +42,17 @@ const PropertyDetailBody = ({project}) => {
   // a stack that owns the terms route.
   const navigation = useNavigation();
   const details = project.details ?? {};
-  const {overview, unit, location, specs, approvals, sales} = details;
-
-  const quickSpecs = [
-    project.bedrooms ? {icon: 'bed-outline', label: `${project.bedrooms} Beds`} : null,
-    project.bathrooms ? {icon: 'water-outline', label: `${project.bathrooms} Baths`} : null,
-    project.areaSqft
-      ? {icon: 'resize-outline', label: `${project.areaSqft.toLocaleString()} sqft`}
-      : null,
-  ].filter(Boolean);
+  const {overview, configuration, location, specs, sales} = details;
 
   return (
     <View style={{paddingHorizontal: spacing.lg, marginTop: spacing.lg}}>
       <View style={{flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between'}}>
         <View style={{flex: 1}}>
+          {/* Currency here, "onwards" on the suffix below — together they read as the
+              admin sheet's "From ₹X". A legacy record that still has an upper end shows
+              the range instead, which the suffix carries. */}
           <AppText variant="overline" color={colors.textMuted}>
-            {project.currency ?? 'AED'}
+            {project.currency ?? 'INR'}
           </AppText>
           <View style={{flexDirection: 'row', alignItems: 'flex-end', flexWrap: 'wrap'}}>
             <AppText variant="h1" color={colors.primaryDark}>
@@ -90,7 +86,6 @@ const PropertyDetailBody = ({project}) => {
             overview.projectStatus,
             overview.projectType,
             overview.possessionDate && `Possession: ${overview.possessionDate}`,
-            overview.constructionProgress && `${overview.constructionProgress} built`,
             overview.reraNumber && `RERA ${overview.reraNumber}`,
           ]
             .filter(Boolean)
@@ -100,24 +95,6 @@ const PropertyDetailBody = ({project}) => {
               </View>
             ))}
         </View>
-      )}
-
-      {!!quickSpecs.length && (
-        <Card style={{marginTop: spacing.lg}}>
-          <View style={{flexDirection: 'row', justifyContent: 'space-between'}}>
-            {quickSpecs.map(spec => (
-              <View key={spec.label} style={{alignItems: 'center', flex: 1}}>
-                <Icon name={spec.icon} size={moderateScale(20)} color={colors.primary} />
-                <AppText
-                  variant="captionMedium"
-                  color={colors.textSecondary}
-                  style={{marginTop: moderateScale(6)}}>
-                  {spec.label}
-                </AppText>
-              </View>
-            ))}
-          </View>
-        </Card>
       )}
 
       {/* ---------------------------------------------------------------- developer terms */}
@@ -171,7 +148,7 @@ const PropertyDetailBody = ({project}) => {
       {!!project.description && (
         <>
           <SectionTitle spacing={spacing} colors={colors}>
-            About this project
+            About the Residence
           </SectionTitle>
           <AppText variant="body" color={colors.textSecondary}>
             {project.description}
@@ -180,7 +157,7 @@ const PropertyDetailBody = ({project}) => {
       )}
       {!!overview?.tagline && (
         <AppText variant="bodyMedium" color={colors.primaryDark} style={{marginTop: spacing.xs}}>
-          “{overview.tagline}”
+          {overview.tagline}
         </AppText>
       )}
 
@@ -191,66 +168,66 @@ const PropertyDetailBody = ({project}) => {
             spacing={spacing}
             colors={colors}
             hint={`${project.unitTypes.length} configuration${project.unitTypes.length === 1 ? '' : 's'} available`}>
-            Unit Types &amp; Pricing
+            Residences &amp; Pricing
           </SectionTitle>
           <UnitTypeTable units={project.unitTypes} currency={project.currency} />
         </>
       )}
 
-      {hasAny(unit, ['unitTypes', 'carpetArea', 'builtUpArea', 'superBuiltUpArea', 'pricePerSqft', 'totalUnits', 'towers', 'floorsPerTower', 'flatsPerFloor', 'parking']) && (
+      {hasAny(configuration, ['extentMetric', 'totalUnits', 'towers', 'floors']) && (
         <>
           <SectionTitle spacing={spacing} colors={colors}>
-            Project Scale
+            Configuration
           </SectionTitle>
           <Card>
-            <InfoRow icon="home-outline" label="Unit Types" value={unit.unitTypes} />
-            <InfoRow icon="scan-outline" label="Carpet Area" value={unit.carpetArea} />
-            <InfoRow icon="scan-outline" label="Built-up Area" value={unit.builtUpArea} />
-            <InfoRow icon="expand-outline" label="Super Built-up Area" value={unit.superBuiltUpArea} />
-            <InfoRow icon="pricetag-outline" label="Price per Sqft" value={unit.pricePerSqft} />
-            <InfoRow icon="business-outline" label="Total Units" value={unit.totalUnits} />
-            <InfoRow icon="layers-outline" label="Towers / Blocks" value={unit.towers} />
-            <InfoRow icon="layers-outline" label="Floors per Tower" value={unit.floorsPerTower} />
-            <InfoRow icon="apps-outline" label="Flats per Floor" value={unit.flatsPerFloor} />
-            <InfoRow icon="car-outline" label="Parking" value={unit.parking} />
+            <InfoRow icon="resize-outline" label="Project Extent Metric" value={configuration.extentMetric} />
+            <InfoRow icon="business-outline" label="Total Units" value={configuration.totalUnits} />
+            <InfoRow icon="layers-outline" label="Towers / Blocks" value={configuration.towers} />
+            <InfoRow icon="git-commit-outline" label="No. of Floors" value={configuration.floors} />
           </Card>
         </>
       )}
 
       {/* ---------------------------------------------------------------- location */}
-      {hasAny(location, ['locality', 'fullAddress', 'landmark', 'pincode', 'zone', 'connectivity', 'nearbyInfrastructure', 'coordinates']) && (
+      {hasAny(location, ['city', 'state', 'locality', 'fullAddress', 'landmark', 'pincode', 'zone', 'mapsLink', 'connectivity', 'nearbyInfrastructure', 'coordinates']) && (
         <>
           <SectionTitle spacing={spacing} colors={colors}>
-            Location Details
+            Address &amp; Connectivity
           </SectionTitle>
           <Card>
+            <InfoRow icon="business-outline" label="City" value={location.city} />
+            <InfoRow icon="map-outline" label="State" value={location.state} />
             <InfoRow icon="location-outline" label="Locality / Area" value={location.locality} />
             <InfoRow icon="navigate-outline" label="Full Address" value={location.fullAddress} />
             <InfoRow icon="flag-outline" label="Landmark" value={location.landmark} />
-            <InfoRow icon="compass-outline" label="Zone" value={location.zone} />
             <InfoRow icon="mail-open-outline" label="Pincode" value={location.pincode} />
-            <InfoRow icon="trail-sign-outline" label="Connectivity" value={location.connectivity} />
-            <InfoRow icon="school-outline" label="Nearby Infrastructure" value={location.nearbyInfrastructure} />
+            <InfoRow icon="compass-outline" label="Zone" value={location.zone} />
             <InfoRow icon="pin-outline" label="Coordinates" value={location.coordinates} />
+            {/* Tappable rather than plain text: a maps URL is only useful when it opens. */}
+            <InfoRow
+              icon="map-outline"
+              label="Google Maps"
+              value={location.mapsLink ? 'Open in Maps' : null}
+              valueColor={colors.primary}
+              onPress={() => openLink(location.mapsLink)}
+            />
+            <InfoRow icon="trail-sign-outline" label="Connectivity" value={location.connectivity} />
+            <InfoRow icon="school-outline" label="In the Vicinity" value={location.nearbyInfrastructure} />
           </Card>
         </>
       )}
 
       {/* ---------------------------------------------------------------- specs */}
-      {hasAny(specs, ['totalProjectArea', 'landParcel', 'constructionSpecs', 'amenitiesSize', 'amenitiesCount', 'greenCertification', 'vastuCompliant', 'awards']) && (
+      {hasAny(specs, ['landParcel', 'totalProjectArea', 'greenCertification', 'vastuCompliant']) && (
         <>
           <SectionTitle spacing={spacing} colors={colors}>
-            Project Specifications
+            Specifications
           </SectionTitle>
           <Card>
-            <InfoRow icon="map-outline" label="Total Project Area" value={specs.totalProjectArea} />
             <InfoRow icon="square-outline" label="Land Parcel" value={specs.landParcel} />
-            <InfoRow icon="construct-outline" label="Construction Specs" value={specs.constructionSpecs} />
-            <InfoRow icon="fitness-outline" label="Clubhouse / Amenity Size" value={specs.amenitiesSize} />
-            <InfoRow icon="list-outline" label="Amenities Count" value={specs.amenitiesCount} />
+            <InfoRow icon="map-outline" label="Total Project Area" value={specs.totalProjectArea} />
             <InfoRow icon="ribbon-outline" label="Green Certification" value={specs.greenCertification} />
             <InfoRow icon="compass-outline" label="Vastu Compliant" value={specs.vastuCompliant} />
-            <InfoRow icon="trophy-outline" label="Awards" value={specs.awards} />
           </Card>
         </>
       )}
@@ -270,22 +247,9 @@ const PropertyDetailBody = ({project}) => {
         </>
       )}
 
-      {/* ---------------------------------------------------------------- approvals */}
-      {hasAny(approvals, ['approvingAuthorities', 'bankApprovals']) ||
-      hasAny(overview, ['reraNumber', 'reraRegisteredAt', 'reraValidTill']) ? (
-        <>
-          <SectionTitle spacing={spacing} colors={colors}>
-            Approvals &amp; Legal
-          </SectionTitle>
-          <Card>
-            <InfoRow icon="shield-checkmark-outline" label="RERA Number" value={overview?.reraNumber} />
-            <InfoRow icon="calendar-outline" label="RERA Registered" value={overview?.reraRegisteredAt} />
-            <InfoRow icon="alarm-outline" label="RERA Valid Till" value={overview?.reraValidTill} />
-            <InfoRow icon="ribbon-outline" label="Approving Authorities" value={approvals?.approvingAuthorities} />
-            <InfoRow icon="card-outline" label="Bank Approvals" value={approvals?.bankApprovals} />
-          </Card>
-        </>
-      ) : null}
+      {/* The Approvals & Legal card is gone with the intake step behind it — the RERA
+          registration number, the one field of it still collected, rides in the badge
+          row above. */}
 
       {/* ---------------------------------------------------------------- attachments */}
       {!!project.plans?.length && (

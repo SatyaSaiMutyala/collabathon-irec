@@ -71,7 +71,7 @@ const PropertyLeadsScreen = ({route, navigation}) => {
         onRefresh={loadFirstPage}
         onEndReached={handleEndReached}
         emptyIcon="people-outline"
-        emptyTitle="No broker activity yet"
+        emptyTitle="No CP interest yet"
         emptyMessage="Views and interests on this listing will appear here."
         contentContainerStyle={{paddingBottom: spacing.xxxl}}
         ListHeaderComponent={
@@ -87,7 +87,7 @@ const PropertyLeadsScreen = ({route, navigation}) => {
 
             <View style={{paddingHorizontal: spacing.lg}}>
               <AppText variant="h3" style={{marginTop: spacing.xl, marginBottom: spacing.sm}}>
-                Broker Leads ({list.total})
+                CP Interest ({list.total})
               </AppText>
             </View>
           </>

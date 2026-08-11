@@ -253,7 +253,12 @@ export const ProfileDetailSkeleton = ({sections = 2}) => {
   );
 };
 
-/** Mirrors PropertyHero + PropertyDetailBody: full-bleed hero, then stats and copy. */
+/**
+ * Mirrors PropertyHero + PropertyDetailBody: full-bleed hero, then the price line, the
+ * badge row and the first section card. The three-up stat tile that used to sit here
+ * went with the quick-specs block — a skeleton for a component that no longer renders
+ * is a guaranteed layout jump the moment the data lands.
+ */
 export const PropertyDetailSkeleton = () => {
   const {spacing} = useAppTheme();
   return (
@@ -262,16 +267,16 @@ export const PropertyDetailSkeleton = () => {
       <View style={{paddingHorizontal: spacing.lg}}>
         <Skeleton width="70%" height={moderateScale(20)} style={{marginTop: spacing.lg}} />
         <Skeleton width="45%" height={LINE_SM} style={{marginTop: moderateScale(8)}} />
-        <Card style={{marginTop: spacing.lg}}>
-          <View style={styles.row}>
-            {[0, 1, 2].map(index => (
-              <View key={index} style={{flex: 1, alignItems: 'center'}}>
-                <Skeleton width="55%" height={moderateScale(16)} />
-                <Skeleton width="70%" height={LINE_SM} style={{marginTop: moderateScale(6)}} />
-              </View>
-            ))}
-          </View>
-        </Card>
+        <View style={[styles.row, {marginTop: spacing.sm}]}>
+          {['32%', '26%', '22%'].map(width => (
+            <Skeleton
+              key={width}
+              width={width}
+              height={moderateScale(20)}
+              style={{marginRight: spacing.xs}}
+            />
+          ))}
+        </View>
         <DetailSectionSkeleton rows={5} />
       </View>
     </View>

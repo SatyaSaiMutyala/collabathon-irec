@@ -4,7 +4,7 @@ import {KeyboardAwareScrollView} from 'react-native-keyboard-aware-scroll-view';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../../theme';
-import {AuthHeader, Badge, Button, Input, ScreenContainer} from '../../components';
+import {AppText, AuthHeader, Badge, Button, Input, ScreenContainer} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {clearAuthError, login} from '../../store/slices/authSlice';
 
@@ -70,7 +70,7 @@ const LoginScreen = ({navigation}) => {
             icon="business-outline"
             eyebrow="DEVELOPER SIGN-IN"
             title="Log in to Collabathon"
-            subtitle="Sign in with the credentials the Collabathon team issued for your account."
+            subtitle="A private network for HRA's premium developers and partners."
           />
 
           {serverError && status === 'failed' && (
@@ -101,11 +101,19 @@ const LoginScreen = ({navigation}) => {
         />
 
         <Button
-          label={isSubmitting ? 'Signing in…' : 'Log In'}
+          label={isSubmitting ? 'Signing in…' : 'Continue'}
           onPress={handleLogin}
           disabled={isSubmitting}
           style={{marginTop: spacing.sm}}
         />
+
+        {/* Stated at the point of consent, per the language pass. */}
+        <AppText
+          variant="caption"
+          color={colors.textMuted}
+          style={{marginTop: spacing.md, textAlign: 'center'}}>
+          By continuing, you agree to HRA's Partner Network terms.
+        </AppText>
       </KeyboardAwareScrollView>
     </ScreenContainer>
   );

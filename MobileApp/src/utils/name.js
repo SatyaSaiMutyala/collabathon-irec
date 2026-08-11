@@ -39,6 +39,23 @@ export function firstName(name, fallback = '') {
   return nameParts(name)[0] ?? fallback;
 }
 
+/**
+ * Time-aware greeting, per the client's language pass.
+ *
+ * Warmth without casualness: "Good morning" reads human where a bare "Hi" reads like a
+ * placeholder, and it stays restrained. Boundaries follow ordinary usage — evening from
+ * 17:00 — and it deliberately has no late-night variant, since "Good night" is a farewell.
+ */
+export function greeting(date = new Date()) {
+  const hour = date.getHours();
+
+  if (hour < 12) {
+    return 'Good morning';
+  }
+
+  return hour < 17 ? 'Good afternoon' : 'Good evening';
+}
+
 /** Up to two letters for an avatar with no photo. */
 export function initialsOf(name) {
   const parts = nameParts(name);

@@ -4,7 +4,7 @@ import {KeyboardAwareScrollView} from 'react-native-keyboard-aware-scroll-view';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../../theme';
-import {AuthHeader, Button, Input, ScreenContainer} from '../../components';
+import {AppText, AuthHeader, Button, Input, ScreenContainer} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {resetOtp, sendOtp} from '../../store/slices/authSlice';
 
@@ -97,12 +97,12 @@ const MobileOtpLoginScreen = ({navigation}) => {
             icon="call-outline"
             eyebrow="CHANNEL PARTNER SIGN-IN"
             title="Enter mobile number"
-            subtitle="We'll text a 6-digit code to confirm it's you — no password needed."
+            subtitle="A private network for HRA's premium developers and partners."
           />
         </View>
 
         <Input
-          label="Mobile number"
+          label="Mobile Number"
           placeholder="10-digit mobile number"
           leftIcon="call-outline"
           keyboardType="phone-pad"
@@ -115,7 +115,7 @@ const MobileOtpLoginScreen = ({navigation}) => {
         />
 
         <Button
-          label={isSending ? 'Sending code…' : 'Send code'}
+          label={isSending ? 'Sending code…' : 'Continue'}
           onPress={() => triggerSend(mobile)}
           disabled={mobile.length !== MOBILE_LENGTH || isSending}
           loading={isSending}
@@ -123,6 +123,14 @@ const MobileOtpLoginScreen = ({navigation}) => {
           iconPosition="right"
           style={{marginTop: spacing.sm}}
         />
+
+        {/* Stated at the point of consent, per the language pass. */}
+        <AppText
+          variant="caption"
+          color={colors.textMuted}
+          style={{marginTop: spacing.md, textAlign: 'center'}}>
+          By continuing, you agree to HRA's Partner Network terms.
+        </AppText>
       </KeyboardAwareScrollView>
     </ScreenContainer>
   );

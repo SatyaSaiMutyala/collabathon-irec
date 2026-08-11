@@ -9,26 +9,23 @@ import Card from './Card';
 /**
  * One card per unit type (`property_unit_types`), rather than the single flattened row
  * the detail screen used to show. A project with 1BHK/2BHK/3BHK has three different
- * areas and three different price bands, and collapsing them to the first row was
- * quietly misreporting the other two.
+ * entry prices, and collapsing them to the first row was quietly misreporting the
+ * other two.
+ *
+ * Each row carries what the intake form asks for and nothing else: the configuration,
+ * the price it starts at, how many there are, and its floor plan. The carpet /
+ * built-up / super built-up figures were dropped from the form, so they are not shown
+ * here either — an area on screen for a field nobody can update is worse than no area.
  */
-const UnitTypeTable = ({units = [], currency = 'AED'}) => {
+const UnitTypeTable = ({units = [], currency = 'INR'}) => {
   const {colors, spacing, radius} = useAppTheme();
 
   if (!units.length) {
     return null;
   }
 
-  const priceText = unit => {
-    if (!unit.priceMin && !unit.priceMax) {
-      return null;
-    }
-    const min = Number(unit.priceMin ?? 0).toLocaleString();
-    if (unit.priceMax && unit.priceMax !== unit.priceMin) {
-      return `${currency} ${min} – ${Number(unit.priceMax).toLocaleString()}`;
-    }
-    return `${currency} ${min}`;
-  };
+  const priceText = unit =>
+    unit.priceMin ? `${currency} ${Number(unit.priceMin).toLocaleString()} onwards` : null;
 
   const openPlan = async url => {
     try {
@@ -37,13 +34,6 @@ const UnitTypeTable = ({units = [], currency = 'AED'}) => {
       Alert.alert('Cannot open', 'This floor plan could not be opened.');
     }
   };
-
-  const metrics = unit =>
-    [
-      ['Carpet', unit.carpetArea],
-      ['Built-up', unit.builtUpArea],
-      ['Super built-up', unit.superBuiltUpArea],
-    ].filter(([, value]) => !!value);
 
   return (
     <View>
@@ -74,28 +64,6 @@ const UnitTypeTable = ({units = [], currency = 'AED'}) => {
               </View>
             )}
           </View>
-
-          {!!metrics(unit).length && (
-            <View
-              style={{
-                flexDirection: 'row',
-                marginTop: spacing.sm,
-                paddingTop: spacing.sm,
-                borderTopWidth: 1,
-                borderTopColor: colors.border,
-              }}>
-              {metrics(unit).map(([label, value]) => (
-                <View key={label} style={{flex: 1}}>
-                  <AppText variant="caption" color={colors.textMuted}>
-                    {label}
-                  </AppText>
-                  <AppText variant="captionMedium" style={{marginTop: moderateScale(1)}}>
-                    {value}
-                  </AppText>
-                </View>
-              ))}
-            </View>
-          )}
 
           {!!unit.floorPlanUrl && (
             <TouchableOpacity

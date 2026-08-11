@@ -49,14 +49,14 @@ const RequestBrokersScreen = ({navigation}) => {
         onEndReached={handleEndReached}
         renderSkeleton={() => <BrokerLeadCardSkeleton />}
         emptyIcon="mail-open-outline"
-        emptyTitle="No broker requests yet"
-        emptyMessage="When a broker marks one of your listings as Interested, it appears here."
+        emptyTitle="No requests yet"
+        emptyMessage="When a channel partner marks one of your listings as Interested, it appears here."
         renderItem={({item}) => (
           <BrokerLeadCard
             lead={item}
             propertyName={item.property?.name}
             // The card is about the broker, so it opens the broker — the listing is
-            // already the developer's own and reachable from My Properties.
+            // already the developer's own and reachable from My Listings.
             onPress={() => navigation.navigate('BrokerDetail', {leadId: item.id})}
           />
         )}

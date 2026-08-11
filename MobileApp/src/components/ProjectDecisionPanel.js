@@ -54,15 +54,19 @@ const ProjectDecisionPanel = ({project}) => {
       <Card style={{marginTop: spacing.lg}}>
         <View style={styles.row}>
           <Icon name="checkmark-circle" size={moderateScale(20)} color={colors.success} />
+          {/* The language pass gives this banner "This listing is live." — true only once
+              we have published it. An accepted listing still awaiting that would be
+              claiming something the next line then contradicts, so the headline follows
+              the same condition as the line beneath it. */}
           <AppText variant="bodyMedium" color={colors.success} style={{marginLeft: spacing.xs}}>
-            You accepted this project
+            {project.isLive ? 'This listing is live.' : 'You accepted this listing.'}
           </AppText>
         </View>
 
         <AppText variant="caption" color={colors.textSecondary} style={{marginTop: spacing.xs}}>
           {project.isLive
-            ? 'It is live and channel partners can see it now.'
-            : 'Waiting on the admin to publish it — partners cannot see it until they do.'}
+            ? 'It is now visible to your partner network.'
+            : 'Waiting on our team to publish it — your partner network cannot see it until then.'}
         </AppText>
       </Card>
     );

@@ -41,8 +41,10 @@ const PropertyCard = ({project, onPress, showDots = true, priceVariant = 'h1'}) 
           </View>
 
           <View style={styles.bottomContent}>
+            {/* The project's own currency, not a hard-coded one — every project is
+                priced in INR now, and the card was still labelling them AED. */}
             <AppText variant="overline" color={colors.textInverse}>
-              AED
+              {project.currency ?? 'INR'}
             </AppText>
             <View style={styles.priceRow}>
               <AppText variant={priceVariant} color={colors.textInverse}>

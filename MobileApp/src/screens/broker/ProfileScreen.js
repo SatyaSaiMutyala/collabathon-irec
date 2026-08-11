@@ -101,7 +101,7 @@ const ProfileScreen = () => {
               {broker.emailId}
             </AppText>
             <View style={{marginTop: spacing.sm}}>
-              <Badge label="Approved Broker" tone="success" />
+              <Badge label="Approved Channel Partner" tone="success" />
             </View>
           </View>
         </Card>

@@ -41,7 +41,7 @@
             <x-th hide="xl">Categories</x-th>
             <x-th sort="city" hide="lg">Location</x-th>
             <x-th sort="created_at" hide="xl">Joined</x-th>
-            <x-th align="right">Projects</x-th>
+            <x-th align="right">Listings</x-th>
         </x-slot:head>
 
         @foreach($partners as $partner)

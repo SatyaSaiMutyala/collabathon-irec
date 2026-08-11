@@ -23,7 +23,9 @@ const DeveloperTabNavigator = () => {
   return (
     <Tab.Navigator screenOptions={screenOptions}>
       <Tab.Screen name="DashboardTab" component={DashboardScreen} options={{title: 'Dashboard'}} />
-      <Tab.Screen name="PropertiesTab" component={MyPropertiesScreen} options={{title: 'Properties'}} />
+      {/* Route name stays PropertiesTab — every navigate() call refers to it. Only the
+          tab's visible title follows the glossary. */}
+      <Tab.Screen name="PropertiesTab" component={MyPropertiesScreen} options={{title: 'Listings'}} />
       <Tab.Screen name="PartnersTab" component={PartnersScreen} options={{title: 'Partners'}} />
       <Tab.Screen
         name="RequestBrokersTab"

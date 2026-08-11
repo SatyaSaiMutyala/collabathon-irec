@@ -64,7 +64,7 @@ const PartnersScreen = ({navigation}) => {
         onEndReached={handleEndReached}
         emptyIcon="people-outline"
         emptyTitle="No partnerships yet"
-        emptyMessage="Once a developer accepts one of your requests, that project and their details appear here."
+        emptyMessage="Once a developer accepts one of your requests, that listing and their details appear here."
         renderItem={({item}) => (
           <LeadCard
             lead={item}

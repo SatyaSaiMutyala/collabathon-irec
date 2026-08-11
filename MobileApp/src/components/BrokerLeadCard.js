@@ -107,7 +107,7 @@ const BrokerLeadCard = ({lead, propertyName, onPress}) => {
                   variant="caption"
                   color={colors.textMuted}
                   style={{marginLeft: moderateScale(6), flex: 1}}>
-                  Last digits hidden until you accept
+                  Full details shared once you accept
                 </AppText>
               </View>
             )}
@@ -141,7 +141,7 @@ const BrokerLeadCard = ({lead, propertyName, onPress}) => {
               variant="caption"
               color={colors.textMuted}
               style={{marginLeft: moderateScale(6), flex: 1}}>
-              Viewed only — this broker has not sent a request
+              Viewed your listing — no introduction requested yet
             </AppText>
           </View>
         )}

@@ -223,7 +223,7 @@
             @endphp
 
             <x-panel flush>
-                <x-slot:title>Projects</x-slot:title>
+                <x-slot:title>Listings</x-slot:title>
                 <x-slot:actions>
                     @if($stats['listings'] > 0)
                         <a href="{{ route('admin.properties', ['developer_id' => $developer->id]) }}"

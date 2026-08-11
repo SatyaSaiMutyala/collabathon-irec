@@ -36,7 +36,7 @@ import {
  * backing out does not refetch.
  */
 const SORTS = [
-  {key: 'last_collaborated_at', label: 'Recent', direction: 'desc'},
+  {key: 'last_collaborated_at', label: 'Recently connected', direction: 'desc'},
   {key: 'projects_count', label: 'Most projects', direction: 'desc'},
   {key: 'name', label: 'A–Z', direction: 'asc'},
 ];
@@ -157,7 +157,7 @@ const PartnersScreen = ({navigation}) => {
 
       <View style={styles.summary(spacing)}>
         <AppText variant="caption" color={colors.textMuted}>
-          {list.total} {list.total === 1 ? 'broker' : 'brokers'} · {applied.sort.label}
+          {list.total} {list.total === 1 ? 'Channel Partner' : 'Channel Partners'} · {applied.sort.label}
         </AppText>
       </View>
 
@@ -172,7 +172,7 @@ const PartnersScreen = ({navigation}) => {
         emptyMessage={
           activeCount || search.trim()
             ? 'Try a different search or clear the filters.'
-            : 'Brokers appear here once you accept their request.'
+            : 'Channel partners appear here once you accept their request.'
         }
         renderItem={({item}) => (
           <PartnerCard

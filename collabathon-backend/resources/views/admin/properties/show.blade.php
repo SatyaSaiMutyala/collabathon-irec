@@ -17,10 +17,10 @@
     $list = fn (?array $v) => $v ? implode("\n", $v) : null;
 
     $deletePayload = \Illuminate\Support\Js::from([
-        'title' => 'Delete this project?',
+        'title' => 'Delete this listing?',
         'message' => "\"{$property->name}\" will be removed from every listing and from channel partner "
             . 'view. Leads already raised against it are kept.',
-        'confirmLabel' => 'Delete project',
+        'confirmLabel' => 'Delete listing',
         'tone' => 'danger',
     ]);
 
@@ -116,7 +116,7 @@
     <a href="{{ route('admin.properties') }}"
        class="inline-flex items-center gap-1.5 text-[12.5px] text-ink-2 hover:text-ink transition-colors mb-4">
         <x-icon name="chevron-left" class="w-4 h-4" />
-        Back to projects
+        Back to listings
     </a>
 
     {{-- ============================== Header ============================== --}}
@@ -166,7 +166,7 @@
                 @elseif($property->developer_status === 'pending')
                     <p class="flex items-center gap-1.5 text-[12px] text-warning mt-2">
                         <x-icon name="clock" class="w-3.5 h-3.5" />
-                        Hidden from partners — waiting for
+                        Hidden from Channel Partners — waiting for
                         {{ $property->developer?->company_name ?? 'the developer' }} to accept it
                     </p>
                 @elseif($property->developer_status === 'declined')
@@ -233,7 +233,7 @@
                       x-on:submit.prevent="$dispatch('confirm-request', { ...{{ $deletePayload }}, form: $el }); close()">
                     @csrf @method('DELETE')
                     <x-dropdown-item icon="x" tone="danger" tag="button" type="submit">
-                        Delete project
+                        Delete listing
                     </x-dropdown-item>
                 </form>
             </x-dropdown>
@@ -317,7 +317,7 @@
                         <table class="w-full text-left">
                             <thead>
                                 <tr class="border-b border-line-soft bg-canvas">
-                                    @foreach(['Unit', 'Carpet', 'Built-up', 'Super built-up', 'Price range', 'Units', 'Floor plan'] as $head)
+                                    @foreach(['Unit', 'Carpet', 'Built-up', 'Super built-up', 'Price', 'Units', 'Floor plan'] as $head)
                                         <th class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3 whitespace-nowrap">
                                             {{ $head }}
                                         </th>
@@ -340,8 +340,18 @@
                                                 @endif
                                             </td>
                                         @endforeach
+                                        {{-- Intake collects the entry price alone, so the upper end is
+                                             null on everything saved since. number_format(null) prints
+                                             "0", which made every new row read "18,00,000 – 0" — the
+                                             same From/range rule the Price field above uses. --}}
                                         <td class="px-4 py-3 text-[12.5px] text-ink-2 nums whitespace-nowrap">
-                                            {{ $unit->price_min ? number_format($unit->price_min) . ' – ' . number_format($unit->price_max) : '—' }}
+                                            @if($unit->price_min === null)
+                                                —
+                                            @elseif($unit->price_max === null)
+                                                From {{ number_format($unit->price_min) }}
+                                            @else
+                                                {{ number_format($unit->price_min) }} – {{ number_format($unit->price_max) }}
+                                            @endif
                                         </td>
                                         <td class="px-4 py-3 text-[12.5px] text-ink-2 nums">{{ $unit->units_count ?? '—' }}</td>
                                         <td class="px-4 py-3">

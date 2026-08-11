@@ -17,11 +17,11 @@ class Role extends Model
      */
     public const MODULES = [
         'dashboard' => 'Dashboard',
-        'approvals' => 'Broker Approvals',
+        'approvals' => 'CP Approvals',
         'cp' => 'Channel Partners',
         'developers' => 'Developers',
-        'properties' => 'Projects',
-        'leads' => 'Approvals',
+        'properties' => 'Listings',
+        'leads' => 'CP Interest',
         'settings' => 'Settings',
     ];
 

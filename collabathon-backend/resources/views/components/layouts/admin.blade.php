@@ -22,8 +22,8 @@ $navGroups = [
         // next to it rather than buried as a tab on a page about outstanding work.
         ['key' => 'cp', 'icon' => 'users', 'label' => 'Channel Partners', 'route' => route('admin.cp')],
         ['key' => 'developers', 'icon' => 'building', 'label' => 'Developers', 'route' => route('admin.developers')],
-        ['key' => 'properties', 'icon' => 'list', 'label' => 'Projects', 'route' => route('admin.properties')],
-        ['key' => 'leads', 'icon' => 'chart', 'label' => 'Approvals', 'route' => route('admin.leads')],
+        ['key' => 'properties', 'icon' => 'list', 'label' => 'Listings', 'route' => route('admin.properties')],
+        ['key' => 'leads', 'icon' => 'chart', 'label' => 'CP Interest', 'route' => route('admin.leads')],
     ],
     'Configure' => [
         ['key' => 'settings', 'icon' => 'cog', 'label' => 'Settings', 'route' => route('admin.settings')],

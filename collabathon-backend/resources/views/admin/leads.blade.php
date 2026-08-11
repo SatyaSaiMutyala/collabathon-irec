@@ -11,8 +11,8 @@
     <x-page-header
         title="Approvals"
         :subtitle="$selectedProperty
-            ? 'Scoped to “' . $selectedProperty->name . '” — clear the project filter to see every developer.'
-            : 'Every developer, ranked by how many channel partners have requested their projects.'">
+            ? 'Scoped to “' . $selectedProperty->name . '” — clear the listing filter to see every developer.'
+            : 'Every developer, ranked by how many channel partners have requested their listings.'">
         <x-slot:actions>
             <x-button variant="outline" icon="download">Export CSV</x-button>
         </x-slot:actions>
@@ -124,10 +124,10 @@
         search-placeholder="Search by company name…"
         empty-icon="users"
         empty-title="No developers match"
-        empty-description="Adjust the search or clear the project filter.">
+        empty-description="Adjust the search or clear the listing filter.">
 
         <x-slot:filters>
-            <x-filter-select name="property_id" :options="$properties" placeholder="All projects" />
+            <x-filter-select name="property_id" :options="$properties" placeholder="All listings" />
         </x-slot:filters>
 
         <x-slot:head>

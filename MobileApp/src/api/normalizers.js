@@ -6,10 +6,15 @@
  * one place that knows both shapes. If the API changes, only this file moves.
  *
  * Two rules this file exists to enforce:
- *   1. Nothing the API sends is dropped silently. The property spec is ~69 fields
- *      across `properties` + `property_details`, and every populated one has to reach
- *      the detail screen — a field the admin captured but the app never shows is
- *      indistinguishable, to the user, from a field that was never captured.
+ *   1. The app shows exactly the fields the admin panel still collects — no more, no
+ *      less. The intake form was cut back (the Timeline & legal and Compliance & trust
+ *      steps went entirely, the price band became a single entry price, and the three
+ *      area figures per unit type stopped being asked for). Those columns still exist
+ *      on the models and the API still emits them so old records keep what they hold,
+ *      but a field nothing can edit any more must not be shown as if it were current —
+ *      it reads as live data when it is a frozen leftover. The admin project sheet
+ *      (resources/views/admin/properties/show.blade.php) is the reference for what is
+ *      in and what is out; if a field returns to that form, add it back here.
  *   2. Media is grouped by `kind`, not filtered down to photos. `property_media.kind`
  *      carries eleven values; only one of them is `image`. The rest are brochures,
  *      price lists, plans, certificates, videos and tours, and they are the documents
@@ -25,10 +30,21 @@ function daysSince(iso) {
   return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / DAY_MS));
 }
 
-/** "3BHK" -> 3. Bedrooms are not a column; they come from the unit-type label. */
-function bedroomsFromLabel(label = '') {
-  const match = String(label).match(/(\d+)\s*BHK/i);
-  return match ? Number(match[1]) : null;
+/**
+ * Month and year only — for a possession date.
+ *
+ * A handover is a target month, not a calendar appointment, so naming an exact day
+ * claims a precision the developer has not committed to. "March 2029" also reads like a
+ * brochure where "2 Mar 2029" still reads like a record.
+ */
+function formatMonthYear(iso) {
+  if (!iso) {
+    return null;
+  }
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? null
+    : date.toLocaleDateString('en-GB', {month: 'long', year: 'numeric'});
 }
 
 /** Joins a list into readable prose, or returns null so InfoRow drops the row. */
@@ -96,15 +112,17 @@ function normalizeMedia(media = []) {
   };
 }
 
+/**
+ * A unit-type row is now four things: the label, the price it starts at, how many there
+ * are and its floor plan — the same four the intake form asks for. Carpet / built-up /
+ * super built-up and the upper price are still on the API for records that have them,
+ * but nothing collects them any more, so they are not carried through to the screen.
+ */
 function normalizeUnitTypes(units = []) {
   return units.map(unit => ({
     id: unit.id,
     label: unit.label,
-    carpetArea: sqft(unit.carpet_area_sqft),
-    builtUpArea: sqft(unit.built_up_area_sqft),
-    superBuiltUpArea: sqft(unit.super_built_up_area_sqft),
     priceMin: unit.price_min,
-    priceMax: unit.price_max,
     unitsCount: unit.units_count,
     floorPlanUrl: unit.floor_plan_url,
   }));
@@ -117,11 +135,10 @@ export function normalizeProperty(api) {
 
   const media = normalizeMedia(api.media);
   const units = api.unit_types ?? [];
-  const primaryUnit = units[0] ?? {};
   const detail = api.detail ?? {};
   const location = api.location ?? {};
   const price = api.price ?? {};
-  const currency = price.currency ?? 'AED';
+  const currency = price.currency ?? 'INR';
   // Emitted by PropertyResource on the show route only — absent on list payloads.
   const rera = api.rera ?? {};
   const scale = api.scale ?? {};
@@ -144,8 +161,19 @@ export function normalizeProperty(api) {
     developerRespondedAt: api.developer_responded_at,
     developerDeclineReason: api.developer_decline_reason,
     isLive: api.is_live ?? false,
+
+    /**
+     * One price, not a band. Intake asks for "Starting from" alone now, so `priceUnit`
+     * reads "onwards" rather than "– <max>" for anything entered since. Records saved
+     * under the old two-field form still have an upper end, and those keep showing the
+     * range — the same rule the admin sheet uses.
+     */
     price: price.min ?? 0,
-    priceUnit: price.max && price.max !== price.min ? `– ${price.max.toLocaleString()}` : '',
+    priceUnit: !price.min
+      ? '' // "0 onwards" is worse than a bare 0 on a project with no price yet.
+      : price.max && price.max !== price.min
+        ? `– ${price.max.toLocaleString()}`
+        : 'onwards',
     currency,
     location: [location.locality, location.city].filter(Boolean).join(', '),
     postedDaysAgo: daysSince(api.created_at),
@@ -181,9 +209,6 @@ export function normalizeProperty(api) {
           excerpt: detail.terms.excerpt,
         }
       : null,
-    bedrooms: bedroomsFromLabel(primaryUnit.label) ?? units.length,
-    bathrooms: bedroomsFromLabel(primaryUnit.label) ?? units.length,
-    areaSqft: primaryUnit.carpet_area_sqft ?? 0,
     amenities: detail.amenities ?? [],
     description: api.description ?? '',
 
@@ -194,45 +219,43 @@ export function normalizeProperty(api) {
 
     unitTypes: normalizeUnitTypes(units),
 
+    /**
+     * Grouped the way the admin project sheet groups them, so a row an admin can see
+     * there has one obvious counterpart here.
+     *
+     * Deliberately absent, because the intake form no longer collects them: the RERA
+     * registered-on / valid-till dates, construction progress, launch date, price per
+     * sq.ft., flats per floor, parking details, construction specifications, clubhouse
+     * size, amenities count, awards, approving authorities and bank approvals.
+     */
     details: {
       overview: {
         reraNumber: rera.number,
-        reraRegisteredAt: rera.registered_at,
-        reraValidTill: rera.valid_till,
         projectType: api.project_type,
         projectStatus: api.project_status,
         listingStatus: api.listing_status,
         tagline: api.tagline,
-        launchDate: compliance.launch_date,
-        possessionDate: api.possession_date,
-        constructionProgress: api.construction_progress
-          ? `${api.construction_progress}%`
-          : null,
+        possessionDate: formatMonthYear(api.possession_date),
       },
-      unit: {
-        unitTypes: units.map(u => u.label).filter(Boolean).join(', ') || null,
-        carpetArea: sqft(primaryUnit.carpet_area_sqft),
-        builtUpArea: sqft(primaryUnit.built_up_area_sqft),
-        superBuiltUpArea: sqft(primaryUnit.super_built_up_area_sqft),
-        pricePerSqft: price.per_sqft ? `${currency} ${price.per_sqft.toLocaleString()}` : null,
+      configuration: {
+        // The unit the project's extent is quoted in — Sq.ft., Acres, Guntha, …
+        extentMetric: price.extent_metric,
         // Prefer the property's own tally; fall back to summing the unit-type rows.
         totalUnits: scale.total_units
           ? String(scale.total_units)
           : String(units.reduce((sum, u) => sum + (u.units_count ?? 0), 0) || '') || null,
         towers: scale.towers ? String(scale.towers) : null,
-        floorsPerTower: scale.floors_per_tower ? String(scale.floors_per_tower) : null,
-        flatsPerFloor: scale.flats_per_floor ? String(scale.flats_per_floor) : null,
-        parking: detail.parking_details,
+        floors: scale.floors_per_tower ? String(scale.floors_per_tower) : null,
       },
       location: {
+        city: location.city,
+        state: location.state,
         locality: location.locality,
         fullAddress: location.full_address,
         landmark: location.landmark,
-        mapsLink: location.maps_link,
-        city: location.city,
-        state: location.state,
-        zone: location.zone,
         pincode: location.pincode,
+        zone: location.zone,
+        mapsLink: location.maps_link,
         connectivity: listToText(detail.connectivity_highlights),
         nearbyInfrastructure: listToText(detail.nearby_infrastructure),
         coordinates:
@@ -241,20 +264,14 @@ export function normalizeProperty(api) {
             : null,
       },
       specs: {
-        totalProjectArea: sqft(scale.total_project_area_sqft),
         landParcel: scale.land_parcel_acres ? `${scale.land_parcel_acres} acres` : null,
-        constructionSpecs: detail.construction_specifications,
-        amenitiesSize: detail.amenities_size,
-        amenitiesCount: detail.amenities_count ? String(detail.amenities_count) : null,
-        parking: detail.parking_details,
+        totalProjectArea: sqft(scale.total_project_area_sqft),
         greenCertification: compliance.green_certification,
-        // Only worth a row when true — "Vastu Compliant: No" is noise.
-        vastuCompliant: compliance.vastu_compliant ? 'Yes' : null,
-        awards: listToText(detail.awards),
-      },
-      approvals: {
-        approvingAuthorities: listToText(detail.approving_authorities),
-        bankApprovals: listToText(detail.bank_approvals),
+        // Yes *and* No, matching the admin sheet: it is a claim a partner may be asked
+        // about, so "we checked and it is not" is worth as much as the positive. Only
+        // once the detail payload is actually present, though — `compliance` is absent
+        // from list responses, and a missing block must not be reported as "No".
+        vastuCompliant: api.compliance ? (compliance.vastu_compliant ? 'Yes' : 'No') : null,
       },
       sales: {
         officeAddress: detail.sales_office_address,

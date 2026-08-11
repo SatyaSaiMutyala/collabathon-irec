@@ -1,17 +1,27 @@
 import React from 'react';
-import {View} from 'react-native';
+import {TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
 import {useAppTheme} from '../theme';
 import AppText from './AppText';
 
-const InfoRow = ({icon, label, value, valueColor}) => {
+/**
+ * A labelled value. Pass `onPress` for the few rows whose value is a destination rather
+ * than a fact — a maps link, a phone number — and the row becomes tappable and grows a
+ * chevron so it looks like one. Without it the row stays inert, which is the common case.
+ */
+const InfoRow = ({icon, label, value, valueColor, onPress}) => {
   const {colors, spacing} = useAppTheme();
   if (!value) {
     return null;
   }
+
+  const Wrapper = onPress ? TouchableOpacity : View;
+
   return (
-    <View style={{flexDirection: 'row', alignItems: 'flex-start', paddingVertical: spacing.sm}}>
+    <Wrapper
+      {...(onPress ? {activeOpacity: 0.7, onPress} : {})}
+      style={{flexDirection: 'row', alignItems: 'flex-start', paddingVertical: spacing.sm}}>
       <Icon name={icon} size={moderateScale(18)} color={colors.primary} style={{marginTop: moderateScale(2)}} />
       <View style={{marginLeft: spacing.sm, flex: 1}}>
         <AppText variant="caption" color={colors.textMuted}>
@@ -21,7 +31,15 @@ const InfoRow = ({icon, label, value, valueColor}) => {
           {value}
         </AppText>
       </View>
-    </View>
+      {!!onPress && (
+        <Icon
+          name="chevron-forward"
+          size={moderateScale(16)}
+          color={colors.textMuted}
+          style={{marginTop: moderateScale(4)}}
+        />
+      )}
+    </Wrapper>
   );
 };
 

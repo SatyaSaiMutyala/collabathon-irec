@@ -15,6 +15,11 @@ import {Platform} from 'react-native';
  * `php artisan serve --host=0.0.0.0` so the device can reach it directly. Leave it null
  * to use loopback. It is machine-specific: do not commit a value you did not set.
  */
+// Back to loopback + `adb reverse tcp:8001 tcp:8001`. The LAN address (192.168.29.164)
+// is reachable in principle, but this machine's Wi-Fi is on Windows' Public profile,
+// which blocks inbound 8001 — and opening it needs an elevated firewall rule. The adb
+// tunnel needs no admin and no firewall change, so it is the path of least resistance
+// here. Set this to the Wi-Fi address only if the tunnel is unavailable.
 const LAN_HOST = null;
 
 const DEV_HOST =
@@ -29,19 +34,20 @@ const DEV_HOST =
 // asset()/Storage::url() build every image and document URL from APP_URL, so a mismatch
 // here hands the device working API responses with broken (unreachable-host) media links.
 // Only read by the local-dev line below.
-const DEV_PORT = 8000;
+//
+// 8001, not 8000: this machine already serves `pace-backend` on 8000, which answers every
+// Collabathon request with its own sign-in page. Collabathon's APP_URL is :8001 and that
+// is where it must be served from.
+const DEV_PORT = 8001;
 
 // Every endpoint in api/endpoints.js is written relative — '/auth/login', '/leads' — so
 // the version prefix belongs here. Without it those resolve to /auth/login on the host
 // root, which Laravel answers with a 404 the client reports as "cannot reach the server".
 // export const API_BASE_URL = 'https://brown-hedgehog-768805.hostingersite.com/api/v1';
 
-// TEMPORARY — the mobile+OTP sign-in work (migration, AuthController::sendOtp/
-// verifyOtp, routes) exists only on this machine so far, not yet deployed to the
-// Hostinger host above. Pointed at local `php artisan serve` (already running on
-// :8000) so the flow can actually be tested end to end. Swap the line above back in
-// once that backend work is deployed and migrated on Hostinger — don't ship a build
-// with this line active, 127.0.0.1 only resolves on this Mac.
+// TEMPORARY — local `php artisan serve --port=8001`, reached through the adb tunnel.
+// Swap the Hostinger line above back in before building anything you ship: 127.0.0.1
+// resolves to the phone itself without that tunnel in place.
 export const API_BASE_URL = `http://${DEV_HOST}:${DEV_PORT}/api/v1`;
 
 /** Matches the server-side cap in HandlesListQueries. */
