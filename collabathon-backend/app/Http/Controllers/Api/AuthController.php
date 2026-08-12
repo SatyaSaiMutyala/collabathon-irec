@@ -15,22 +15,21 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Mobile auth. Two different mechanisms for two different roles:
+ * Mobile auth. Email + password (Sanctum tokens) for both mobile roles.
  *
- *  - Developers sign in with email + password — accounts an admin provisions, so a
- *    credential handed over once is the right shape.
- *  - Channel partners sign in with mobile number + OTP (`sendOtp`/`verifyOtp`) —
- *    self-registering, so a phone the person actually holds is a better proof of
- *    identity than a password they choose once and probably reuse elsewhere. A broker
- *    account has no usable password at all: `register()` fills the column with random
- *    bytes so it satisfies the schema, and nothing ever checks it.
+ * `sendOtp`/`verifyOtp` below implement a mobile-number + OTP alternative that was
+ * built for channel partners and is not currently wired into either client build —
+ * re-enabling it is a client-side navigation change, not a backend one, so the
+ * endpoints and the OtpCode/OtpSender plumbing stay in place rather than being
+ * ripped out. `register`/`login` here are the one path both mobile roles actually
+ * use right now: OTP delivery has no SMS provider configured (no SMTP/MSG91/etc),
+ * which blocks App Store review, so this is the path that has to work.
  *
- * The approval gate lives here regardless of which door was used: a broker registers
+ * The approval gate lives here regardless of which door is used: a broker registers
  * as `pending` and is issued NO token until an admin approves. Returning a token first
  * and checking status later would let a rejected broker keep a valid credential.
  */
@@ -51,21 +50,14 @@ class AuthController extends Controller
         'signature_file' => 'signature_path',
     ];
 
-    /**
-     * Broker self-registration. Creates the user + profile, issues no token.
-     *
-     * No `mobile` field to validate and no `password` at all: the mobile number comes
-     * from `verification_token` (see `verifyOtp`) rather than the request body, so it
-     * cannot be swapped for a number that was never actually OTP-verified, and a
-     * broker account has no password to check going forward — `mobile` + OTP is the
-     * only sign-in path for this role.
-     */
+    /** Broker self-registration. Creates the user + profile, issues no token. */
     public function register(Request $request, PushNotifier $push): JsonResponse
     {
         $data = $request->validate([
-            'verification_token' => ['required', 'string'],
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:8'],
+            'mobile' => ['required', 'string', 'max:32'],
 
             'alternate_mobile' => ['nullable', 'string', 'max:32'],
             'residence_address' => ['nullable', 'string'],
@@ -112,24 +104,6 @@ class AuthController extends Controller
                 ->all(),
         ]);
 
-        $mobile = OtpCode::mobileForVerificationToken($data['verification_token']);
-
-        if (! $mobile) {
-            throw ValidationException::withMessages([
-                'verification_token' => ['Verify your mobile number again before continuing.'],
-            ]);
-        }
-
-        // Replay guard: the same token resolves to the same mobile on a second call
-        // (nothing marks it "spent" on its own), so a second registration attempt is
-        // only ever caught here — cleanly, as a 422 — rather than as a raw unique-
-        // constraint 500 from the insert below.
-        if (User::where('mobile', $mobile)->exists()) {
-            throw ValidationException::withMessages([
-                'verification_token' => ['This mobile number is already registered.'],
-            ]);
-        }
-
         // Stored before the transaction so a failed insert cannot leave a half-written
         // row pointing at nothing; an orphaned file is the cheaper failure.
         $data['photo_path'] = $request->hasFile('photo')
@@ -142,15 +116,12 @@ class AuthController extends Controller
                 : null;
         }
 
-        $user = DB::transaction(function () use ($data, $mobile) {
+        $user = DB::transaction(function () use ($data) {
             $user = User::create([
                 'name' => $data['name'],
                 'email' => $data['email'],
-                // No password is ever checked for a broker — OTP is the only sign-in
-                // path — but the column is NOT NULL, so this fills it with bytes
-                // nobody knows rather than migrating the schema for one role.
-                'password' => Str::random(40),
-                'mobile' => $mobile,
+                'password' => $data['password'],
+                'mobile' => $data['mobile'],
                 'role' => User::ROLE_BROKER,
                 'status' => User::STATUS_PENDING,
             ]);

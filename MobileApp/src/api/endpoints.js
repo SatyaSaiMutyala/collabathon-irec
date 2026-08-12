@@ -63,7 +63,7 @@ export const authApi = {
           headers: {'Content-Type': 'multipart/form-data'},
         })
       : client.post('/auth/register', payload),
-  /** Developer sign-in only — channel partners use sendOtp/verifyOtp below. */
+  /** Shared sign-in for both mobile roles — see LoginScreen. */
   login: payload => client.post('/auth/login', payload),
   me: () => client.get('/auth/me'),
   logout: () => client.post('/auth/logout'),

@@ -49,10 +49,25 @@ function runCrop(promise, onPicked) {
 function pickFromCamera(onPicked, crop) {
   if (!crop) {
     launchCamera({mediaType: 'photo', quality: 0.7}, response => {
+      // Cancelling is a normal outcome, same as the crop path below — nothing to alert.
+      if (response.didCancel) {
+        return;
+      }
+
       const uri = response?.assets?.[0]?.uri;
       if (uri) {
         onPicked(uri);
+        return;
       }
+
+      // No uri and not a cancel means the camera itself couldn't be reached — most
+      // commonly the Simulator, which has no camera hardware at all. Silently doing
+      // nothing here reads as "the button is broken" rather than "there's no camera",
+      // so this says which one it actually is and points at the path that does work.
+      Alert.alert(
+        'Camera unavailable',
+        response.errorMessage ?? 'Could not open the camera on this device. Try Choose from Library instead.',
+      );
     });
     return;
   }

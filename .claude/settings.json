@@ -57,7 +57,17 @@
       "Bash(npx eslint *)",
       "Bash(echo \"EXIT: $?\")",
       "Bash(curl -s \"http://127.0.0.1:8081/index.bundle?platform=ios&dev=true\" -o /tmp/bundle_config_check.js -w \"HTTP %{http_code}, size %{size_download} bytes\\\\n\")",
-      "Bash(curl -s \"http://127.0.0.1:8081/index.bundle?platform=ios&dev=true\" -o /tmp/bundle_autofill_check.js -w \"HTTP %{http_code}, size %{size_download} bytes\\\\n\")"
+      "Bash(curl -s \"http://127.0.0.1:8081/index.bundle?platform=ios&dev=true\" -o /tmp/bundle_autofill_check.js -w \"HTTP %{http_code}, size %{size_download} bytes\\\\n\")",
+      "Bash(npx react-native *)",
+      "Bash(cp /tmp/old_register_screen.js /Users/satyamutyala/Satya-Apps/collabathon-irec/MobileApp/src/screens/auth/RegisterScreen.js *)",
+      "Bash(node -e ' *)",
+      "Bash(nohup php artisan serve --host=127.0.0.1 --port=8001)",
+      "Bash(disown)",
+      "Bash(curl -sS -o /dev/null -w \"status: %{http_code}\\\\n\" http://127.0.0.1:8001/up)",
+      "Bash(lsof -nP -iTCP:8081 -sTCP:LISTEN)"
+    ],
+    "additionalDirectories": [
+      "/private/tmp"
     ]
   }
 }

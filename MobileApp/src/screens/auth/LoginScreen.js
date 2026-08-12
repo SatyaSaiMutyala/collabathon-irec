@@ -9,12 +9,14 @@ import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {clearAuthError, login} from '../../store/slices/authSlice';
 
 /**
- * Developer sign-in — email + password, issued by an admin. Channel partners no
- * longer use this screen at all: their sign-in is mobile number + OTP
- * (MobileOtpLoginScreen -> OtpVerifyScreen), with no password on either side of the
- * API. Developer accounts keep a password because they are provisioned once by an
- * admin rather than self-registered, so a credential handed over up front is the
- * right shape for that role.
+ * Shared sign-in for both mobile roles. Email is the login key — the API
+ * authenticates on email + password alone and answers with the account's own role,
+ * which RootNavigator uses to pick the broker or developer stack. No role is sent
+ * with the request: an email belongs to exactly one account, so asking the client to
+ * declare the role up front only creates a way to be wrong about it.
+ *
+ * The approval gate is enforced by the server: a pending or rejected broker gets a
+ * 403 and no token, which surfaces here as a status badge rather than a generic error.
  */
 const LoginScreen = ({navigation}) => {
   const {colors, spacing} = useAppTheme();
@@ -23,6 +25,7 @@ const LoginScreen = ({navigation}) => {
   const status = useAppSelector(state => state.auth.status);
   const serverError = useAppSelector(state => state.auth.error);
   const fieldErrors = useAppSelector(state => state.auth.fieldErrors);
+  const registrationStatus = useAppSelector(state => state.auth.registrationStatus);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -41,7 +44,8 @@ const LoginScreen = ({navigation}) => {
       return;
     }
     setLocalError(undefined);
-    dispatch(login({email: email.trim(), password, role: 'developer'}));
+    // No `role` — the server resolves it from the account and we route on the answer.
+    dispatch(login({email: email.trim(), password}));
   };
 
   const passwordError =
@@ -67,15 +71,20 @@ const LoginScreen = ({navigation}) => {
         keyboardShouldPersistTaps="handled">
         <View style={{marginTop: spacing.xl, marginBottom: spacing.xxl}}>
           <AuthHeader
-            icon="business-outline"
-            eyebrow="DEVELOPER SIGN-IN"
+            icon="log-in-outline"
+            eyebrow="SIGN IN"
             title="Log in to Collabathon"
             subtitle="A private network for HRA's premium developers and partners."
           />
 
-          {serverError && status === 'failed' && (
+          {registrationStatus === 'pendingApproval' && (
             <View style={{alignItems: 'center', marginTop: -spacing.md, marginBottom: spacing.md}}>
-              <Badge label="Sign-in failed" tone="danger" />
+              <Badge label="Approval pending" tone="warning" />
+            </View>
+          )}
+          {registrationStatus === 'rejected' && (
+            <View style={{alignItems: 'center', marginTop: -spacing.md, marginBottom: spacing.md}}>
+              <Badge label="Registration not approved" tone="danger" />
             </View>
           )}
         </View>
@@ -113,6 +122,26 @@ const LoginScreen = ({navigation}) => {
             elevation: 4,
           }}
         />
+
+        <View style={{flexDirection: 'row', justifyContent: 'center', marginTop: spacing.lg}}>
+          <AppText variant="body" color={colors.textSecondary}>
+            New channel partner?{' '}
+          </AppText>
+          <TouchableOpacity onPress={() => navigation.navigate('Register')} hitSlop={8}>
+            <AppText variant="bodyMedium" color={colors.primary}>
+              Create an account
+            </AppText>
+          </TouchableOpacity>
+        </View>
+
+        {/* Developers are onboarded by an admin, so there's no self-serve path to offer. */}
+        <AppText
+          variant="caption"
+          color={colors.textMuted}
+          align="center"
+          style={{marginTop: spacing.sm}}>
+          Developer accounts are created by the Collabathon team.
+        </AppText>
 
         {/* Stated at the point of consent, per the language pass. */}
         <AppText
