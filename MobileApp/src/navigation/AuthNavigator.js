@@ -7,6 +7,7 @@ import CompleteProfileScreen from '../screens/auth/CompleteProfileScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import PendingApprovalScreen from '../screens/auth/PendingApprovalScreen';
+import TermsScreen from '../screens/shared/TermsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -30,6 +31,7 @@ const AuthNavigator = () => (
     <Stack.Screen name="Login" component={LoginScreen} />
     <Stack.Screen name="Register" component={RegisterScreen} />
     <Stack.Screen name="PendingApproval" component={PendingApprovalScreen} />
+    <Stack.Screen name="Terms" component={TermsScreen} options={{animation: 'slide_from_bottom'}} />
 
     {/* Registered, not linked — see the note above. */}
     <Stack.Screen name="MobileOtpLogin" component={MobileOtpLoginScreen} />

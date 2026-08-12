@@ -67,6 +67,8 @@ export const authApi = {
   login: payload => client.post('/auth/login', payload),
   me: () => client.get('/auth/me'),
   logout: () => client.post('/auth/logout'),
+  /** Self-service account deletion — soft delete server-side, see AuthController. */
+  deleteAccount: () => client.delete('/auth/account'),
 
   // ---------------------------------------------------------------- channel-partner OTP
   /** Issues (or re-issues) a 6-digit code for a mobile number. */

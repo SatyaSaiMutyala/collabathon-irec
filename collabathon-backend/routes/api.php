@@ -41,6 +41,7 @@ Route::prefix('v1')->group(function () {
         Route::get('auth/me', [AuthController::class, 'me']);
         Route::get('dashboard', DashboardController::class);
         Route::post('auth/logout', [AuthController::class, 'logout']);
+        Route::delete('auth/account', [AuthController::class, 'deleteAccount']);
 
         // Push registration. Sent right after sign-in and cleared on sign-out.
         Route::post('auth/device-token', [AuthController::class, 'registerDevice']);

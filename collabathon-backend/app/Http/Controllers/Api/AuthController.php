@@ -377,4 +377,27 @@ class AuthController extends Controller
 
         return response()->json(['message' => 'Signed out.']);
     }
+
+    /**
+     * DELETE /api/v1/auth/account — self-service account deletion, from the Profile
+     * screen. A soft delete: the row (and every lead/property record pointing at it)
+     * stays put — flipped to `inactive` rather than removed, so it keeps showing up in
+     * the admin's roster instead of vanishing. `isActive()` already gates every sign-in
+     * path on `status === active`, so an inactive account is rejected there with no
+     * extra check needed; every access token is revoked here so an already-issued one
+     * cannot keep working until it naturally expires.
+     */
+    public function deleteAccount(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $user->forceFill([
+            'status' => User::STATUS_INACTIVE,
+            'deleted_at' => now(),
+        ])->save();
+
+        $user->tokens()->delete();
+
+        return response()->json(['message' => 'Your account has been deleted.']);
+    }
 }

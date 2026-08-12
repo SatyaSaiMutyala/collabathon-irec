@@ -1,5 +1,5 @@
 import React, {useRef, useState} from 'react';
-import {Linking, StyleSheet, TouchableOpacity, View} from 'react-native';
+import {StyleSheet, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from 'react-native-size-matters';
 import {KeyboardAwareScrollView} from 'react-native-keyboard-aware-scroll-view';
@@ -20,9 +20,6 @@ import {
 import {useAppDispatch} from '../../store/hooks';
 import {registerBroker} from '../../store/slices/authSlice';
 import {showSnackbar} from '../../store/slices/uiSlice';
-
-// TODO: placeholder — swap for the real hosted terms & conditions page.
-const TERMS_URL = 'https://collabathon.app/terms';
 
 const SUFFIX_OPTIONS = ['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Eng.'];
 const SEGMENT_OPTIONS = [
@@ -842,7 +839,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
               onToggle={toggleCheckbox('confirmAccuracy')}
               label="I agree to "
               linkLabel="terms and condition"
-              onLinkPress={() => Linking.openURL(TERMS_URL)}
+              onLinkPress={() => navigation.navigate('Terms')}
               error={errors.confirmAccuracy}
             />
           </View>

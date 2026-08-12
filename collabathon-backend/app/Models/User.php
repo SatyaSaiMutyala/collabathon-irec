@@ -32,12 +32,17 @@ class User extends Authenticatable
     public const STATUS_ACTIVE = 'active';
     public const STATUS_REJECTED = 'rejected';
     public const STATUS_PAUSED = 'paused';
+    // A broker or developer deleted their own account from the app — a soft delete via
+    // this flag rather than Eloquent's SoftDeletes, so the row keeps showing up in the
+    // admin's roster (visibly inactive) instead of vanishing from every default query.
+    public const STATUS_INACTIVE = 'inactive';
 
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
             'last_login_at' => 'datetime',
+            'deleted_at' => 'datetime',
             'password' => 'hashed',
         ];
     }

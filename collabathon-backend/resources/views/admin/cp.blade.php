@@ -41,6 +41,7 @@
             <x-th hide="xl">Categories</x-th>
             <x-th sort="city" hide="lg">Location</x-th>
             <x-th sort="created_at" hide="xl">Joined</x-th>
+            <x-th>Status</x-th>
             <x-th align="right">Listings</x-th>
         </x-slot:head>
 
@@ -87,6 +88,17 @@
 
                 <td class="px-4 py-3 hidden xl:table-cell">
                     <span class="text-[12.5px] text-ink-3 nums">{{ $partner->created_at->format('d M Y') }}</span>
+                </td>
+
+                <td class="px-4 py-3">
+                    @if($partner->status === \App\Models\User::STATUS_INACTIVE)
+                        <x-badge tone="neutral" size="sm" dot>Inactive</x-badge>
+                        @if($partner->deleted_at)
+                            <p class="text-[10.5px] text-ink-3 mt-1">Deleted {{ $partner->deleted_at->diffForHumans() }}</p>
+                        @endif
+                    @else
+                        <x-badge tone="success" size="sm" dot>Active</x-badge>
+                    @endif
                 </td>
 
                 <td class="px-4 py-3 text-right">

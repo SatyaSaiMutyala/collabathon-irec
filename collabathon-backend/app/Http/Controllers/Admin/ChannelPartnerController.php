@@ -38,8 +38,14 @@ class ChannelPartnerController extends Controller
 
     public function index(Request $request): View
     {
+        // Active and inactive both belong on this roster — inactive is a broker who
+        // deleted their own account (see AuthController::deleteAccount), not one who
+        // was never approved, so it stays a visible row here rather than dropping out
+        // the way a pending/rejected one correctly does. Stats and filter option lists
+        // further down stay scoped to active only — an inactive broker shouldn't
+        // inflate "Active partners" or offer a filter that returns a dead account.
         $partners = User::role(User::ROLE_BROKER)
-            ->status(User::STATUS_ACTIVE)
+            ->whereIn('status', [User::STATUS_ACTIVE, User::STATUS_INACTIVE])
             ->select('users.*')
             // Joined rather than filtered through whereHas so city and name can both be
             // sorted on, and so a broker with no profile row never disappears silently.

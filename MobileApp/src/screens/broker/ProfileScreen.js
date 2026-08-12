@@ -15,7 +15,7 @@ import {
   SectionHeader,
 } from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
-import {logout} from '../../store/slices/authSlice';
+import {deleteAccount, logout} from '../../store/slices/authSlice';
 import {showSnackbar} from '../../store/slices/uiSlice';
 
 const fallback = value => (value && String(value).trim() ? value : '—');
@@ -43,6 +43,8 @@ const ProfileScreen = () => {
   const {colors, spacing} = useAppTheme();
   const dispatch = useAppDispatch();
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   // The API returns the user plus their broker_profile; flatten into the shape
   // this screen renders so the field list below stays untouched.
   const user = useAppSelector(state => state.auth.user) ?? {};
@@ -200,6 +202,14 @@ const ProfileScreen = () => {
           style={{marginTop: spacing.xl}}
           onPress={() => setConfirmLogout(true)}
         />
+
+        <Button
+          label="Delete Account"
+          variant="danger"
+          icon="trash-outline"
+          style={{marginTop: spacing.sm}}
+          onPress={() => setConfirmDelete(true)}
+        />
       </ScrollView>
 
       <ConfirmDialog
@@ -214,6 +224,34 @@ const ProfileScreen = () => {
           setConfirmLogout(false);
           dispatch(logout());
           dispatch(showSnackbar('Signed out'));
+        }}
+      />
+
+      <ConfirmDialog
+        visible={confirmDelete}
+        icon="trash-outline"
+        tone="danger"
+        title="Delete your account?"
+        message="This can't be undone. Your profile will be deactivated and you'll be signed out — an admin will see the account as inactive."
+        confirmLabel="Delete account"
+        busy={isDeleting}
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={async () => {
+          setIsDeleting(true);
+          const result = await dispatch(deleteAccount());
+          setIsDeleting(false);
+          setConfirmDelete(false);
+
+          if (deleteAccount.fulfilled.match(result)) {
+            dispatch(showSnackbar('Your account has been deleted'));
+          } else {
+            dispatch(
+              showSnackbar({
+                message: result.payload?.message ?? 'Could not delete your account. Please try again.',
+                tone: 'danger',
+              }),
+            );
+          }
         }}
       />
     </ScreenContainer>

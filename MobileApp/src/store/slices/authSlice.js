@@ -155,6 +155,36 @@ export const logout = createAsyncThunk('auth/logout', async () => {
   setAuthToken(null);
 });
 
+/**
+ * Self-service account deletion, from the Profile screen. Unlike `logout` — which is
+ * harmless either way and always clears locally even if the server call fails — this
+ * is destructive and must not be treated as done unless the server actually did it:
+ * a failed request leaves the session untouched so the screen can show the error and
+ * let the user retry, rather than signing them out of an account that still exists.
+ */
+export const deleteAccount = createAsyncThunk(
+  'auth/deleteAccount',
+  async (_, {rejectWithValue}) => {
+    try {
+      const {data} = await authApi.deleteAccount();
+
+      try {
+        // Before the token is cleared locally — same ordering as logout(), and for
+        // the same reason: this call needs it, even though the server already
+        // revoked it server-side by this point.
+        await unregisterDevice();
+      } catch {
+        // Best-effort — the account is deleted server-side regardless.
+      }
+      setAuthToken(null);
+
+      return data;
+    } catch (error) {
+      return rejectWithValue(extractError(error));
+    }
+  },
+);
+
 // ---------------------------------------------------------------- slice
 
 const authSlice = createSlice({
@@ -303,7 +333,18 @@ const authSlice = createSlice({
       })
 
       // ------------------------------------------------ logout
-      .addCase(logout.fulfilled, () => initialState);
+      .addCase(logout.fulfilled, () => initialState)
+
+      // ------------------------------------------------ delete account
+      .addCase(deleteAccount.pending, state => {
+        state.status = 'loading';
+        state.error = null;
+      })
+      .addCase(deleteAccount.fulfilled, () => initialState)
+      .addCase(deleteAccount.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload?.message ?? 'Could not delete your account. Please try again.';
+      });
   },
 });
 
