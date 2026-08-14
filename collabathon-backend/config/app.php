@@ -86,6 +86,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Expose the login OTP in the API response
+    |--------------------------------------------------------------------------
+    |
+    | Returns the freshly issued code as `debug_code` on POST /auth/otp/send so a test
+    | build can fill it in without an SMS gateway. Local and testing do this anyway;
+    | this flag is what lets a *deployed* test server do it too, which an environment
+    | check alone cannot express (the Hostinger box runs APP_ENV=production).
+    |
+    | Anyone who can reach that endpoint can then obtain a working sign-in code for any
+    | registered mobile number — that is the whole of the authentication. Leave it unset
+    | anywhere real accounts exist.
+    |
+    */
+
+    'otp_expose_code' => (bool) env('OTP_EXPOSE_CODE', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Encryption Key
     |--------------------------------------------------------------------------
     |

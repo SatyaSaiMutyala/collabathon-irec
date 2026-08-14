@@ -23,11 +23,12 @@ const RESEND_COOLDOWN_S = 30;
  *                PendingApproval, which reads the status the thunk already wrote.
  *   otherwise  — wrong code: shown inline, boxes clear, ready to retry immediately.
  *
- * Dev convenience: `otp.debugCode` is only ever non-null when the API's own
- * `APP_ENV` is local/testing (see AuthController::sendOtp) — nothing here decides
- * that, the server does, on whichever host is being hit. When it's present *and*
- * this is a debug build, the code is filled in and submitted automatically instead
- * of making a tester copy it out of a log line.
+ * Auto-fill: `otp.debugCode` is non-null only when the API chose to echo the code
+ * back — off-production always, on production only when OTP_EXPOSE_CODE is set (see
+ * AuthController::exposesOtpCode). Nothing here decides that; the server does, per
+ * host. When it arrives, the code is filled in and submitted automatically rather
+ * than making a tester read it out of a log line. There is no SMS gateway yet, so
+ * this is currently the only way the flow completes on a deployed test server.
  */
 const OtpVerifyScreen = ({navigation, route}) => {
   const {colors, spacing} = useAppTheme();
@@ -76,13 +77,18 @@ const OtpVerifyScreen = ({navigation, route}) => {
     [dispatch, mobile, navigation],
   );
 
-  // Dev/testing only, and only when the server actually sent one back — see the
-  // docblock above. `__DEV__` is a second, client-side gate on top of the server's
-  // own environment check: auto-*submitting* an auth code is sensitive enough that
-  // it should never fire from a release build even if a server were ever
-  // misconfigured to leak debug_code somewhere it shouldn't.
+  // Auto-fill whenever the server chose to send a code back.
+  //
+  // The gate is the server's alone (OTP_EXPOSE_CODE — see config/app.php). It used to
+  // be `__DEV__` as well, which meant a build installed on a tester's phone never
+  // auto-filled against the deployed test server: the code came down and was ignored.
+  // Since nothing has an SMS gateway yet, that left the flow uncompletable.
+  //
+  // The consequence is that whether an auth code is ever echoed is decided in one
+  // place, on the server, rather than half here and half there. Turn OTP_EXPOSE_CODE
+  // off and this effect goes quiet on every build, release or debug.
   useEffect(() => {
-    if (!__DEV__ || !otp.debugCode || otp.debugCode === autoFilledRef.current) {
+    if (!otp.debugCode || otp.debugCode === autoFilledRef.current) {
       return;
     }
     autoFilledRef.current = otp.debugCode;

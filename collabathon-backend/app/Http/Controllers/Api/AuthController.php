@@ -50,6 +50,18 @@ class AuthController extends Controller
         'signature_file' => 'signature_path',
     ];
 
+    /**
+     * Whether the issued OTP may be echoed back to the caller.
+     *
+     * True off-production regardless, so local work and the test suite never depend on
+     * an env var being set. On production it is opt-in and explicit — the deployed test
+     * server sets OTP_EXPOSE_CODE, the real one never does.
+     */
+    private function exposesOtpCode(): bool
+    {
+        return ! app()->isProduction() || (bool) config('app.otp_expose_code');
+    }
+
     /** Broker self-registration. Creates the user + profile, issues no token. */
     public function register(Request $request, PushNotifier $push): JsonResponse
     {
@@ -182,10 +194,12 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'OTP sent.',
             'expires_in' => OtpCode::TTL_MINUTES * 60,
-            // Local/testing only, and only because nothing here actually texts the
-            // code anywhere yet (see OtpSender) — without this there would be no way
-            // to finish the flow short of tailing the Laravel log.
-            'debug_code' => app()->environment(['local', 'testing']) ? $otp->rawCode() : null,
+            // Only because nothing here actually texts the code anywhere yet (see
+            // OtpSender) — without it there is no way to finish the flow short of
+            // tailing the log. Local/testing always; a deployed test server only when
+            // OTP_EXPOSE_CODE is set, because APP_ENV there is production and an
+            // environment check alone cannot distinguish it from the real thing.
+            'debug_code' => $this->exposesOtpCode() ? $otp->rawCode() : null,
         ]);
     }
 

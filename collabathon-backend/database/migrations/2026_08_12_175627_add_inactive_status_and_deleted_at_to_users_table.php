@@ -2,7 +2,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -18,7 +17,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement("ALTER TABLE users MODIFY COLUMN status ENUM('pending', 'active', 'rejected', 'paused', 'inactive') NOT NULL DEFAULT 'pending'");
+        $this->setStatuses(['pending', 'active', 'rejected', 'paused', 'inactive']);
 
         Schema::table('users', function (Blueprint $table) {
             $table->timestamp('deleted_at')->nullable()->after('last_login_at');
@@ -31,6 +30,21 @@ return new class extends Migration
             $table->dropColumn('deleted_at');
         });
 
-        DB::statement("ALTER TABLE users MODIFY COLUMN status ENUM('pending', 'active', 'rejected', 'paused') NOT NULL DEFAULT 'pending'");
+        $this->setStatuses(['pending', 'active', 'rejected', 'paused']);
+    }
+
+    /**
+     * Widened with change(), not a raw `ALTER TABLE ... MODIFY`.
+     *
+     * MODIFY is MySQL-only syntax, so the raw statement aborted every migration run on
+     * SQLite — which is what the test suite uses, so nothing could migrate and the whole
+     * suite errored out. change() renders each driver's own equivalent (a native ENUM on
+     * MySQL, a varchar + CHECK on SQLite).
+     */
+    private function setStatuses(array $statuses): void
+    {
+        Schema::table('users', function (Blueprint $table) use ($statuses) {
+            $table->enum('status', $statuses)->default('pending')->change();
+        });
     }
 };
