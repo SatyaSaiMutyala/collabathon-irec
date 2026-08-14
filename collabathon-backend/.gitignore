@@ -14,7 +14,13 @@
 /.zed
 /auth.json
 /node_modules
-/public/build
+# /public/build is deliberately NOT ignored. The production host (BigRock shared
+# hosting) has no Node — `node -v` and `npm -v` are both "command not found" — so the
+# compiled CSS/JS cannot be built there. Ignoring it meant a fresh `git clone` on the
+# server had no `public/build/manifest.json` and every page died with
+# ViteManifestNotFoundException until someone remembered to scp the folder across by
+# hand. Committing the build output makes a deploy `git pull` and nothing else.
+# Run `npm run build` and commit the result whenever CSS or JS changes.
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
