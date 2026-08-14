@@ -62,6 +62,20 @@ class AuthController extends Controller
         return ! app()->isProduction() || (bool) config('app.otp_expose_code');
     }
 
+    /**
+     * A fixed code that always verifies, in place of the real one — same gate as
+     * `exposesOtpCode()`, since it is the same underlying question ("is this a build
+     * someone should be able to test without a real SMS?"). Real random codes are
+     * still generated and still work too (see `debug_code` above); this is an
+     * additional always-on shortcut, not a replacement for them.
+     */
+    private const MASTER_CODE = '123456';
+
+    private function isMasterCode(string $code): bool
+    {
+        return $this->exposesOtpCode() && $code === self::MASTER_CODE;
+    }
+
     /** Broker self-registration. Creates the user + profile, issues no token. */
     public function register(Request $request, PushNotifier $push): JsonResponse
     {
@@ -226,7 +240,7 @@ class AuthController extends Controller
             ]);
         }
 
-        if (! $otp->matches($data['code'])) {
+        if (! $otp->matches($data['code']) && ! $this->isMasterCode($data['code'])) {
             $otp->registerFailedAttempt();
 
             throw ValidationException::withMessages([
