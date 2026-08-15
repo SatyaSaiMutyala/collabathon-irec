@@ -3,7 +3,7 @@ import {Alert, Image, Modal, Pressable, TouchableOpacity, View} from 'react-nati
 import Icon from 'react-native-vector-icons/Ionicons';
 import {launchCamera, launchImageLibrary} from 'react-native-image-picker';
 import ImagePicker from 'react-native-image-crop-picker';
-import {moderateScale} from 'react-native-size-matters';
+import {moderateScale} from '../theme/scaling';
 import {useAppTheme} from '../theme';
 import ActionSheet from './ActionSheet';
 import AppText from './AppText';

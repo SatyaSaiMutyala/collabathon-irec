@@ -2,7 +2,7 @@ import React, {useEffect, useState} from 'react';
 import {TouchableOpacity, View} from 'react-native';
 import {KeyboardAwareScrollView} from 'react-native-keyboard-aware-scroll-view';
 import Icon from 'react-native-vector-icons/Ionicons';
-import {moderateScale} from 'react-native-size-matters';
+import {moderateScale} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
 import {AppText, AuthHeader, Button, Input, ScreenContainer} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';

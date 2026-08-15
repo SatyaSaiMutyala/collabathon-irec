@@ -1,6 +1,6 @@
 import React, {useState} from 'react';
 import {ScrollView, View} from 'react-native';
-import {moderateScale} from 'react-native-size-matters';
+import {moderateScale} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
 import {
   AppText,

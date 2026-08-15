@@ -2,7 +2,7 @@ import React from 'react';
 import {TouchableOpacity, View} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import {moderateScale} from 'react-native-size-matters';
+import {moderateScale} from '../theme/scaling';
 import {openLink} from '../utils/openLink';
 import {roundedRadius, useAppTheme} from '../theme';
 import AppText from './AppText';

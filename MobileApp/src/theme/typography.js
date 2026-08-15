@@ -1,5 +1,5 @@
 import {Platform} from 'react-native';
-import {moderateScale} from 'react-native-size-matters';
+import {moderateScale} from './scaling';
 
 /**
  * Type system. Requested stack: Helvetica Neue, Helvetica, Arial, sans-serif.

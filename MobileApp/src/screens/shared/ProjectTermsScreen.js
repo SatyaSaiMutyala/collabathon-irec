@@ -4,7 +4,7 @@ import {WebView} from 'react-native-webview';
 import Pdf from 'react-native-pdf';
 import ReactNativeBlobUtil from 'react-native-blob-util';
 import Icon from 'react-native-vector-icons/Ionicons';
-import {moderateScale} from 'react-native-size-matters';
+import {moderateScale} from '../../theme/scaling';
 import {roundedRadius, useAppTheme} from '../../theme';
 import {AppText, Button, EmptyState, ScreenContainer} from '../../components';
 import {useAppDispatch} from '../../store/hooks';

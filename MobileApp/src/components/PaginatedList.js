@@ -1,6 +1,6 @@
 import React from 'react';
 import {ActivityIndicator, FlatList, RefreshControl, View} from 'react-native';
-import {moderateScale} from 'react-native-size-matters';
+import {moderateScale} from '../theme/scaling';
 import {useAppTheme} from '../theme';
 import AppText from './AppText';
 import Button from './Button';

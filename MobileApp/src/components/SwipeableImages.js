@@ -1,6 +1,6 @@
 import React, {useState} from 'react';
 import {FlatList, Image, View} from 'react-native';
-import {moderateScale} from 'react-native-size-matters';
+import {moderateScale} from '../theme/scaling';
 import {useAppTheme} from '../theme';
 
 const SwipeableImages = ({images, height, dotsPosition = 'bottom', showDots = true}) => {

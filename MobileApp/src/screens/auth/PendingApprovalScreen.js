@@ -1,7 +1,7 @@
 import React from 'react';
 import {View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import {moderateScale} from 'react-native-size-matters';
+import {moderateScale} from '../../theme/scaling';
 import {roundedRadius, useAppTheme} from '../../theme';
 import {AppText, Avatar, Badge, Button, Card, ScreenContainer} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
@@ -17,7 +17,7 @@ const PendingApprovalScreen = ({navigation}) => {
   const role = useAppSelector(state => state.auth.role);
 
   return (
-    <ScreenContainer edges={['top', 'bottom']} style={{justifyContent: 'center'}}>
+    <ScreenContainer edges={['top', 'bottom']} scroll style={{justifyContent: 'center'}}>
       <View style={{alignItems: 'center', marginBottom: spacing.xl}}>
         <View
           style={{

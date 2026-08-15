@@ -1,7 +1,7 @@
 import React, {useEffect, useRef} from 'react';
 import {Animated, Easing, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import {moderateScale} from 'react-native-size-matters';
+import {moderateScale} from '../theme/scaling';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useAppTheme} from '../theme';
 import {useAppDispatch, useAppSelector} from '../store/hooks';

@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import {moderateScale} from 'react-native-size-matters';
+import {moderateScale} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
 import {AppText, AuthHeader, OtpInput, ScreenContainer} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
@@ -108,7 +108,7 @@ const OtpVerifyScreen = ({navigation, route}) => {
   const isVerifying = otp.status === 'verifying';
 
   return (
-    <ScreenContainer edges={['top', 'bottom']} glow>
+    <ScreenContainer edges={['top', 'bottom']} glow scroll>
       {navigation.canGoBack() && (
         <TouchableOpacity
           onPress={() => navigation.goBack()}

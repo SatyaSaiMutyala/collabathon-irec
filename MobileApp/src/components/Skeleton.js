@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {Animated, Easing, View} from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import {moderateScale} from 'react-native-size-matters';
+import {moderateScale} from '../theme/scaling';
 import {useAppTheme} from '../theme';
 
 /**

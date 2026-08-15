@@ -1,6 +1,6 @@
 import React from 'react';
 import {View} from 'react-native';
-import {moderateScale} from 'react-native-size-matters';
+import {moderateScale} from '../theme/scaling';
 import {useAppTheme} from '../theme';
 import Card from './Card';
 import Skeleton from './Skeleton';

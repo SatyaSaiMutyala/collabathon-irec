@@ -1,9 +1,16 @@
 import React from 'react';
-import {Image, StatusBar, StyleSheet, TouchableOpacity, View} from 'react-native';
+import {
+  Image,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/Ionicons';
-import {moderateScale} from 'react-native-size-matters';
+import {moderateScale} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
 import {AppText} from '../../components';
 
@@ -103,109 +110,129 @@ const WelcomeScreen = ({navigation}) => {
 
       <StatusBar barStyle="dark-content" backgroundColor="#FBFAFE" translucent={false} />
       <SafeAreaView edges={['top', 'bottom']} style={styles.safe}>
-        <View style={[styles.content, {paddingHorizontal: spacing.lg}]}>
-          <View style={styles.hero}>
-            {/* Four concentric, barely-there rings fake the mockup's blurred halo — a
-                real radial blur needs a native library this app deliberately avoids
-                (see the zero-dependency notes elsewhere in this codebase). One hue
-                only, and opacity steps small enough (~0.02 apart) that no ring edge
-                is visible; two contrasting hues here read as "extra colour" rather
-                than ambient light, which was the whole point of a glow. */}
-            <View style={styles.markGlow1}>
-              <View style={styles.markGlow2}>
-                <View style={styles.markGlow3}>
-                  <View style={styles.markTile}>
-                    <Image
-                      source={require('../../assets/images/logo-mark.png')}
-                      style={styles.mark}
-                      resizeMode="contain"
-                      accessibilityRole="image"
-                      accessibilityLabel="Collabathon"
-                    />
+        {/* Scrollable, not a plain flex column. App Review rejected 1.0 (3) under
+            guideline 4 for this screen not scrolling on an iPad Air 11": every size
+            here goes through `moderateScale`, which multiplies by the screen-width
+            ratio (~1.67x at iPad widths — the hero glow alone grows 232 -> 387pt), so
+            the column outgrew the window and a plain View clips the overflow with no
+            way to reach what is below. `flexGrow: 1` on the content container keeps
+            the phone layout byte-identical — the spacer further down still pushes the
+            footer to the bottom when there is room — while letting the container
+            exceed the viewport and scroll when there is not. That covers landscape,
+            Split View and the iPadOS 26 compatibility window too, none of which hand
+            the app a height it can assume. */}
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[styles.content, {paddingHorizontal: spacing.lg}]}>
+          {/* Width-capped and centred. Stretched the full width of a tablet the role
+              cards become very wide bands holding two short lines of text, which is
+              the "crowded, laid out ... difficult to use" half of the same rejection.
+              A fixed point value on purpose — this is a bound ON the scaling, so
+              running it through moderateScale would defeat it. */}
+          <View style={styles.column}>
+            <View style={styles.hero}>
+              {/* Four concentric, barely-there rings fake the mockup's blurred halo — a
+                  real radial blur needs a native library this app deliberately avoids
+                  (see the zero-dependency notes elsewhere in this codebase). One hue
+                  only, and opacity steps small enough (~0.02 apart) that no ring edge
+                  is visible; two contrasting hues here read as "extra colour" rather
+                  than ambient light, which was the whole point of a glow. */}
+              <View style={styles.markGlow1}>
+                <View style={styles.markGlow2}>
+                  <View style={styles.markGlow3}>
+                    <View style={styles.markTile}>
+                      <Image
+                        source={require('../../assets/images/logo-mark.png')}
+                        style={styles.mark}
+                        resizeMode="contain"
+                        accessibilityRole="image"
+                        accessibilityLabel="Collabathon"
+                      />
+                    </View>
                   </View>
                 </View>
               </View>
-            </View>
 
-            <View style={[styles.welcomeRow, {marginTop: spacing.xl}]}>
-              <View style={styles.dashDot} />
-              <LinearGradient
-                colors={['#F5A623', 'rgba(245,166,35,0)']}
-                start={{x: 0, y: 0}}
-                end={{x: 1, y: 0}}
-                style={styles.dashLine}
-              />
-              <AppText variant="overline" color={INDIGO} style={styles.welcomeText}>
-                WELCOME TO
+              <View style={[styles.welcomeRow, {marginTop: spacing.xl}]}>
+                <View style={styles.dashDot} />
+                <LinearGradient
+                  colors={['#F5A623', 'rgba(245,166,35,0)']}
+                  start={{x: 0, y: 0}}
+                  end={{x: 1, y: 0}}
+                  style={styles.dashLine}
+                />
+                <AppText variant="overline" color={INDIGO} style={styles.welcomeText}>
+                  WELCOME TO
+                </AppText>
+                <LinearGradient
+                  colors={['rgba(245,166,35,0)', '#F5A623']}
+                  start={{x: 0, y: 0}}
+                  end={{x: 1, y: 0}}
+                  style={styles.dashLine}
+                />
+                <View style={styles.dashDot} />
+              </View>
+
+              <AppText variant="display" align="center" color={INK} style={{marginTop: spacing.xxs}}>
+                Collabathon
               </AppText>
+
               <LinearGradient
-                colors={['rgba(245,166,35,0)', '#F5A623']}
+                colors={['#3E8EF7', '#7B61FF', '#FF6B9D', '#F5A623']}
                 start={{x: 0, y: 0}}
                 end={{x: 1, y: 0}}
-                style={styles.dashLine}
+                style={styles.underline}
               />
-              <View style={styles.dashDot} />
+
+              <AppText
+                variant="body"
+                color={MUTED}
+                align="center"
+                style={{marginTop: spacing.md, paddingHorizontal: spacing.sm}}>
+                A single, private marketplace — developers and channel partners working from the same inventory.
+              </AppText>
             </View>
 
-            <AppText variant="display" align="center" color={INK} style={{marginTop: spacing.xxs}}>
-              Collabathon
-            </AppText>
-
-            <LinearGradient
-              colors={['#3E8EF7', '#7B61FF', '#FF6B9D', '#F5A623']}
-              start={{x: 0, y: 0}}
-              end={{x: 1, y: 0}}
-              style={styles.underline}
-            />
-
-            <AppText
-              variant="body"
-              color={MUTED}
-              align="center"
-              style={{marginTop: spacing.md, paddingHorizontal: spacing.sm}}>
-              A single, private marketplace — developers and channel partners working from the same inventory.
-            </AppText>
-          </View>
-
-          <View style={{marginTop: spacing.xl}}>
-            {ROLES.map(role => (
-              <TouchableOpacity
-                key={role.key}
-                activeOpacity={0.85}
-                onPress={() => navigation.navigate(role.screen)}
-                style={[styles.card, {borderLeftColor: role.accent, marginBottom: spacing.md}]}>
-                <View style={[styles.iconRing, {borderColor: role.accent + '55'}]}>
-                  <View style={[styles.iconBubble, {backgroundColor: role.soft}]}>
-                    <Icon name={role.icon} size={moderateScale(22)} color={role.accent} />
+            <View style={{marginTop: spacing.xl}}>
+              {ROLES.map(role => (
+                <TouchableOpacity
+                  key={role.key}
+                  activeOpacity={0.85}
+                  onPress={() => navigation.navigate(role.screen)}
+                  style={[styles.card, {borderLeftColor: role.accent, marginBottom: spacing.md}]}>
+                  <View style={[styles.iconRing, {borderColor: role.accent + '55'}]}>
+                    <View style={[styles.iconBubble, {backgroundColor: role.soft}]}>
+                      <Icon name={role.icon} size={moderateScale(22)} color={role.accent} />
+                    </View>
                   </View>
-                </View>
 
-                <View style={styles.cardBody}>
-                  <AppText variant="h3" color={INK}>
-                    {role.title}
-                  </AppText>
-                  <AppText variant="caption" color={MUTED} style={{marginTop: moderateScale(3)}}>
-                    {role.body}
-                  </AppText>
-                </View>
+                  <View style={styles.cardBody}>
+                    <AppText variant="h3" color={INK}>
+                      {role.title}
+                    </AppText>
+                    <AppText variant="caption" color={MUTED} style={{marginTop: moderateScale(3)}}>
+                      {role.body}
+                    </AppText>
+                  </View>
 
-                <View style={[styles.chevronButton, {backgroundColor: role.soft}]}>
-                  <Icon name="chevron-forward" size={moderateScale(16)} color={role.accent} />
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <View style={{flex: 1}} />
-
-          <View style={[styles.footerRow, {marginBottom: spacing.lg}]}>
-            <View style={styles.footerLine} />
-            <View style={styles.footerBadge}>
-              <Icon name="shield-checkmark-outline" size={moderateScale(16)} color={INDIGO} />
+                  <View style={[styles.chevronButton, {backgroundColor: role.soft}]}>
+                    <Icon name="chevron-forward" size={moderateScale(16)} color={role.accent} />
+                  </View>
+                </TouchableOpacity>
+              ))}
             </View>
-            <View style={styles.footerLine} />
+
+            <View style={{flex: 1}} />
+
+            <View style={[styles.footerRow, {marginBottom: spacing.lg}]}>
+              <View style={styles.footerLine} />
+              <View style={styles.footerBadge}>
+                <Icon name="shield-checkmark-outline" size={moderateScale(16)} color={INDIGO} />
+              </View>
+              <View style={styles.footerLine} />
+            </View>
           </View>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -223,7 +250,12 @@ const DotGrid = ({style}) => (
 const styles = StyleSheet.create({
   flex: {flex: 1},
   safe: {flex: 1},
-  content: {flex: 1},
+  scroll: {flex: 1},
+
+  // flexGrow, not flex: `flex: 1` pins the container to the viewport height, which is
+  // the clipping this replaced. flexGrow fills a tall screen and overflows a short one.
+  content: {flexGrow: 1},
+  column: {flexGrow: 1, width: '100%', maxWidth: 560, alignSelf: 'center'},
 
   hero: {alignItems: 'center', marginTop: moderateScale(8)},
 

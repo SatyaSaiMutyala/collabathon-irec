@@ -1,6 +1,6 @@
 import React from 'react';
 import Icon from 'react-native-vector-icons/Ionicons';
-import {moderateScale, verticalScale} from 'react-native-size-matters';
+import {moderateScale, verticalScale} from '../theme/scaling';
 import {useAppTheme} from '../theme';
 
 export function useTabBarScreenOptions(tabIcons) {

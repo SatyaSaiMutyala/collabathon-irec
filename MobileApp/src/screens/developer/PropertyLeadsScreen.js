@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect} from 'react';
 import {StatusBar, View} from 'react-native';
+import {useContentColumn} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
 import {
   AppText,
@@ -25,6 +26,7 @@ import {
 /** One listing plus every broker who touched it — viewed and interested alike. */
 const PropertyLeadsScreen = ({route, navigation}) => {
   const {colors, spacing} = useAppTheme();
+  const column = useContentColumn();
   const dispatch = useAppDispatch();
   const {projectId} = route.params;
 
@@ -61,46 +63,51 @@ const PropertyLeadsScreen = ({route, navigation}) => {
   return (
     <View style={{flex: 1, backgroundColor: colors.background}}>
       <StatusBar barStyle="light-content" />
-      <PaginatedList
-        renderSkeleton={() => (
-          <View style={{paddingHorizontal: spacing.lg}}>
-            <BrokerLeadCardSkeleton />
-          </View>
-        )}
-        list={list}
-        onRefresh={loadFirstPage}
-        onEndReached={handleEndReached}
-        emptyIcon="people-outline"
-        emptyTitle="No CP interest yet"
-        emptyMessage="Views and interests on this listing will appear here."
-        contentContainerStyle={{paddingBottom: spacing.xxxl}}
-        ListHeaderComponent={
-          <>
-            <PropertyHero project={project} onBack={() => navigation.goBack()} />
-            <PropertyDetailBody project={project} />
-
-            {/* Closes out the project details: the developer decides here, having just
-                read the sheet above. Everything below is lead activity. */}
+      {/* Lays out its own root rather than using ScreenContainer (the hero is
+          full-bleed), so it opts into the tablet column cap by hand — same as
+          ProjectDetailScreen, which is the broker-side view of this same listing. */}
+      <View style={[{flex: 1, width: '100%'}, column]}>
+        <PaginatedList
+          renderSkeleton={() => (
             <View style={{paddingHorizontal: spacing.lg}}>
-              <ProjectDecisionPanel project={project} />
+              <BrokerLeadCardSkeleton />
             </View>
+          )}
+          list={list}
+          onRefresh={loadFirstPage}
+          onEndReached={handleEndReached}
+          emptyIcon="people-outline"
+          emptyTitle="No CP interest yet"
+          emptyMessage="Views and interests on this listing will appear here."
+          contentContainerStyle={{paddingBottom: spacing.xxxl}}
+          ListHeaderComponent={
+            <>
+              <PropertyHero project={project} onBack={() => navigation.goBack()} />
+              <PropertyDetailBody project={project} />
 
+              {/* Closes out the project details: the developer decides here, having just
+                  read the sheet above. Everything below is lead activity. */}
+              <View style={{paddingHorizontal: spacing.lg}}>
+                <ProjectDecisionPanel project={project} />
+              </View>
+
+              <View style={{paddingHorizontal: spacing.lg}}>
+                <AppText variant="h3" style={{marginTop: spacing.xl, marginBottom: spacing.sm}}>
+                  CP Interest ({list.total})
+                </AppText>
+              </View>
+            </>
+          }
+          renderItem={({item}) => (
             <View style={{paddingHorizontal: spacing.lg}}>
-              <AppText variant="h3" style={{marginTop: spacing.xl, marginBottom: spacing.sm}}>
-                CP Interest ({list.total})
-              </AppText>
+              <BrokerLeadCard
+                lead={item}
+                onPress={() => navigation.navigate('BrokerDetail', {leadId: item.id})}
+              />
             </View>
-          </>
-        }
-        renderItem={({item}) => (
-          <View style={{paddingHorizontal: spacing.lg}}>
-            <BrokerLeadCard
-              lead={item}
-              onPress={() => navigation.navigate('BrokerDetail', {leadId: item.id})}
-            />
-          </View>
-        )}
-      />
+          )}
+        />
+      </View>
     </View>
   );
 };

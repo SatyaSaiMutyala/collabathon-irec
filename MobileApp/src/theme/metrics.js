@@ -1,4 +1,4 @@
-import {moderateScale, scale, verticalScale} from 'react-native-size-matters';
+import {moderateScale, scale, verticalScale} from './scaling';
 
 export {scale, verticalScale, moderateScale};
 

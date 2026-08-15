@@ -1,6 +1,6 @@
 import React, {useRef} from 'react';
 import {Platform, Pressable, StyleSheet, TextInput, View} from 'react-native';
-import {moderateScale} from 'react-native-size-matters';
+import {moderateScale} from '../theme/scaling';
 import {useAppTheme} from '../theme';
 import AppText from './AppText';
 

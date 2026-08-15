@@ -2,7 +2,7 @@ import React, {useState} from 'react';
 import {Modal, Platform, Pressable, TouchableOpacity, View} from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Icon from 'react-native-vector-icons/Ionicons';
-import {moderateScale, verticalScale} from 'react-native-size-matters';
+import {moderateScale, verticalScale} from '../theme/scaling';
 import {useAppTheme} from '../theme';
 import AppText from './AppText';
 import Button from './Button';

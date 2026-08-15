@@ -43,10 +43,12 @@ const DEV_PORT = 8001;
 // Every endpoint in api/endpoints.js is written relative — '/auth/login', '/leads' — so
 // the version prefix belongs here. Without it those resolve to /auth/login on the host
 // root, which Laravel answers with a 404 the client reports as "cannot reach the server".
-// export const API_BASE_URL = 'https://brown-hedgehog-768805.hostingersite.com/api/v1';
+// PRODUCTION — the live domain. Uncomment this (and comment the local-dev line below)
+// for any build that ships, App Store submissions included.
+// export const API_BASE_URL = 'https://collabathon.in/api/v1';
 
 // LOCAL DEV — `php artisan serve --port=8001`, reached through the adb tunnel. Swap
-// this back in (and comment the Hostinger line above) to point at this machine instead.
+// this back in (and comment the production line above) to point at this machine instead.
 export const API_BASE_URL = `http://${DEV_HOST}:${DEV_PORT}/api/v1`;
 
 /** Matches the server-side cap in HandlesListQueries. */

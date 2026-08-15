@@ -1,7 +1,7 @@
 import React, {useEffect} from 'react';
 import {ScrollView, StatusBar, StyleSheet, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import {moderateScale} from 'react-native-size-matters';
+import {moderateScale, useContentColumn} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
 import {
   AppText,
@@ -24,6 +24,7 @@ import {
  */
 const ProjectDetailScreen = ({route, navigation}) => {
   const {colors, spacing, radius} = useAppTheme();
+  const column = useContentColumn();
   const dispatch = useAppDispatch();
   const {projectId} = route.params;
 
@@ -71,68 +72,76 @@ const ProjectDetailScreen = ({route, navigation}) => {
   return (
     <View style={{flex: 1, backgroundColor: colors.background}}>
       <StatusBar barStyle="light-content" />
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{paddingBottom: spacing.xxxl}}>
-        <PropertyHero project={project} onBack={() => navigation.goBack()} />
-        <PropertyDetailBody project={project} highlightCommission />
-      </ScrollView>
+      {/* This screen lays out its own root rather than using ScreenContainer (the hero
+          is full-bleed), so it opts into the same tablet column cap by hand. Wrapping
+          the scroller *and* the sticky footer keeps the two the same width — capping
+          only the content would leave the action bar running the full width of an
+          iPad, detached from the column it belongs to. */}
+      <View style={[styles.column, column]}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{paddingBottom: spacing.xxxl}}>
+          <PropertyHero project={project} onBack={() => navigation.goBack()} />
+          <PropertyDetailBody project={project} highlightCommission />
+        </ScrollView>
 
-      <View
-        style={[
-          styles.footer,
-          {
-            backgroundColor: colors.card,
-            borderTopColor: colors.border,
-            paddingBottom: spacing.lg,
-          },
-        ]}>
-        {hasInterest ? (
-          <View
-            style={[
-              styles.leadStatus,
-              {
-                backgroundColor:
-                  lead.status === 'declined' ? colors.dangerSoft : colors.successSoft,
-                borderRadius: radius.md,
-              },
-            ]}>
-            <Icon
-              name={iconFor(lead.status)}
-              size={moderateScale(18)}
-              color={toneFor(lead.status)}
-            />
-            <AppText
-              variant="bodyMedium"
-              color={toneFor(lead.status)}
-              style={{marginLeft: spacing.xs}}>
-              {statusCopy[lead.status] ?? 'Interest recorded'}
-            </AppText>
-          </View>
-        ) : (
-          <>
-            {!!interestError && (
+        <View
+          style={[
+            styles.footer,
+            {
+              backgroundColor: colors.card,
+              borderTopColor: colors.border,
+              paddingBottom: spacing.lg,
+            },
+          ]}>
+          {hasInterest ? (
+            <View
+              style={[
+                styles.leadStatus,
+                {
+                  backgroundColor:
+                    lead.status === 'declined' ? colors.dangerSoft : colors.successSoft,
+                  borderRadius: radius.md,
+                },
+              ]}>
+              <Icon
+                name={iconFor(lead.status)}
+                size={moderateScale(18)}
+                color={toneFor(lead.status)}
+              />
               <AppText
-                variant="caption"
-                color={colors.danger}
-                style={{marginBottom: spacing.xs, textAlign: 'center'}}>
-                {interestError}
+                variant="bodyMedium"
+                color={toneFor(lead.status)}
+                style={{marginLeft: spacing.xs}}>
+                {statusCopy[lead.status] ?? 'Interest recorded'}
               </AppText>
-            )}
-            <Button
-              label={interestStatus === 'loading' ? 'Sending…' : 'Mark as Interested'}
-              icon="bookmark"
-              disabled={interestStatus === 'loading'}
-              onPress={() => dispatch(markInterested(project.id))}
-            />
-          </>
-        )}
+            </View>
+          ) : (
+            <>
+              {!!interestError && (
+                <AppText
+                  variant="caption"
+                  color={colors.danger}
+                  style={{marginBottom: spacing.xs, textAlign: 'center'}}>
+                  {interestError}
+                </AppText>
+              )}
+              <Button
+                label={interestStatus === 'loading' ? 'Sending…' : 'Mark as Interested'}
+                icon="bookmark"
+                disabled={interestStatus === 'loading'}
+                onPress={() => dispatch(markInterested(project.id))}
+              />
+            </>
+          )}
+        </View>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  column: {flex: 1, width: '100%'},
   footer: {
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: moderateScale(20),
