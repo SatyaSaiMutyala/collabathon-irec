@@ -12,8 +12,10 @@ import Card from './Card';
 import InfoRow from './InfoRow';
 import UnitTypeTable from './UnitTypeTable';
 
+// en-IN — matches the max half of the same range in `project.priceUnit`
+// (normalizers.js), same reasoning as PropertyCard's own formatPrice.
 function formatPrice(value) {
-  return new Intl.NumberFormat('en-US').format(value ?? 0);
+  return new Intl.NumberFormat('en-IN').format(value ?? 0);
 }
 
 const SectionTitle = ({children, spacing, hint, colors}) => (

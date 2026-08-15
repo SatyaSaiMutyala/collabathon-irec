@@ -989,14 +989,23 @@ class PropertyController extends Controller
             }
         }
 
+        // Single-file kinds: a re-upload replaces the property's one row of that kind.
+        // The previous row (and its file, on disk) is removed first — the same
+        // delete-then-store order replacedBranding() already uses for logo/cover —
+        // so a swap never leaves an orphaned file behind or piles up duplicate rows.
         foreach (self::MEDIA_FILES as $key => $kind) {
             if ($file = $request->file($key)) {
+                $this->replaceSingleMedia($propertyId, $kind);
                 $rows[] = ['kind' => $kind, 'path' => $this->upload($file, $propertyId), 'sort_order' => 0];
             }
         }
 
+        // Same one-row-per-kind rule for link-based media — no file to leak, but
+        // without this a project gains a fresh video_url/virtual_tour_url row on
+        // every save instead of updating the one it already had.
         foreach (self::MEDIA_LINKS as $key => $kind) {
             if (filled($data[$key] ?? null)) {
+                $this->replaceSingleMedia($propertyId, $kind);
                 $rows[] = ['kind' => $kind, 'url' => $data[$key], 'sort_order' => 0];
             }
         }
@@ -1004,6 +1013,24 @@ class PropertyController extends Controller
         foreach ($rows as $row) {
             PropertyMedia::create($row + ['property_id' => $propertyId]);
         }
+    }
+
+    /**
+     * Deletes any existing media row(s) of a single-instance kind for a property,
+     * along with their files — the cleanup half of a replace, run immediately
+     * before the new row for that kind is inserted in syncMedia().
+     */
+    private function replaceSingleMedia(int $propertyId, string $kind): void
+    {
+        PropertyMedia::where('property_id', $propertyId)
+            ->where('kind', $kind)
+            ->get()
+            ->each(function (PropertyMedia $media) {
+                if ($media->path) {
+                    Storage::disk('public')->delete($media->path);
+                }
+                $media->delete();
+            });
     }
 
     /** Files are grouped by property so a deleted project's assets are easy to reap. */

@@ -172,7 +172,11 @@ export function normalizeProperty(api) {
     priceUnit: !price.min
       ? '' // "0 onwards" is worse than a bare 0 on a project with no price yet.
       : price.max && price.max !== price.min
-        ? `– ${price.max.toLocaleString()}`
+        // en-IN explicitly — PropertyCard's own `price` (the min half of this same
+        // range) is formatted en-IN too; leaving this locale-less picked up the
+        // device's own locale instead, which for anyone outside India rendered the
+        // max in a different grouping than the min sitting right next to it.
+        ? `– ${price.max.toLocaleString('en-IN')}`
         : 'onwards',
     currency,
     location: [location.locality, location.city].filter(Boolean).join(', '),

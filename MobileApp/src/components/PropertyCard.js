@@ -6,8 +6,11 @@ import {useAppTheme} from '../theme';
 import AppText from './AppText';
 import SwipeableImages from './SwipeableImages';
 
+// en-IN — matches the max half of the same range, built separately in
+// normalizers.js's `priceUnit`. INR pricing reads in lakhs/crores throughout the
+// rest of the app (see LeadCard's own money() helper), not Western 3-digit grouping.
 function formatPrice(value) {
-  return new Intl.NumberFormat('en-US').format(value);
+  return new Intl.NumberFormat('en-IN').format(value);
 }
 
 const PropertyCard = ({project, onPress, showDots = true, priceVariant = 'h1'}) => {
@@ -50,10 +53,15 @@ const PropertyCard = ({project, onPress, showDots = true, priceVariant = 'h1'}) 
               <AppText variant={priceVariant} color={colors.textInverse}>
                 {formatPrice(project.price)}
               </AppText>
-              <AppText variant="bodyMedium" color={colors.textInverse} style={styles.priceUnit}>
-                {' '}
-                {project.priceUnit}
-              </AppText>
+              {/* Always "Onwards" here, not `project.priceUnit` — that field can carry
+                  a "– <max>" range for legacy two-price projects, but this card only
+                  ever shows the starting price, so the suffix must match that. */}
+              {!!project.price && (
+                <AppText variant="bodyMedium" color={colors.textInverse} style={styles.priceUnit}>
+                  {' '}
+                  Onwards
+                </AppText>
+              )}
             </View>
             <AppText variant="bodyMedium" color={colors.textInverse} style={{marginTop: moderateScale(2)}}>
               {project.listingType} · {project.type}
