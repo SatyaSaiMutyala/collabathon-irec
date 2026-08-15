@@ -76,7 +76,11 @@ $currentLng = old('longitude', $longitude);
 
             <div class="fixed inset-0 bg-scrim" @click="closeMap()"></div>
 
-            <div class="relative bg-panel rounded-2xl w-full max-w-3xl shadow-modal flex flex-col max-h-full">
+            <div class="relative bg-panel rounded-2xl w-full max-w-3xl shadow-modal flex flex-col max-h-full overflow-hidden">
+                {{-- overflow-hidden — see the matching note in location-finder.blade.php:
+                     Leaflet's own zoom/attribution controls carry z-index:1000 and are not
+                     otherwise clipped to the map's own box, so without this they can sit on
+                     top of (and swallow clicks meant for) this card's header/footer. --}}
                 <header class="px-5 py-3.5 border-b border-line flex items-center justify-between gap-4 shrink-0">
                     <div>
                         <h3 class="text-[14px] font-semibold text-ink">Pick the address</h3>

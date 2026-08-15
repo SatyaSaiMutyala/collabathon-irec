@@ -7,7 +7,7 @@
             <x-modal title="Create developer account"
                      subtitle="A login account is created and a temporary password generated on save."
                      width="max-w-2xl"
-                     :open="$errors->any()">
+                     :open="$errors->any() && old('_form') !== 'bulk-import'">
                 <x-slot:trigger>
                     <x-button variant="gold" icon="plus">Add developer</x-button>
                 </x-slot:trigger>
@@ -143,6 +143,39 @@
                             <span x-show="busy" x-cloak>Optimising logo…</span>
                         </x-button>
                     </div>
+                </form>
+            </x-modal>
+
+            <x-modal title="Bulk upload developers"
+                     subtitle="One row per developer. Logos and other attachments aren't part of the sheet — add those on each developer's own page afterward."
+                     width="max-w-lg"
+                     :open="$errors->any() && old('_form') === 'bulk-import'">
+                <x-slot:trigger>
+                    <x-button variant="outline" icon="upload">Bulk upload</x-button>
+                </x-slot:trigger>
+
+                <form method="POST" action="{{ route('admin.developers.bulk-import') }}"
+                      enctype="multipart/form-data" class="space-y-4">
+                    @csrf
+                    <input type="hidden" name="_form" value="bulk-import">
+
+                    <div class="flex items-start gap-2.5 rounded-lg bg-canvas border border-line px-3.5 py-3">
+                        <x-icon name="download" class="w-4 h-4 text-ink-3 shrink-0 mt-0.5" />
+                        <p class="text-[12.5px] text-ink-2 leading-relaxed">
+                            Start from the template so the column names match exactly —
+                            <a href="{{ route('admin.developers.bulk-import.template') }}"
+                               class="text-primary-dark hover:underline font-medium">download it here</a>.
+                            <span class="text-ink-3">Company name, contact person, email, mobile and city are
+                                required per row; everything else is optional.</span>
+                        </p>
+                    </div>
+
+                    <x-file-field label="CSV file" name="file" accept=".csv,text/csv" required
+                                  hint="Exported from Excel/Sheets as CSV — .xlsx is not read directly." />
+
+                    <x-button variant="gold" tag="button" type="submit" icon="upload" class="w-full">
+                        Upload &amp; create
+                    </x-button>
                 </form>
             </x-modal>
         </x-slot:actions>

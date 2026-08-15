@@ -8,13 +8,15 @@ import {unregisterDevice} from '../../services/push';
 /**
  * Auth against the Laravel API — two different mechanisms for two different roles.
  * Developers sign in with email + password (`login`, admin-provisioned accounts).
- * Channel partners sign in with mobile number + OTP (`sendOtp` then `verifyOtp`) —
- * there is no password for this role at all, on either side of the API.
+ * Channel partners sign in with email + a 4-digit OTP (`sendEmailOtp` then
+ * `verifyEmailOtp`) — there is no password for this role at all, on either side of
+ * the API. (An earlier mobile-number + OTP path — `sendOtp`/`verifyOtp` — still
+ * lives here too; see AuthNavigator for why it's kept but unlinked.)
  *
  * `registrationStatus` mirrors the server's approval gate — a broker who registers
  * is `pending` and receives no token until an admin approves them. That gate applies
- * the same way whichever door was used, so `verifyOtp` can land on it too, not just
- * `login`.
+ * the same way whichever door was used, so `verifyOtp`/`verifyEmailOtp` can land on
+ * it too, not just `login`.
  */
 
 const initialState = {
@@ -38,6 +40,16 @@ const initialState = {
     error: null,
     expiresIn: null,
     debugCode: null, // dev-only, only ever present when the API's own env is local
+  },
+
+  // The email-OTP challenge in flight — same shape as `otp` above, kept separate so
+  // a screen reading one can't be stepped on by state changes belonging to the other.
+  emailOtp: {
+    email: '',
+    status: 'idle', // idle | sending | sent | verifying | error
+    error: null,
+    expiresIn: null,
+    debugCode: null,
   },
 };
 
@@ -133,6 +145,50 @@ export const verifyOtp = createAsyncThunk(
   },
 );
 
+// ---------------------------------------------------------------- channel-partner email OTP
+
+export const sendEmailOtp = createAsyncThunk(
+  'auth/sendEmailOtp',
+  async (email, {rejectWithValue}) => {
+    try {
+      const {data} = await authApi.sendEmailOtp(email);
+      return {email, ...data};
+    } catch (error) {
+      return rejectWithValue(extractError(error));
+    }
+  },
+);
+
+export const verifyEmailOtp = createAsyncThunk(
+  'auth/verifyEmailOtp',
+  async ({email, code}, {dispatch, rejectWithValue}) => {
+    try {
+      const {data} = await authApi.verifyEmailOtp({email, code});
+
+      if (data.status === 'login') {
+        dispatch(
+          showSnackbar({
+            message: `Welcome back, ${data.data?.name ?? ''}`.trim(),
+            tone: 'success',
+          }),
+        );
+      }
+
+      return data;
+    } catch (error) {
+      const normalised = extractError(error);
+
+      // Same approval-gate shape as `verifyOtp`'s rejected branch above.
+      if (normalised.status === 403) {
+        normalised.pendingApproval = true;
+        normalised.approvalStatus = error.response?.data?.status;
+      }
+
+      return rejectWithValue(normalised);
+    }
+  },
+);
+
 export const fetchMe = createAsyncThunk('auth/me', async (_, {rejectWithValue}) => {
   try {
     const {data} = await authApi.me();
@@ -218,6 +274,10 @@ const authSlice = createSlice({
      *  previous attempt bleeding into a fresh one. */
     resetOtp: state => {
       state.otp = initialState.otp;
+    },
+    /** Same, for the email-OTP screen. */
+    resetEmailOtp: state => {
+      state.emailOtp = initialState.emailOtp;
     },
   },
 
@@ -326,6 +386,56 @@ const authSlice = createSlice({
         }
       })
 
+      // ------------------------------------------------ channel-partner email OTP
+      .addCase(sendEmailOtp.pending, (state, action) => {
+        state.emailOtp.status = 'sending';
+        state.emailOtp.email = action.meta.arg;
+        state.emailOtp.error = null;
+      })
+      .addCase(sendEmailOtp.fulfilled, (state, action) => {
+        state.emailOtp.status = 'sent';
+        state.emailOtp.email = action.payload.email;
+        state.emailOtp.expiresIn = action.payload.expires_in ?? null;
+        state.emailOtp.debugCode = action.payload.debug_code ?? null;
+      })
+      .addCase(sendEmailOtp.rejected, (state, action) => {
+        state.emailOtp.status = 'error';
+        state.emailOtp.error = action.payload?.message ?? 'Could not send the code.';
+      })
+
+      .addCase(verifyEmailOtp.pending, state => {
+        state.emailOtp.status = 'verifying';
+        state.emailOtp.error = null;
+      })
+      .addCase(verifyEmailOtp.fulfilled, (state, action) => {
+        const payload = action.payload;
+        state.emailOtp.status = 'idle';
+        state.emailOtp.error = null;
+
+        // Only the 'login' branch changes session state — 'register' hands the
+        // screen the verified email to carry forward via navigation params.
+        if (payload.status === 'login') {
+          const {token, data} = payload;
+          setAuthToken(token);
+
+          state.token = token;
+          state.user = data;
+          state.role = data.role;
+          state.isLoggedIn = true;
+          state.registrationStatus = 'approved';
+        }
+      })
+      .addCase(verifyEmailOtp.rejected, (state, action) => {
+        state.emailOtp.status = 'error';
+        state.emailOtp.error = action.payload?.message ?? 'Verification failed.';
+
+        if (action.payload?.pendingApproval) {
+          state.role = 'broker';
+          state.registrationStatus =
+            action.payload?.approvalStatus === 'rejected' ? 'rejected' : 'pendingApproval';
+        }
+      })
+
       // ------------------------------------------------ me
       .addCase(fetchMe.fulfilled, (state, action) => {
         state.user = action.payload;
@@ -348,7 +458,14 @@ const authSlice = createSlice({
   },
 });
 
-export const {setRole, clearAuthError, hydrateAuth, sessionExpired, resetAuth, resetOtp} =
-  authSlice.actions;
+export const {
+  setRole,
+  clearAuthError,
+  hydrateAuth,
+  sessionExpired,
+  resetAuth,
+  resetOtp,
+  resetEmailOtp,
+} = authSlice.actions;
 
 export default authSlice.reducer;

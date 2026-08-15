@@ -154,7 +154,7 @@ $conversionRings = [
 
             @forelse($pendingBrokers as $broker)
                 <div class="px-5 py-3 flex items-center gap-3 border-b border-line-soft last:border-0">
-                    <x-avatar :name="$broker->name" size="sm" />
+                    <x-avatar :name="$broker->name" :src="$broker->brokerProfile?->photo_path" size="sm" />
                     <div class="min-w-0 flex-1">
                         <p class="text-[12.5px] font-medium text-ink truncate">{{ $broker->name }}</p>
                         <p class="text-[11.5px] text-ink-3 truncate">

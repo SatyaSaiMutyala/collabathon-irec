@@ -71,7 +71,7 @@ class DashboardController extends Controller
             'activity' => $this->activity(),
             'pendingBrokers' => User::role(User::ROLE_BROKER)
                 ->status(User::STATUS_PENDING)
-                ->with('brokerProfile:id,user_id,company_name,city')
+                ->with('brokerProfile:id,user_id,company_name,city,photo_path')
                 ->latest()
                 ->limit(4)
                 ->get(),
@@ -131,7 +131,7 @@ class DashboardController extends Controller
                 'label' => 'brokers', 'fullRoute' => route('admin.cp'),
                 'searchPlaceholder' => 'Search by name, company or email…',
                 'rows' => User::role(User::ROLE_BROKER)->status(User::STATUS_ACTIVE)
-                    ->with('brokerProfile:id,user_id,company_name,city')
+                    ->with('brokerProfile:id,user_id,company_name,city,photo_path')
                     ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
                         ->where('name', 'like', "{$search}%")
                         ->orWhere('email', 'like', "{$search}%")
@@ -160,7 +160,7 @@ class DashboardController extends Controller
                 'label' => 'registrations', 'fullRoute' => route('admin.approvals'),
                 'searchPlaceholder' => 'Search by name, company or email…',
                 'rows' => User::role(User::ROLE_BROKER)->status(User::STATUS_PENDING)
-                    ->with('brokerProfile:id,user_id,company_name,city')
+                    ->with('brokerProfile:id,user_id,company_name,city,photo_path')
                     ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
                         ->where('name', 'like', "{$search}%")
                         ->orWhere('email', 'like', "{$search}%")

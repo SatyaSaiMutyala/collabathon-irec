@@ -126,39 +126,50 @@ export function makePassword(length = 14) {
 
 /* ------------------------------------------------------------------ address picker */
 
-const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-
 // Hyderabad. Only ever seen when a developer has no coordinates yet and the admin opens
 // the map before searching — an arbitrary centre is better than a view of the null island.
 const FALLBACK_CENTRE = [17.4401, 78.3489];
 
-let leafletPromise = null;
+let googleMapsPromise = null;
 
 /**
- * Loads Leaflet the first time the map is opened, not on page load.
+ * Loads the Google Maps JavaScript API the first time either map picker is opened, not on
+ * page load — most admin pages never show one, so most page loads pay nothing for it.
+ * The promise is cached so opening a second map (or the same one again) is instant and
+ * never injects the `<script>` tag twice, which the API itself does not tolerate cleanly.
  *
- * It is ~150 KB of JS and CSS for one control on one form, and most admin pages never
- * show it. Deferring keeps that cost off every other screen, and the promise is cached so
- * opening the map a second time is instant.
+ * The key comes from `window.GOOGLE_MAPS_API_KEY`, set once in layouts/admin.blade.php
+ * from `config('services.google_maps.key')` — never hardcoded here, so it stays in one
+ * place (the `.env`) to rotate.
  */
-function loadLeaflet() {
-    if (leafletPromise) return leafletPromise;
+function loadGoogleMaps() {
+    if (googleMapsPromise) return googleMapsPromise;
 
-    leafletPromise = new Promise((resolve, reject) => {
-        const css = document.createElement('link');
-        css.rel = 'stylesheet';
-        css.href = LEAFLET_CSS;
-        document.head.appendChild(css);
+    googleMapsPromise = new Promise((resolve, reject) => {
+        if (window.google?.maps) {
+            resolve(window.google.maps);
+            return;
+        }
+
+        const key = window.GOOGLE_MAPS_API_KEY;
+        if (!key) {
+            reject(new Error('Google Maps API key is not configured.'));
+            return;
+        }
+
+        // The API's own loader calls a *global* function by name — it cannot call back
+        // into this closure directly — so the callback is hung off `window` under a name
+        // unlikely to collide with anything else on the page.
+        window.__collabathonGoogleMapsReady = () => resolve(window.google.maps);
 
         const script = document.createElement('script');
-        script.src = LEAFLET_JS;
-        script.onload = () => resolve(window.L);
-        script.onerror = () => reject(new Error('Leaflet failed to load'));
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&callback=__collabathonGoogleMapsReady&loading=async`;
+        script.async = true;
+        script.onerror = () => reject(new Error('Google Maps failed to load'));
         document.head.appendChild(script);
     });
 
-    return leafletPromise;
+    return googleMapsPromise;
 }
 
 /**
@@ -191,37 +202,39 @@ export function addressFinder(config = {}) {
             this.open = true;
             this.error = '';
 
-            let L;
+            let maps;
             try {
-                L = await loadLeaflet();
+                maps = await loadGoogleMaps();
             } catch {
                 this.error = 'The map could not be loaded. Type the address instead.';
                 return;
             }
 
-            // Leaflet measures its container on init. Inside a modal that was display:none
-            // a moment ago that measurement is 0x0 and the tiles render as a grey sliver,
-            // so the map is built after the DOM has settled and told to re-measure.
+            // The map measures its container on init. Inside a modal that was
+            // display:none a moment ago that measurement is 0x0, so the map is built
+            // after the DOM has settled and then explicitly told to re-measure below.
             await this.$nextTick();
 
             const centre = this.latitude && this.longitude
-                ? [Number(this.latitude), Number(this.longitude)]
-                : FALLBACK_CENTRE;
+                ? { lat: Number(this.latitude), lng: Number(this.longitude) }
+                : { lat: FALLBACK_CENTRE[0], lng: FALLBACK_CENTRE[1] };
 
             if (! this.map) {
-                this.map = L.map(this.$refs.map).setView(centre, this.latitude ? 16 : 11);
+                this.map = new maps.Map(this.$refs.map, {
+                    center: centre,
+                    zoom: this.latitude ? 16 : 11,
+                    mapTypeControl: false,
+                    streetViewControl: false,
+                    fullscreenControl: false,
+                });
 
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    maxZoom: 19,
-                    attribution: '&copy; OpenStreetMap contributors',
-                }).addTo(this.map);
-
-                this.map.on('click', (event) => this.dropPin(event.latlng.lat, event.latlng.lng));
+                this.map.addListener('click', (event) => this.dropPin(event.latLng.lat(), event.latLng.lng()));
             } else {
-                this.map.setView(centre, this.latitude ? 16 : 11);
+                this.map.setCenter(centre);
+                this.map.setZoom(this.latitude ? 16 : 11);
             }
 
-            setTimeout(() => this.map.invalidateSize(), 60);
+            setTimeout(() => maps.event.trigger(this.map, 'resize'), 60);
 
             if (this.latitude && this.longitude) {
                 this.setMarker(Number(this.latitude), Number(this.longitude));
@@ -235,16 +248,16 @@ export function addressFinder(config = {}) {
         },
 
         setMarker(lat, lng) {
-            const L = window.L;
-            if (! L || ! this.map) return;
+            const maps = window.google?.maps;
+            if (! maps || ! this.map) return;
 
             if (this.marker) {
-                this.marker.setLatLng([lat, lng]);
+                this.marker.setPosition({ lat, lng });
             } else {
-                this.marker = L.marker([lat, lng], { draggable: true }).addTo(this.map);
-                this.marker.on('dragend', () => {
-                    const p = this.marker.getLatLng();
-                    this.dropPin(p.lat, p.lng);
+                this.marker = new maps.Marker({ position: { lat, lng }, map: this.map, draggable: true });
+                this.marker.addListener('dragend', () => {
+                    const p = this.marker.getPosition();
+                    this.dropPin(p.lat(), p.lng());
                 });
             }
         },
@@ -341,9 +354,9 @@ export function locationFinder(config = {}) {
             this.open = true;
             this.error = '';
 
-            let L;
+            let maps;
             try {
-                L = await loadLeaflet();
+                maps = await loadGoogleMaps();
             } catch {
                 this.error = 'The map could not be loaded. Enter the coordinates by hand instead.';
                 return;
@@ -352,23 +365,25 @@ export function locationFinder(config = {}) {
             await this.$nextTick();
 
             const centre = this.latitude && this.longitude
-                ? [Number(this.latitude), Number(this.longitude)]
-                : FALLBACK_CENTRE;
+                ? { lat: Number(this.latitude), lng: Number(this.longitude) }
+                : { lat: FALLBACK_CENTRE[0], lng: FALLBACK_CENTRE[1] };
 
             if (! this.map) {
-                this.map = L.map(this.$refs.map).setView(centre, this.latitude ? 16 : 11);
+                this.map = new maps.Map(this.$refs.map, {
+                    center: centre,
+                    zoom: this.latitude ? 16 : 11,
+                    mapTypeControl: false,
+                    streetViewControl: false,
+                    fullscreenControl: false,
+                });
 
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    maxZoom: 19,
-                    attribution: '&copy; OpenStreetMap contributors',
-                }).addTo(this.map);
-
-                this.map.on('click', (event) => this.dropPin(event.latlng.lat, event.latlng.lng));
+                this.map.addListener('click', (event) => this.dropPin(event.latLng.lat(), event.latLng.lng()));
             } else {
-                this.map.setView(centre, this.latitude ? 16 : 11);
+                this.map.setCenter(centre);
+                this.map.setZoom(this.latitude ? 16 : 11);
             }
 
-            setTimeout(() => this.map.invalidateSize(), 60);
+            setTimeout(() => maps.event.trigger(this.map, 'resize'), 60);
 
             if (this.latitude && this.longitude) {
                 this.setMarker(Number(this.latitude), Number(this.longitude));
@@ -382,16 +397,16 @@ export function locationFinder(config = {}) {
         },
 
         setMarker(lat, lng) {
-            const L = window.L;
-            if (! L || ! this.map) return;
+            const maps = window.google?.maps;
+            if (! maps || ! this.map) return;
 
             if (this.marker) {
-                this.marker.setLatLng([lat, lng]);
+                this.marker.setPosition({ lat, lng });
             } else {
-                this.marker = L.marker([lat, lng], { draggable: true }).addTo(this.map);
-                this.marker.on('dragend', () => {
-                    const p = this.marker.getLatLng();
-                    this.dropPin(p.lat, p.lng);
+                this.marker = new maps.Marker({ position: { lat, lng }, map: this.map, draggable: true });
+                this.marker.addListener('dragend', () => {
+                    const p = this.marker.getPosition();
+                    this.dropPin(p.lat(), p.lng());
                 });
             }
         },

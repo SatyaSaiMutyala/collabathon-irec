@@ -14,6 +14,7 @@ const PendingApprovalScreen = ({navigation}) => {
   // so this screen can only report status, never grant it.
   const user = useAppSelector(state => state.auth.user);
   const status = useAppSelector(state => state.auth.registrationStatus);
+  const role = useAppSelector(state => state.auth.role);
 
   return (
     <ScreenContainer edges={['top', 'bottom']} style={{justifyContent: 'center'}}>
@@ -81,8 +82,9 @@ const PendingApprovalScreen = ({navigation}) => {
         icon="arrow-back-outline"
         onPress={() => {
           dispatch(clearAuthError());
-          // Both roles share the one Login screen now — see LoginScreen.
-          navigation.replace('Login');
+          // Brokers arrived here via EmailOtpVerify; developers via the shared
+          // Login screen. Send each back the way they came.
+          navigation.replace(role === 'broker' ? 'EmailOtpLogin' : 'Login');
         }}
       />
     </ScreenContainer>

@@ -18,6 +18,38 @@
             <x-button variant="gold" icon="plus" tag="a" href="{{ route('admin.properties.create') }}">
                 Add listing
             </x-button>
+
+            <x-modal title="Bulk upload listings"
+                     subtitle="One row per project, covering the basics, location and pricing. Every listing lands as a draft — media, unit types, commercial terms and everything else in the full sheet gets finished on the listing's own edit page afterward."
+                     width="max-w-lg"
+                     :open="$errors->any()">
+                <x-slot:trigger>
+                    <x-button variant="outline" icon="upload">Bulk upload</x-button>
+                </x-slot:trigger>
+
+                <form method="POST" action="{{ route('admin.properties.bulk-import') }}"
+                      enctype="multipart/form-data" class="space-y-4">
+                    @csrf
+
+                    <div class="flex items-start gap-2.5 rounded-lg bg-canvas border border-line px-3.5 py-3">
+                        <x-icon name="download" class="w-4 h-4 text-ink-3 shrink-0 mt-0.5" />
+                        <p class="text-[12.5px] text-ink-2 leading-relaxed">
+                            Start from the template so the column names match exactly —
+                            <a href="{{ route('admin.properties.bulk-import.template') }}"
+                               class="text-primary-dark hover:underline font-medium">download it here</a>.
+                            <span class="text-ink-3">The <code class="text-[11.5px]">developer</code> column
+                                must match an existing developer's company name exactly.</span>
+                        </p>
+                    </div>
+
+                    <x-file-field label="CSV file" name="file" accept=".csv,text/csv" required
+                                  hint="Exported from Excel/Sheets as CSV — .xlsx is not read directly." />
+
+                    <x-button variant="gold" tag="button" type="submit" icon="upload" class="w-full">
+                        Upload &amp; create
+                    </x-button>
+                </form>
+            </x-modal>
         </x-slot:actions>
     </x-page-header>
 
@@ -77,7 +109,7 @@
 
                 <td class="px-4 py-3 hidden lg:table-cell">
                     <div class="flex items-center gap-2 min-w-0">
-                        <x-avatar :name="$p->developer?->company_name ?? '—'" size="xs" />
+                        <x-avatar :name="$p->developer?->company_name ?? '—'" :src="$p->developer?->logo_path" size="xs" />
                         <span class="text-[12.5px] text-ink-2 truncate">{{ $p->developer?->company_name }}</span>
                     </div>
                 </td>

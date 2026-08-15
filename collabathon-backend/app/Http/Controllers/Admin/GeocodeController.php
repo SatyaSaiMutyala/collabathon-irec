@@ -10,26 +10,20 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
 
 /**
- * Address lookup for the developer form's "find on map" control.
+ * Address lookup for the developer form's and the project form's "find on map" controls.
  *
- * Proxied through the server rather than called from the browser for three reasons:
- * Nominatim's usage policy wants a real identifying User-Agent, which a browser cannot
- * set; the response is cacheable here so repeat searches for the same pincode cost
- * nothing; and swapping provider later is one method instead of a change in every view.
- *
- * OpenStreetMap needs no API key, which is why it is the default — the alternative was
- * asking for a Google Maps key and billing account before the field could work at all.
- * To move to Google, replace the request in `lookup()`; the shape returned to the client
- * is deliberately provider-agnostic.
+ * Proxied through the server rather than called from the browser for the same three
+ * reasons this had under the previous (OpenStreetMap/Nominatim) provider: the response
+ * is cacheable here so repeat searches for the same pincode cost nothing; the API key
+ * never has to reach client-side JavaScript for this half of the feature (only the map
+ * *render* — see `loadGoogleMaps()` in app.js — needs the key in the browser); and
+ * swapping provider again later is one class instead of a change in every view. The
+ * shape returned to the client is unchanged from the OSM days on purpose — Google's own
+ * response shape is mapped into it here, not the other way around.
  */
 class GeocodeController extends Controller
 {
-    private const ENDPOINT = 'https://nominatim.openstreetmap.org/search';
-
-    private const REVERSE_ENDPOINT = 'https://nominatim.openstreetmap.org/reverse';
-
-    /** Identifies this app to the provider, as their policy requires. */
-    private const AGENT = 'CollabathonAdmin/1.0 (+admin panel address lookup)';
+    private const ENDPOINT = 'https://maps.googleapis.com/maps/api/geocode/json';
 
     public function __invoke(Request $request): JsonResponse
     {
@@ -62,7 +56,9 @@ class GeocodeController extends Controller
          * empty for a transport failure as well as for a genuine no-match — so one
          * outage would pin "no results" to that search for a full day, long after the
          * cause was fixed. Caching hits only means a failure costs one retry, not a day
-         * of wrong answers.
+         * of wrong answers. It also means a busy day of admins searching the same handful
+         * of localities costs this Google account a small fraction of what it would
+         * without it — the free monthly credit is generous but not infinite.
          */
         if ($cached = Cache::get($key)) {
             return response()->json(['data' => $cached]);
@@ -72,7 +68,7 @@ class GeocodeController extends Controller
 
         if ($results !== []) {
             // A day is plenty: postcodes and street addresses do not move, and the cache
-            // is what keeps an admin typing in the box from hammering a free service.
+            // is what keeps an admin typing in the box from hammering a billed API.
             Cache::put($key, $results, now()->addDay());
         }
 
@@ -95,15 +91,16 @@ class GeocodeController extends Controller
             return response()->json(['data' => $cached]);
         }
 
+        $apiKey = config('services.google_maps.key');
+        if (! $apiKey) {
+            return response()->json(['data' => []]);
+        }
+
         try {
-            $response = Http::withHeaders(['User-Agent' => self::AGENT])
-                ->timeout(8)
-                ->get(self::REVERSE_ENDPOINT, [
-                    'format' => 'jsonv2',
-                    'addressdetails' => 1,
-                    'lat' => $data['lat'],
-                    'lon' => $data['lon'],
-                ]);
+            $response = Http::timeout(8)->get(self::ENDPOINT, [
+                'latlng' => "{$data['lat']},{$data['lon']}",
+                'key' => $apiKey,
+            ]);
         } catch (\Throwable) {
             return response()->json(['data' => []]);
         }
@@ -112,21 +109,14 @@ class GeocodeController extends Controller
             return response()->json(['data' => []]);
         }
 
-        $hit = $response->json();
+        $body = $response->json();
+        $hit = $body['results'][0] ?? null;
 
-        if (blank($hit['display_name'] ?? null)) {
+        if (! $hit || blank($hit['formatted_address'] ?? null)) {
             return response()->json(['data' => []]);
         }
 
-        $results = [[
-            'label' => $hit['display_name'],
-            'address' => $hit['display_name'],
-            'pincode' => $hit['address']['postcode'] ?? null,
-            // The provider's own coordinates for the matched feature, not the click point:
-            // the pin should settle on the building it resolved to.
-            'latitude' => isset($hit['lat']) ? (float) $hit['lat'] : (float) $data['lat'],
-            'longitude' => isset($hit['lon']) ? (float) $hit['lon'] : (float) $data['lon'],
-        ]];
+        $results = [$this->fromGoogleResult($hit, (float) $data['lat'], (float) $data['lon'])];
 
         Cache::put($key, $results, now()->addDay());
 
@@ -136,15 +126,20 @@ class GeocodeController extends Controller
     /** @return array<int, array{label:string, address:string, pincode:?string, latitude:?float, longitude:?float}> */
     private function lookup(string $query): array
     {
+        $apiKey = config('services.google_maps.key');
+        if (! $apiKey) {
+            return [];
+        }
+
         try {
-            $response = Http::withHeaders(['User-Agent' => self::AGENT])
-                ->timeout(8)
-                ->get(self::ENDPOINT, [
-                    'format' => 'jsonv2',
-                    'addressdetails' => 1,
-                    'limit' => 6,
-                    'q' => $query,
-                ]);
+            $response = Http::timeout(8)->get(self::ENDPOINT, [
+                'address' => $query,
+                // A bias, not a hard filter (no `components=country:IN`) — every seeded
+                // developer and project is Indian, but a search should still find a
+                // genuine match elsewhere rather than silently drop it.
+                'region' => 'in',
+                'key' => $apiKey,
+            ]);
         } catch (\Throwable) {
             // Offline, DNS failure, provider down — the field still works by hand, so an
             // empty list is the right answer rather than a 500 that blocks the whole form.
@@ -155,23 +150,41 @@ class GeocodeController extends Controller
             return [];
         }
 
-        return collect($response->json() ?: [])
-            ->map(function (array $hit) {
-                $parts = $hit['address'] ?? [];
+        $body = $response->json();
 
-                return [
-                    'label' => $hit['display_name'] ?? '',
-                    // display_name is already the full comma-separated address, which is
-                    // exactly what the textarea wants; the parts are only mined for the
-                    // pincode, which has no reliable position inside that string.
-                    'address' => $hit['display_name'] ?? '',
-                    'pincode' => $parts['postcode'] ?? null,
-                    'latitude' => isset($hit['lat']) ? (float) $hit['lat'] : null,
-                    'longitude' => isset($hit['lon']) ? (float) $hit['lon'] : null,
-                ];
-            })
+        // ZERO_RESULTS is a normal, successful answer, not an error — only OK carries
+        // results. Every other status (REQUEST_DENIED, OVER_QUERY_LIMIT, …) means
+        // something is actually wrong (bad/missing key, billing not enabled, quota),
+        // which also just means "no results" from here rather than a form-blocking 500.
+        if (($body['status'] ?? null) !== 'OK') {
+            return [];
+        }
+
+        return collect($body['results'] ?? [])
+            ->take(6)
+            ->map(fn (array $hit) => $this->fromGoogleResult($hit))
             ->filter(fn (array $hit) => filled($hit['address']))
             ->values()
             ->all();
+    }
+
+    /**
+     * Google's shape -> this endpoint's shape. `$fallbackLat`/`$fallbackLon` are used only
+     * by reverse(): if a geocode result is somehow missing its own geometry (has not been
+     * observed, but the previous provider's code guarded the same case), the map should
+     * still settle on the point that was actually clicked rather than snap to (0, 0).
+     */
+    private function fromGoogleResult(array $hit, ?float $fallbackLat = null, ?float $fallbackLon = null): array
+    {
+        $postcode = collect($hit['address_components'] ?? [])
+            ->first(fn (array $component) => in_array('postal_code', $component['types'] ?? [], true));
+
+        return [
+            'label' => $hit['formatted_address'] ?? '',
+            'address' => $hit['formatted_address'] ?? '',
+            'pincode' => $postcode['long_name'] ?? null,
+            'latitude' => $hit['geometry']['location']['lat'] ?? $fallbackLat,
+            'longitude' => $hit['geometry']['location']['lng'] ?? $fallbackLon,
+        ];
     }
 }

@@ -4,30 +4,35 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
+use App\Mail\EmailOtpMail;
 use App\Models\BrokerProfile;
 use App\Models\DeviceToken;
+use App\Models\EmailOtpCode;
 use App\Models\OtpCode;
 use App\Models\User;
 use App\Services\OtpSender;
 use App\Services\PushNotifier;
+use App\Support\MailSettings;
 use App\Support\SocialPlatforms;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Mobile auth. Email + password (Sanctum tokens) for both mobile roles.
+ * Mobile auth. Developers sign in with email + password (Sanctum tokens). Channel
+ * partners sign in with `sendEmailOtp`/`verifyEmailOtp` — a 4-digit code emailed
+ * through whichever mailer MailSettings points at (Mailjet), since there is no SMS
+ * provider configured for the mobile-number version below.
  *
- * `sendOtp`/`verifyOtp` below implement a mobile-number + OTP alternative that was
- * built for channel partners and is not currently wired into either client build —
- * re-enabling it is a client-side navigation change, not a backend one, so the
- * endpoints and the OtpCode/OtpSender plumbing stay in place rather than being
- * ripped out. `register`/`login` here are the one path both mobile roles actually
- * use right now: OTP delivery has no SMS provider configured (no SMTP/MSG91/etc),
- * which blocks App Store review, so this is the path that has to work.
+ * `sendOtp`/`verifyOtp` implement that earlier mobile-number + OTP alternative. It is
+ * not wired into either client build anymore — re-enabling it is a client-side
+ * navigation change, not a backend one, so the endpoints and the OtpCode/OtpSender
+ * plumbing stay in place rather than being ripped out.
  *
  * The approval gate lives here regardless of which door is used: a broker registers
  * as `pending` and is issued NO token until an admin approves. Returning a token first
@@ -281,7 +286,121 @@ class AuthController extends Controller
         ]);
     }
 
-    /** Login for developers. Brokers sign in with mobile + OTP instead — see `verifyOtp`. */
+    /**
+     * POST /api/auth/email-otp/send — issues a fresh 4-digit code for an email address.
+     *
+     * Same privacy shape as `sendOtp`: the response never reveals whether an account
+     * exists for that email, only whether a code was sent to it.
+     */
+    public function sendEmailOtp(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email', 'max:255'],
+        ]);
+
+        $otp = EmailOtpCode::issueFor($data['email']);
+        $this->deliverEmailOtp($data['email'], $otp->rawCode());
+
+        return response()->json([
+            'message' => 'OTP sent.',
+            'expires_in' => EmailOtpCode::TTL_MINUTES * 60,
+            'debug_code' => $this->exposesOtpCode() ? $otp->rawCode() : null,
+        ]);
+    }
+
+    /**
+     * Same swallow-and-log shape as `ApprovalController::notifyApproved()`: the code has
+     * already been issued and the caller gets the same response either way (see
+     * `sendEmailOtp`), so an unreachable mailer must not surface as a 500 here — it
+     * should just be visible in the logs instead of silently vanishing.
+     */
+    private function deliverEmailOtp(string $email, string $code): void
+    {
+        if (! MailSettings::apply()) {
+            return;
+        }
+
+        try {
+            Mail::to($email)->send(new EmailOtpMail($code));
+        } catch (\Throwable $e) {
+            Log::error('Email OTP send failed', [
+                'email' => $email,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * POST /api/auth/email-otp/verify — the channel-partner sign-in fork point: an
+     * existing, active broker gets a token (`status: login`); an existing
+     * pending/rejected one gets told why not (`status: pending`/`rejected`); an email
+     * with no account at all gets `status: register` so the app can send the verified
+     * address straight into the registration form.
+     *
+     * No `verification_token` here unlike `verifyOtp` — see the docblock on
+     * {@see EmailOtpCode} for why `register()` doesn't need one.
+     *
+     * There's no environment-gated master code here the way `verifyOtp` has one —
+     * {@see EmailOtpCode} issues the same fixed code to everyone, so it doesn't need
+     * a separate always-on bypass to keep working for a store reviewer.
+     */
+    public function verifyEmailOtp(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email', 'max:255'],
+            'code' => ['required', 'digits:4'],
+            'device_name' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $otp = EmailOtpCode::activeFor($data['email']);
+
+        if (! $otp || $otp->isLocked()) {
+            throw ValidationException::withMessages([
+                'code' => ['That code has expired. Request a new one.'],
+            ]);
+        }
+
+        if (! $otp->matches($data['code'])) {
+            $otp->registerFailedAttempt();
+
+            throw ValidationException::withMessages([
+                'code' => ['That code is incorrect.'],
+            ]);
+        }
+
+        $otp->consume();
+
+        $user = User::where('email', $data['email'])->where('role', User::ROLE_BROKER)->first();
+
+        if (! $user) {
+            return response()->json([
+                'status' => 'register',
+                'email' => $data['email'],
+            ]);
+        }
+
+        if (! $user->isActive()) {
+            return response()->json([
+                'status' => $user->status === User::STATUS_REJECTED ? 'rejected' : 'pending',
+                'message' => match ($user->status) {
+                    User::STATUS_PENDING => 'Your registration is awaiting admin approval.',
+                    User::STATUS_REJECTED => 'Your registration was not approved.',
+                    default => 'This account is not active.',
+                },
+            ], 403);
+        }
+
+        $user->forceFill(['last_login_at' => now()])->save();
+        $this->loadProfile($user);
+
+        return response()->json([
+            'status' => 'login',
+            'token' => $user->createToken($data['device_name'] ?? 'mobile')->plainTextToken,
+            'data' => new UserResource($user),
+        ]);
+    }
+
+    /** Login for developers. Channel partners sign in with email + OTP instead — see `verifyEmailOtp`. */
     public function login(Request $request): JsonResponse
     {
         $data = $request->validate([

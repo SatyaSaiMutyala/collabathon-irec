@@ -6,11 +6,14 @@ use App\Http\Concerns\HandlesListQueries;
 use App\Http\Controllers\Controller;
 use App\Models\Developer;
 use App\Models\User;
+use App\Support\CsvReader;
 use App\Support\SocialPlatforms;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -209,6 +212,190 @@ class DeveloperController extends Controller
                 'email' => $data['email'],
                 'password' => $password,
             ]);
+    }
+
+    /**
+     * A starter CSV — the exact column names {@see bulkImport()} reads, with one sample
+     * row so "what goes in this column" never has to be guessed from a blank sheet.
+     */
+    public function bulkImportTemplate(): Response
+    {
+        $this->authorize('edit-module', 'developers');
+
+        $columns = [
+            'company_name', 'contact_person', 'email', 'mobile', 'city',
+            'country', 'state', 'pincode', 'address', 'rera_number', 'about', 'website',
+            'instagram', 'facebook', 'youtube', 'twitter', 'linkedin', 'password',
+        ];
+
+        $sample = [
+            'Skyline Realty Group', 'Ahmed Al Farsi', 'ahmed@skylinerealty.example', '+91 90000 00000', 'Hyderabad',
+            'India', 'Telangana', '500032', '', 'RERA/TEL/DEV/00000', '', '',
+            '', '', '', '', '', '',
+        ];
+
+        $csv = implode(',', $columns) . "\n" . implode(',', array_map(
+            fn ($v) => str_contains($v, ',') ? '"' . str_replace('"', '""', $v) . '"' : $v,
+            $sample
+        )) . "\n";
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="developers-import-template.csv"',
+        ]);
+    }
+
+    /**
+     * One row per developer — everything {@see store()} collects except the logo and the
+     * commercial/verification fields an admin sets deliberately, one at a time, on the
+     * profile page afterward. No file columns exist in a spreadsheet, so the logo (and
+     * any other attachment) is always added by hand post-import — same page, same field,
+     * whether the developer arrived one at a time or a hundred at a time.
+     *
+     * Every row is validated and created independently: one bad row does not block the
+     * other 99. The result is reported back per row rather than as a single pass/fail.
+     */
+    public function bulkImport(Request $request): View
+    {
+        $this->authorize('edit-module', 'developers');
+
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:csv,txt', 'max:5120'],
+        ]);
+
+        $rows = CsvReader::rows($request->file('file'));
+
+        $results = [];
+
+        foreach ($rows as $number => $row) {
+            $results[] = $this->importDeveloperRow($number, $row);
+        }
+
+        return view('admin.bulk-import-result', [
+            'type' => 'developers',
+            'results' => $results,
+            'created' => count(array_filter($results, fn ($r) => $r['status'] === 'created')),
+            'failed' => count(array_filter($results, fn ($r) => $r['status'] === 'failed')),
+        ]);
+    }
+
+    /**
+     * Every step below — mapping the row, validating it, saving it — is inside one
+     * try/catch, not just the save. A hand-built CSV missing an entire optional
+     * column (no `address` header at all, say) used to throw an uncaught "Undefined
+     * array key" and take down the whole import with a 500, instead of just failing
+     * that one row like every other bad-data case already does.
+     *
+     * @return array{row: int, status: string, company_name: ?string, email: ?string, password: ?string, error: ?string}
+     */
+    private function importDeveloperRow(int $number, array $row): array
+    {
+        $companyName = null;
+
+        try {
+            $data = [
+                'company_name' => $row['company_name'] ?? '',
+                'contact_person' => $row['contact_person'] ?? '',
+                'email' => strtolower($row['email'] ?? ''),
+                'mobile' => $row['mobile'] ?? '',
+                'city' => $row['city'] ?? '',
+                'country' => $row['country'] ?? null,
+                'state' => $row['state'] ?? null,
+                'pincode' => $row['pincode'] ?? null,
+                'address' => $row['address'] ?? null,
+                'rera_number' => $row['rera_number'] ?? null,
+                'about' => $row['about'] ?? null,
+                'website' => $row['website'] ?? null,
+                'instagram' => $row['instagram'] ?? null,
+                'facebook' => $row['facebook'] ?? null,
+                'youtube' => $row['youtube'] ?? null,
+                'twitter' => $row['twitter'] ?? null,
+                'linkedin' => $row['linkedin'] ?? null,
+                'password' => $row['password'] ?? null,
+            ];
+
+            // Blank optional cells arrive as '' (see CsvReader), which a `nullable` rule
+            // treats as present-but-empty rather than absent — normalise once, here,
+            // instead of relying on every field below to remember to do it.
+            foreach ($data as $key => $value) {
+                if ($key !== 'company_name' && $key !== 'contact_person' && $key !== 'email'
+                    && $key !== 'mobile' && $key !== 'city' && $value === '') {
+                    $data[$key] = null;
+                }
+            }
+
+            $companyName = $data['company_name'] ?: null;
+
+            $validator = Validator::make($data, [
+                'company_name' => ['required', 'string', 'max:255', 'unique:developers,company_name'],
+                'contact_person' => ['required', 'string', 'max:255'],
+                'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+                'mobile' => ['required', 'string', 'max:32'],
+                'city' => ['required', 'string', 'max:96'],
+                'country' => ['nullable', 'string', 'max:96'],
+                'state' => ['nullable', 'string', 'max:96'],
+                'pincode' => ['nullable', 'string', 'max:12'],
+                'address' => ['nullable', 'string', 'max:1000'],
+                'rera_number' => ['nullable', 'string', 'max:64'],
+                'about' => ['nullable', 'string', 'max:5000'],
+                'website' => ['nullable', 'string', 'max:255'],
+                ...SocialPlatforms::rules(),
+                'password' => ['nullable', 'string', 'min:8', 'max:72'],
+            ]);
+
+            if ($validator->fails()) {
+                return [
+                    'row' => $number,
+                    'status' => 'failed',
+                    'company_name' => $companyName,
+                    'email' => null,
+                    'password' => null,
+                    'error' => implode(' ', $validator->errors()->all()),
+                ];
+            }
+
+            $clean = $validator->validated();
+            $password = $clean['password'] ?: Str::password(14, symbols: false);
+            unset($clean['password']);
+
+            DB::transaction(function () use ($clean, $password) {
+                $user = User::create([
+                    'name' => $clean['contact_person'],
+                    'email' => $clean['email'],
+                    'password' => $password,
+                    'mobile' => $clean['mobile'],
+                    'role' => User::ROLE_DEVELOPER,
+                    'status' => User::STATUS_ACTIVE,
+                    'email_verified_at' => now(),
+                ]);
+
+                Developer::create($clean + [
+                    'user_id' => $user->id,
+                    // Same defaults store() applies for a single create — see the note there.
+                    'cp_payout_percent' => 2.50,
+                    'verified' => false,
+                    'status' => 'active',
+                ]);
+            });
+        } catch (\Throwable $e) {
+            return [
+                'row' => $number,
+                'status' => 'failed',
+                'company_name' => $companyName,
+                'email' => null,
+                'password' => null,
+                'error' => 'Could not save this row: ' . $e->getMessage(),
+            ];
+        }
+
+        return [
+            'row' => $number,
+            'status' => 'created',
+            'company_name' => $clean['company_name'],
+            'email' => $clean['email'],
+            'password' => $password,
+            'error' => null,
+        ];
     }
 
     /**

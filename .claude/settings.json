@@ -64,7 +64,22 @@
       "Bash(nohup php artisan serve --host=127.0.0.1 --port=8001)",
       "Bash(disown)",
       "Bash(curl -sS -o /dev/null -w \"status: %{http_code}\\\\n\" http://127.0.0.1:8001/up)",
-      "Bash(lsof -nP -iTCP:8081 -sTCP:LISTEN)"
+      "Bash(lsof -nP -iTCP:8081 -sTCP:LISTEN)",
+      "Bash(sort -k6,7)",
+      "Bash(sips -g pixelWidth -g pixelHeight -g hasAlpha \"/Users/satyamutyala/Downloads/collabothon logo 2.png\")",
+      "Bash(sips -g hasAlpha /Users/satyamutyala/Satya-Apps/collabathon-irec/MobileApp/ios/Collabathon/Images.xcassets/AppIcon.appiconset/icon-1024.png)",
+      "Bash(curl -sS \"https://maps.googleapis.com/maps/api/geocode/json?address=Hyderabad&key=AIzaSyDJ4uwvyET39d_JOO0Q7l6bE9u39zbzwmg\")",
+      "Bash(curl -sS -o /dev/null -w \"%{http_code}\\\\n\" \"https://maps.googleapis.com/maps/api/js?key=AIzaSyDJ4uwvyET39d_JOO0Q7l6bE9u39zbzwmg\")",
+      "Bash(php -l app/Http/Controllers/Admin/GeocodeController.php)",
+      "Bash(lsof -i :8000 -sTCP:LISTEN)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:8000/api/v1/auth/login -X POST)",
+      "Bash(lsof -i :8001 -sTCP:LISTEN)",
+      "Bash(cliclick c:1472,666)",
+      "Bash(cliclick c:1424,543)",
+      "Bash(cliclick kp:return)",
+      "Bash(curl -s -i -X POST http://127.0.0.1:8001/api/v1/auth/email-otp/send -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{\"email\":\"rohit@skylinerealty.com\"}')",
+      "Bash(cliclick c:1478,679)",
+      "Bash(pkill -f cliclick)"
     ],
     "additionalDirectories": [
       "/private/tmp"

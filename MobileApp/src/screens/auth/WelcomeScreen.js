@@ -19,13 +19,12 @@ import {AppText} from '../../components';
  * through the notch/home-indicator insets) while the status bar gets its own solid
  * top-of-gradient colour — two different values `<ScreenContainer>` cannot express.
  *
- * Both cards route to the same shared `Login` screen — one email + password sign-in
- * for both roles, the server resolves which from the account (see LoginScreen). They
- * stay as two cards rather than collapsing into one because the copy underneath each
- * is still genuinely role-specific, not because the destination is. (A mobile-number +
- * OTP path exists — MobileOtpLoginScreen / OtpVerifyScreen — but isn't linked from
- * here: no SMS provider is wired up yet, and email + password is what both app store
- * builds ship on for now.)
+ * Channel partners route to EmailOtpLoginScreen (email + a 4-digit code, no
+ * password — see AuthController::sendEmailOtp); developers route to the shared
+ * `Login` screen (email + password, admin-provisioned accounts). (A mobile-number +
+ * OTP path also exists — MobileOtpLoginScreen / OtpVerifyScreen — but isn't linked
+ * from here: no SMS provider is wired up, which is exactly what the email version
+ * replaces it with.)
  */
 
 const INK = '#151A34';
@@ -41,8 +40,8 @@ const ROLES = [
     body: 'Browse live inventory, mark projects of interest, and follow your requests through to close.',
     accent: '#7B61FF',
     soft: '#EFE9FD',
-    // Same shared Login screen as Developers below — see the note above.
-    screen: 'Login',
+    // Email + a 4-digit code — see the note above.
+    screen: 'EmailOtpLogin',
   },
   {
     key: 'developer',

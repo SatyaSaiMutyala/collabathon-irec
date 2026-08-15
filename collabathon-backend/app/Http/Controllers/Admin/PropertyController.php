@@ -16,15 +16,18 @@ use App\Models\PropertyDetail;
 use App\Models\PropertyMedia;
 use App\Models\PropertyUnitType;
 use App\Models\UnitType;
+use App\Support\CsvReader;
 use App\Support\MailSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -77,7 +80,7 @@ class PropertyController extends Controller
     public function index(Request $request): View
     {
         $query = Property::query()
-            ->with('developer:id,company_name')
+            ->with('developer:id,company_name,logo_path')
             ->search($request->query('search'))
             ->filter($this->filters($request, [
                 'developer_id', 'type', 'project_status', 'city', 'status', 'developer_status',
@@ -232,6 +235,215 @@ class PropertyController extends Controller
 
             return false;
         }
+    }
+
+    /**
+     * A starter CSV for {@see bulkImport()} — the core intake fields only (basics,
+     * location, pricing/scale). Media, unit types, commercial terms, developer terms and
+     * sales info have no columns here on purpose: a spreadsheet cell cannot hold a photo
+     * or a PDF, so every bulk-imported listing lands as a draft and gets those finished
+     * by hand on its own edit page afterward — the same page a one-at-a-time listing
+     * uses, nothing bulk-specific to learn.
+     */
+    public function bulkImportTemplate(): Response
+    {
+        $this->authorize('edit-module', 'properties');
+
+        $columns = [
+            'developer', 'name', 'project_type', 'project_status',
+            'tagline', 'description', 'rera_number',
+            'country', 'state', 'city', 'locality', 'full_address', 'landmark', 'pincode', 'zone',
+            'latitude', 'longitude', 'maps_link',
+            'price_min', 'price_max', 'extent_metric', 'total_units', 'towers', 'floors_per_tower',
+            'land_parcel_acres', 'total_project_area_sqft', 'possession_date',
+        ];
+
+        $sample = [
+            'Skyline Realty Group', 'Emerald Meadows Phase 2', 'Residential', 'Under Construction',
+            'Where green living meets modern comfort', '', 'RERA/TEL/PRJ/00000',
+            'India', 'Telangana', 'Hyderabad', 'Kokapet', '', '', '500075', 'West',
+            '17.4065', '78.3269', '',
+            '8500000', '16500000', 'Sq.ft.', '216', '3', '18',
+            '4.2', '182000', '2028-04-05',
+        ];
+
+        $csv = implode(',', $columns) . "\n" . implode(',', array_map(
+            fn ($v) => str_contains($v, ',') ? '"' . str_replace('"', '""', $v) . '"' : $v,
+            $sample
+        )) . "\n";
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="properties-import-template.csv"',
+        ]);
+    }
+
+    /**
+     * One row per project. Every row lands as a `draft` regardless of what the sheet
+     * says — see the note on bulkImportTemplate() — so nothing here ever fires the
+     * developer-assignment push/email a hundred times in one go; that only happens once
+     * an admin deliberately publishes a finished listing, same as a one-at-a-time create.
+     */
+    public function bulkImport(Request $request): View
+    {
+        $this->authorize('edit-module', 'properties');
+
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:csv,txt', 'max:5120'],
+        ]);
+
+        $rows = CsvReader::rows($request->file('file'));
+
+        $results = [];
+
+        foreach ($rows as $number => $row) {
+            $results[] = $this->importPropertyRow($number, $row);
+        }
+
+        return view('admin.bulk-import-result', [
+            'type' => 'properties',
+            'results' => $results,
+            'created' => count(array_filter($results, fn ($r) => $r['status'] === 'created')),
+            'failed' => count(array_filter($results, fn ($r) => $r['status'] === 'failed')),
+        ]);
+    }
+
+    /**
+     * Every step below is inside one try/catch, not just the save — see the matching
+     * note on {@see DeveloperController::importDeveloperRow()}. A hand-built CSV
+     * missing an entire optional column used to throw an uncaught "Undefined array
+     * key" here too and take down the whole import instead of just failing that row.
+     *
+     * @return array{row: int, status: string, name: ?string, property_id: ?int, error: ?string}
+     */
+    private function importPropertyRow(int $number, array $row): array
+    {
+        $name = null;
+
+        try {
+            $developerName = trim((string) ($row['developer'] ?? ''));
+            $developer = $developerName !== ''
+                ? Developer::whereRaw('LOWER(company_name) = ?', [Str::lower($developerName)])->first()
+                : null;
+
+            $data = [
+                'developer_id' => $developer?->id,
+                'name' => $row['name'] ?? '',
+                'project_type' => $row['project_type'] ?? '',
+                'project_status' => $row['project_status'] ?? '',
+                'tagline' => $row['tagline'] ?? null,
+                'description' => $row['description'] ?? null,
+                'rera_number' => $row['rera_number'] ?? null,
+                'country' => $row['country'] ?? null,
+                'state' => $row['state'] ?? null,
+                'city' => $row['city'] ?? '',
+                'locality' => $row['locality'] ?? null,
+                'full_address' => $row['full_address'] ?? null,
+                'landmark' => $row['landmark'] ?? null,
+                'pincode' => $row['pincode'] ?? null,
+                'zone' => $row['zone'] ?? null,
+                'latitude' => $row['latitude'] ?? null,
+                'longitude' => $row['longitude'] ?? null,
+                'maps_link' => $row['maps_link'] ?? null,
+                'price_min' => $row['price_min'] ?? null,
+                'price_max' => $row['price_max'] ?? null,
+                'extent_metric' => $row['extent_metric'] ?? null,
+                'total_units' => $row['total_units'] ?? null,
+                'towers' => $row['towers'] ?? null,
+                'floors_per_tower' => $row['floors_per_tower'] ?? null,
+                'land_parcel_acres' => $row['land_parcel_acres'] ?? null,
+                'total_project_area_sqft' => $row['total_project_area_sqft'] ?? null,
+                'possession_date' => $row['possession_date'] ?? null,
+            ];
+
+            // Blank optional cells arrive as '' (see CsvReader), which a `nullable`
+            // rule treats as present-but-empty rather than absent — normalise once,
+            // here, instead of relying on every field above to remember to do it.
+            $required = ['developer_id', 'name', 'project_type', 'project_status', 'city'];
+            foreach ($data as $key => $value) {
+                if (! in_array($key, $required, true) && $value === '') {
+                    $data[$key] = null;
+                }
+            }
+
+            $name = $data['name'] ?: null;
+
+            $validator = Validator::make($data, [
+                'developer_id' => ['required', 'exists:developers,id'],
+                'name' => ['required', 'string', 'max:255'],
+                'project_type' => ['required', Rule::exists('project_types', 'name')],
+                'project_status' => ['required', 'in:New Launch,Under Construction,Ready to Move,Nearing Completion'],
+                'tagline' => ['nullable', 'string', 'max:255'],
+                'description' => ['nullable', 'string', 'max:20000'],
+                'rera_number' => ['nullable', 'string', 'max:64'],
+                'country' => ['nullable', 'string', 'max:96'],
+                'state' => ['nullable', 'string', 'max:96'],
+                'city' => ['required', 'string', 'max:96'],
+                'locality' => ['nullable', 'string', 'max:128'],
+                'full_address' => ['nullable', 'string', 'max:1000'],
+                'landmark' => ['nullable', 'string', 'max:255'],
+                'pincode' => ['nullable', 'string', 'max:12'],
+                'zone' => ['nullable', 'in:East,West,North,South,Central'],
+                'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+                'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+                'maps_link' => ['nullable', 'url', 'max:255'],
+                'price_min' => ['required', 'integer', 'min:0'],
+                'price_max' => ['nullable', 'integer', 'gte:price_min'],
+                'extent_metric' => ['nullable', 'string', 'max:96'],
+                'total_units' => ['nullable', 'integer', 'min:0'],
+                'towers' => ['nullable', 'integer', 'min:0', 'max:65535'],
+                'floors_per_tower' => ['nullable', 'integer', 'min:0', 'max:65535'],
+                'land_parcel_acres' => ['nullable', 'numeric', 'min:0'],
+                'total_project_area_sqft' => ['nullable', 'integer', 'min:0'],
+                'possession_date' => ['nullable', 'date'],
+            ], [
+                'developer_id.required' => $developerName !== ''
+                    ? "No developer found matching \"{$developerName}\"."
+                    : 'The developer column is required.',
+                'developer_id.exists' => "No developer found matching \"{$developerName}\".",
+            ]);
+
+            if ($validator->fails()) {
+                return [
+                    'row' => $number,
+                    'status' => 'failed',
+                    'name' => $name,
+                    'property_id' => null,
+                    'error' => implode(' ', $validator->errors()->all()),
+                ];
+            }
+
+            $clean = $validator->validated();
+
+            $property = DB::transaction(function () use ($clean) {
+                $property = Property::create($clean + [
+                    'listing_status' => 'draft',
+                    'currency' => 'INR',
+                    'slug' => Str::slug($clean['name']) . '-' . Str::lower(Str::random(5)),
+                    'vastu_compliant' => false,
+                ]);
+
+                PropertyDetail::create(['property_id' => $property->id]);
+
+                return $property;
+            });
+        } catch (\Throwable $e) {
+            return [
+                'row' => $number,
+                'status' => 'failed',
+                'name' => $name,
+                'property_id' => null,
+                'error' => 'Could not save this row: ' . $e->getMessage(),
+            ];
+        }
+
+        return [
+            'row' => $number,
+            'status' => 'created',
+            'name' => $property->name,
+            'property_id' => $property->id,
+            'error' => null,
+        ];
     }
 
     /** Everything captured for one project, grouped the way the intake form groups it. */

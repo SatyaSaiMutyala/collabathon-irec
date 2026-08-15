@@ -14,6 +14,23 @@ return [
         'credentials' => env('FCM_CREDENTIALS', 'app/firebase/service-account.json'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Google Maps
+    |--------------------------------------------------------------------------
+    | One key, two uses: the Maps JavaScript API loads it client-side (see
+    | layouts/admin.blade.php — `window.GOOGLE_MAPS_API_KEY`), and
+    | GeocodeController calls the Geocoding REST API with it server-side.
+    | Those two uses want different key restrictions in Google Cloud Console
+    | (HTTP referrer for the JS load, IP for the server call) and a single key
+    | cannot carry both restriction types at once — this is fine to ship on
+    | one key, but splitting into two keys later (one referrer-restricted to
+    | this domain, one IP-restricted to the server) is the tighter setup.
+    */
+    'google_maps' => [
+        'key' => env('GOOGLE_MAPS_API_KEY'),
+    ],
+
 
     /*
     |--------------------------------------------------------------------------

@@ -30,6 +30,7 @@ $paths = [
     'arrow-down' => '<path d="M12 5v14M6 13l6 6 6-6"/>',
     'filter' => '<path d="M4 5h16l-6.4 7.4V19l-3.2-1.8v-4.8L4 5Z"/>',
     'download' => '<path d="M12 4v10"/><path d="M8 11l4 4 4-4"/><path d="M5 19h14"/>',
+    'upload' => '<path d="M12 20V10"/><path d="M8 13l4-4 4 4"/><path d="M5 19h14"/>',
     'dots' => '<circle cx="12" cy="6" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="18" r="1.4"/>',
     'external' => '<path d="M14 4h6v6"/><path d="M20 4l-8.5 8.5"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
     'shield' => '<path d="M12 3l7 3v5.5c0 4.2-2.9 7.8-7 9-4.1-1.2-7-4.8-7-9V6l7-3Z"/><path d="M9 12l2 2 4-4"/>',

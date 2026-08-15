@@ -36,7 +36,13 @@ $currentLng = old('longitude', $longitude);
 
             <div class="fixed inset-0 bg-scrim" @click="closeMap()"></div>
 
-            <div class="relative bg-panel rounded-2xl w-full max-w-3xl shadow-modal flex flex-col max-h-full">
+            <div class="relative bg-panel rounded-2xl w-full max-w-3xl shadow-modal flex flex-col max-h-full overflow-hidden">
+                {{-- overflow-hidden matters here specifically: Leaflet's own stylesheet gives its
+                     zoom/attribution controls z-index:1000, and `.leaflet-container` is only
+                     `position: relative` with no z-index of its own — so without a clipping
+                     ancestor, those controls stack above this card's header/footer instead of
+                     staying confined to the map's own box, and can sit on top of (and swallow
+                     clicks meant for) the Cancel / close button below. --}}
                 <header class="px-5 py-3.5 border-b border-line flex items-center justify-between gap-4 shrink-0">
                     <div>
                         <h3 class="text-[14px] font-semibold text-ink">Pick the location</h3>

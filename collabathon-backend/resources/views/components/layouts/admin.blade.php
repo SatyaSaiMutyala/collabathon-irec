@@ -85,6 +85,9 @@ $toneClasses = [
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title }} — iREC Admin</title>
+    {{-- Read by loadGoogleMaps() in app.js — the location/address pickers load the Maps
+         JavaScript API script themselves, on demand, the first time either map opens. --}}
+    <script>window.GOOGLE_MAPS_API_KEY = @json(config('services.google_maps.key'));</script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>
 </head>

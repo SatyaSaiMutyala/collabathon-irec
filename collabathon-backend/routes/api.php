@@ -35,6 +35,12 @@ Route::prefix('v1')->group(function () {
     Route::post('auth/otp/verify', [AuthController::class, 'verifyOtp'])
         ->middleware('throttle:15,1');
 
+    // Channel-partner sign-in, by email instead — same throttling reasoning as above.
+    Route::post('auth/email-otp/send', [AuthController::class, 'sendEmailOtp'])
+        ->middleware('throttle:6,1');
+    Route::post('auth/email-otp/verify', [AuthController::class, 'verifyEmailOtp'])
+        ->middleware('throttle:15,1');
+
     // ---------------------------------------------------------------- authenticated
     Route::middleware('auth:sanctum')->group(function () {
 

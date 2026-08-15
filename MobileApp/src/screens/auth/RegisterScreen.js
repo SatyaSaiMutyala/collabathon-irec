@@ -163,10 +163,16 @@ const initialForm = {
   hasSignature: false,
 };
 
-const RegisterScreen = ({navigation}) => {
+const RegisterScreen = ({navigation, route}) => {
   const {colors, spacing} = useAppTheme();
   const dispatch = useAppDispatch();
-  const [form, setForm] = useState(initialForm);
+  // Arrives from EmailOtpVerify once a code was confirmed for an email with no
+  // account yet — already proven to belong to this person, so it's prefilled and
+  // locked rather than asked for again.
+  const verifiedEmail = route.params?.email ?? null;
+  const [form, setForm] = useState(() =>
+    verifiedEmail ? {...initialForm, emailId: verifiedEmail} : initialForm,
+  );
   const [errors, setErrors] = useState({});
   const [isScrollEnabled, setIsScrollEnabled] = useState(true);
 
@@ -479,12 +485,13 @@ const RegisterScreen = ({navigation}) => {
           />
           <Input
             ref={registerRef('emailId')}
-            label="Email ID *"
+            label={verifiedEmail ? 'Email ID (verified) *' : 'Email ID *'}
             placeholder="you@company.com"
-            leftIcon="mail-outline"
+            leftIcon={verifiedEmail ? 'checkmark-circle-outline' : 'mail-outline'}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
+            editable={!verifiedEmail}
             value={form.emailId}
             onChangeText={update('emailId')}
             error={errors.emailId}
@@ -881,7 +888,9 @@ const RegisterScreen = ({navigation}) => {
             Already registered?{' '}
           </AppText>
           <TouchableOpacity
-            onPress={() => navigation.replace('Login')}
+            // This form is channel-partner registration only — send them back into
+            // that role's sign-in (email + OTP), not the developer password screen.
+            onPress={() => navigation.replace('EmailOtpLogin')}
             hitSlop={8}>
             <AppText variant="bodyMedium" color={colors.primary}>
               Log In

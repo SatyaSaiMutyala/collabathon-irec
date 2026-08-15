@@ -87,6 +87,10 @@ Route::prefix('admin')
 
         Route::get('/developers', [DeveloperController::class, 'index'])->name('developers')
             ->middleware("can:view-module,'developers'");
+        Route::get('/developers/bulk-import/template', [DeveloperController::class, 'bulkImportTemplate'])
+            ->name('developers.bulk-import.template')->middleware("can:view-module,'developers'");
+        Route::post('/developers/bulk-import', [DeveloperController::class, 'bulkImport'])
+            ->name('developers.bulk-import');
         Route::get('/developers/{developer}', [DeveloperController::class, 'show'])->name('developers.show')
             ->middleware("can:view-module,'developers'");
         Route::post('/developers', [DeveloperController::class, 'store'])->name('developers.store');
@@ -97,9 +101,14 @@ Route::prefix('admin')
 
         Route::get('/properties', [PropertyController::class, 'index'])->name('properties')
             ->middleware("can:view-module,'properties'");
-        // `create` is declared before `{property}` so the literal segment wins the match.
+        // `create` / `bulk-import` are declared before `{property}` so the literal
+        // segments win the match.
         Route::get('/properties/create', [PropertyController::class, 'create'])->name('properties.create')
             ->middleware("can:view-module,'properties'");
+        Route::get('/properties/bulk-import/template', [PropertyController::class, 'bulkImportTemplate'])
+            ->name('properties.bulk-import.template')->middleware("can:view-module,'properties'");
+        Route::post('/properties/bulk-import', [PropertyController::class, 'bulkImport'])
+            ->name('properties.bulk-import');
         Route::get('/properties/{property}', [PropertyController::class, 'show'])->name('properties.show')
             ->middleware("can:view-module,'properties'");
         Route::get('/properties/{property}/edit', [PropertyController::class, 'edit'])->name('properties.edit')

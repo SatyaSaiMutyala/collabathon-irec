@@ -80,6 +80,17 @@ export const authApi = {
    */
   verifyOtp: ({mobile, code}) =>
     client.post('/auth/otp/verify', {mobile, code, device_name: 'mobile'}),
+
+  // ---------------------------------------------------------------- channel-partner email OTP
+  /** Issues (or re-issues) a 4-digit code for an email address. */
+  sendEmailOtp: email => client.post('/auth/email-otp/send', {email}),
+  /**
+   * Same fork shape as `verifyOtp`: `status` is 'login' (token + user), 'register'
+   * (no account yet — the app carries the verified email into RegisterScreen), or
+   * 'pending' / 'rejected'.
+   */
+  verifyEmailOtp: ({email, code}) =>
+    client.post('/auth/email-otp/verify', {email, code, device_name: 'mobile'}),
 };
 
 export const dashboardApi = {
