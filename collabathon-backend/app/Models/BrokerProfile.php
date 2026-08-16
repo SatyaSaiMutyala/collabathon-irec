@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'instagram', 'facebook', 'youtube', 'twitter', 'linkedin',
     'years_of_experience', 'team_size',
     'pan_card', 'pan_card_path', 'aadhaar_card', 'aadhaar_path',
+    'aadhaar_verified', 'aadhaar_verified_name', 'aadhaar_verified_at',
     'rera_number', 'rera_certificate_path', 'rera_certificate_expiry',
     'gst_number', 'gst_path', 'cheque_details', 'cheque_path',
     'state', 'city', 'segments', 'zones', 'operates_multiple_states', 'project_contributions',
@@ -28,6 +29,8 @@ class BrokerProfile extends Model
             'is_company' => 'boolean',
             'operates_multiple_states' => 'boolean',
             'confirm_accuracy' => 'boolean',
+            'aadhaar_verified' => 'boolean',
+            'aadhaar_verified_at' => 'datetime',
             'rera_certificate_expiry' => 'date',
             'submitted_at' => 'datetime',
         ];

@@ -22,6 +22,7 @@ $tabs = [
     ['key' => 'measurement-units', 'label' => 'Measurement units'],
     ['key' => 'brand',     'label' => 'Branding'],
     ['key' => 'email',     'label' => 'Email'],
+    ['key' => 'kyc',       'label' => 'KYC Verification'],
     ['key' => 'access',    'label' => 'Access'],
 ];
 
@@ -956,6 +957,86 @@ $openTab = in_array(request()->query('tab'), array_column($tabs, 'key'), true)
                     </p>
                 </x-panel>
             </div>
+        </div>
+
+        {{-- ---------------------------- KYC Verification (Surepass) ---------------------------- --}}
+        <div x-show="tab === 'kyc'" x-cloak class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            <x-panel title="Surepass"
+                     subtitle="Verifies GST, Aadhaar (offline XML/QR) and PAN on the Complete Profile screen"
+                     padded class="xl:col-span-2">
+
+                <div @class([
+                    'flex items-start gap-2.5 px-3.5 py-3 mb-5 border',
+                    'bg-success-soft border-success-ring' => $surepass['configured'],
+                    'bg-warning-soft border-warning-ring' => ! $surepass['configured'],
+                ])>
+                    <x-icon :name="$surepass['configured'] ? 'check' : 'clock'"
+                            class="w-4 h-4 shrink-0 mt-px {{ $surepass['configured'] ? 'text-success' : 'text-warning' }}" />
+                    <div class="min-w-0">
+                        <p class="text-[13px] font-medium {{ $surepass['configured'] ? 'text-success' : 'text-warning' }}">
+                            {{ $surepass['configured'] ? 'Connected' : 'Not configured' }}
+                            — running in {{ $surepass['environment'] === 'production' ? 'Production' : 'Sandbox' }}
+                        </p>
+                        <p class="text-[12.5px] text-ink-2 mt-0.5 leading-relaxed">
+                            @if($surepass['configured'])
+                                A token is saved for this environment. Verification calls on the Complete
+                                Profile screen will use it once that integration is wired in.
+                            @else
+                                Until a token is saved for the active environment below, GST/Aadhaar/PAN
+                                fields on Complete Profile go unverified.
+                            @endif
+                        </p>
+                    </div>
+                </div>
+
+                <form method="POST" action="{{ route('admin.settings.surepass') }}" class="space-y-4">
+                    @csrf
+                    @method('PATCH')
+
+                    <x-select-field label="Active environment" name="surepass_environment" required
+                                     :selected="$surepass['environment']"
+                                     :options="['sandbox' => 'Sandbox (testing)', 'production' => 'Production (live)']"
+                                     hint="Matches the Sandbox/Production toggle in the Surepass console. Build and test on Sandbox first." />
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {{-- Blank means keep — same reasoning as the Mailjet secret key: the
+                             stored token is encrypted and never rendered back. --}}
+                        <x-field label="Sandbox token" name="surepass_sandbox_token" type="password"
+                                 :required="! $surepass['has_sandbox_token']"
+                                 :placeholder="$surepass['has_sandbox_token'] ? 'Saved — leave blank to keep' : 'Bearer token'"
+                                 :hint="$surepass['has_sandbox_token'] ? 'Stored encrypted (' . $surepass['masked_sandbox_token'] . '). Enter a new one only to replace it.' : 'Surepass console → Credential (Sandbox) → Verify Identity to View.'" />
+                        <x-field label="Production token" name="surepass_production_token" type="password"
+                                 :required="! $surepass['has_production_token']"
+                                 :placeholder="$surepass['has_production_token'] ? 'Saved — leave blank to keep' : 'Bearer token'"
+                                 :hint="$surepass['has_production_token'] ? 'Stored encrypted (' . $surepass['masked_production_token'] . '). Enter a new one only to replace it.' : 'Add once Sandbox is verified working.'" />
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2.5 pt-1">
+                        <x-button type="submit" icon="check">Save</x-button>
+                    </div>
+                </form>
+            </x-panel>
+
+            <x-panel title="What this covers" padded class="self-start">
+                <ul class="space-y-2.5 text-[12.5px] text-ink-2 leading-relaxed">
+                    <li class="flex gap-2">
+                        <span class="text-primary">&bull;</span>
+                        <span><strong class="text-ink">GST</strong> — company name/address lookup by GSTIN.</span>
+                    </li>
+                    <li class="flex gap-2">
+                        <span class="text-primary">&bull;</span>
+                        <span><strong class="text-ink">Aadhaar</strong> — offline XML/QR verification only, not live UIDAI OTP e-KYC (that route is restricted to banks/telecom — see docs/KYC_VERIFICATION_PROVIDER_SETUP.md).</span>
+                    </li>
+                    <li class="flex gap-2">
+                        <span class="text-primary">&bull;</span>
+                        <span><strong class="text-ink">PAN</strong> — verified against Income Tax / Protean records.</span>
+                    </li>
+                </ul>
+                <p class="text-[12px] text-ink-3 mt-4 pt-3 border-t border-line-soft leading-relaxed">
+                    This panel only stores the credential. The GST/Aadhaar/PAN verification calls
+                    themselves are the next step, once the exact Surepass endpoint contracts are on hand.
+                </p>
+            </x-panel>
         </div>
 
         <div x-show="tab === 'access'" x-cloak class="grid grid-cols-1 xl:grid-cols-3 gap-4">

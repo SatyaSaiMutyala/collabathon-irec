@@ -15,11 +15,13 @@ use App\Models\State;
 use App\Models\Setting;
 use App\Models\User;
 use App\Support\MailSettings;
+use App\Support\SurepassSettings;
 use Illuminate\Http\RedirectResponse;
 use App\Services\Fcm;
 use App\Support\FirebaseCredentials;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class SettingsController extends Controller
@@ -91,6 +93,14 @@ class SettingsController extends Controller
                 'from_address' => MailSettings::fromAddress(),
                 'from_name' => MailSettings::fromName(),
             ],
+            'surepass' => [
+                'environment' => SurepassSettings::environment(),
+                'configured' => SurepassSettings::isConfigured(),
+                'has_sandbox_token' => filled(SurepassSettings::sandboxToken()),
+                'has_production_token' => filled(SurepassSettings::productionToken()),
+                'masked_sandbox_token' => SurepassSettings::masked(SurepassSettings::sandboxToken()),
+                'masked_production_token' => SurepassSettings::masked(SurepassSettings::productionToken()),
+            ],
         ]);
     }
 
@@ -158,6 +168,40 @@ class SettingsController extends Controller
         }
 
         return back()->with('status', "Test email sent to {$data['test_email']}.");
+    }
+
+    /**
+     * Save the Surepass KYC verification tokens and which environment is active.
+     *
+     * A blank token means "keep what is stored" — same reasoning as `updateMail()`'s
+     * secret key: it is encrypted and never rendered back, so the field cannot be
+     * prefilled, and requiring it on every save would force a re-paste just to flip
+     * which environment is active.
+     */
+    public function updateSurepass(Request $request): RedirectResponse
+    {
+        $this->authorize('edit-module', 'settings');
+
+        $data = $request->validate([
+            'surepass_environment' => ['required', Rule::in([SurepassSettings::ENV_SANDBOX, SurepassSettings::ENV_PRODUCTION])],
+            'surepass_sandbox_token' => [SurepassSettings::sandboxToken() ? 'nullable' : 'required_if:surepass_environment,' . SurepassSettings::ENV_SANDBOX, 'string', 'max:2048'],
+            'surepass_production_token' => [SurepassSettings::productionToken() ? 'nullable' : 'required_if:surepass_environment,' . SurepassSettings::ENV_PRODUCTION, 'string', 'max:2048'],
+        ], [
+            'surepass_sandbox_token.required_if' => 'Enter the sandbox token before switching to it.',
+            'surepass_production_token.required_if' => 'Enter the production token before switching to it.',
+        ]);
+
+        if (filled($data['surepass_sandbox_token'] ?? null)) {
+            SurepassSettings::putSandboxToken(trim($data['surepass_sandbox_token']));
+        }
+
+        if (filled($data['surepass_production_token'] ?? null)) {
+            SurepassSettings::putProductionToken(trim($data['surepass_production_token']));
+        }
+
+        SurepassSettings::setEnvironment($data['surepass_environment']);
+
+        return back()->with('status', 'KYC verification settings saved.');
     }
 
     /** Toggle a single form field on/off. */

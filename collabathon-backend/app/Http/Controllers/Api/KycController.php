@@ -1,0 +1,46 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Services\AadhaarVerificationService;
+use App\Support\SurepassSettings;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+
+/**
+ * Document verification for the Complete Profile screen — Aadhaar today, PAN and GST
+ * once their endpoints are wired in the same way. Public, not `auth:sanctum`: this
+ * runs mid-registration, before a channel partner has an account or a token yet.
+ *
+ * Every method here answers with a 200 and a `status` field even when verification
+ * itself failed — a bad photo or an unreachable Surepass must not surface as a 422/500
+ * that blocks the form. Registration always proceeds either way; verification is a
+ * confidence signal on top of it, not a gate in front of it (see docs/KYC_VERIFICATION_PROVIDER_SETUP.md
+ * for why: Surepass has no uptime guarantee this app controls, so a hard gate here
+ * would let a third party's outage stop channel partners from signing up at all).
+ */
+class KycController extends Controller
+{
+    /**
+     * POST /api/v1/kyc/aadhaar/verify — photo of the physical Aadhaar card in, the
+     * card's own QR code decoded and checked against Surepass out.
+     */
+    public function verifyAadhaar(Request $request, AadhaarVerificationService $service): JsonResponse
+    {
+        $request->validate([
+            'aadhaar_photo' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
+        ]);
+
+        if (! SurepassSettings::isConfigured()) {
+            return response()->json([
+                'status' => 'unavailable',
+                'message' => 'Aadhaar verification is not configured yet. You can continue — this can be verified later.',
+            ]);
+        }
+
+        $result = $service->verifyFromImage($request->file('aadhaar_photo')->getRealPath());
+
+        return response()->json($result);
+    }
+}

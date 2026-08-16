@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DeveloperController;
+use App\Http\Controllers\Api\KycController;
 use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\MyPropertyController;
 use App\Http\Controllers\Api\PartnerController;
@@ -40,6 +41,11 @@ Route::prefix('v1')->group(function () {
         ->middleware('throttle:6,1');
     Route::post('auth/email-otp/verify', [AuthController::class, 'verifyEmailOtp'])
         ->middleware('throttle:15,1');
+
+    // Document verification during registration — see KycController's own docblock
+    // for why this is public rather than behind auth:sanctum.
+    Route::post('kyc/aadhaar/verify', [KycController::class, 'verifyAadhaar'])
+        ->middleware('throttle:10,1');
 
     // ---------------------------------------------------------------- authenticated
     Route::middleware('auth:sanctum')->group(function () {

@@ -102,6 +102,14 @@ class AuthController extends Controller
 
             'pan_card' => ['nullable', 'string', 'max:32'],
             'aadhaar_card' => ['nullable', 'string', 'max:32'],
+            // Set by the app after KycController::verifyAadhaar succeeded on the photo
+            // attached to this same request — not re-checked here. Trusting the client's
+            // report of an already-completed Surepass call is the same trust boundary
+            // pan_card/aadhaar_card above already sit on (both are typed by hand and
+            // unverified server-side); this is a strictly better signal than that, not a
+            // new one, and it's read-only informational for the admin, not a permission.
+            'aadhaar_verified' => ['nullable', 'boolean'],
+            'aadhaar_verified_name' => ['nullable', 'string', 'max:255'],
             'rera_number' => ['nullable', 'string', 'max:64'],
             'rera_certificate_expiry' => ['nullable', 'date'],
             'gst_number' => ['nullable', 'string', 'max:32'],
@@ -157,6 +165,8 @@ class AuthController extends Controller
                 'status' => User::STATUS_PENDING,
             ]);
 
+            $aadhaarVerified = (bool) ($data['aadhaar_verified'] ?? false);
+
             BrokerProfile::create(collect($data)->only([
                 'alternate_mobile', 'residence_address', 'is_company', 'company_name',
                 'office_address', 'company_website',
@@ -170,6 +180,12 @@ class AuthController extends Controller
                 'user_id' => $user->id,
                 'confirm_accuracy' => true,
                 'submitted_at' => now(),
+                'aadhaar_verified' => $aadhaarVerified,
+                // The name is only meaningful alongside a true verification — an
+                // unverified row carries no name, so a later once-verified check can't
+                // find a stale name left over from a rejected or never-attempted one.
+                'aadhaar_verified_name' => $aadhaarVerified ? ($data['aadhaar_verified_name'] ?? null) : null,
+                'aadhaar_verified_at' => $aadhaarVerified ? now() : null,
             ])->all());
 
             return $user;

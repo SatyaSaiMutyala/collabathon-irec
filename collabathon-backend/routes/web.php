@@ -145,6 +145,7 @@ Route::prefix('admin')
         });
         Route::patch('/settings/mail', [SettingsController::class, 'updateMail'])->name('settings.mail');
         Route::post('/settings/mail/test', [SettingsController::class, 'testMail'])->name('settings.mail.test');
+        Route::patch('/settings/surepass', [SettingsController::class, 'updateSurepass'])->name('settings.surepass');
 
         // Measurement units — the "Project extent metric" options.
         Route::prefix('settings/measurement-units')->name('settings.measurement-units.')->group(function () {

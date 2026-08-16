@@ -31,7 +31,16 @@
      */
     $documents = [
         ['label' => 'PAN card', 'number' => $profile?->pan_card, 'path' => $profile?->pan_card_path],
-        ['label' => 'Aadhaar card', 'number' => $profile?->aadhaar_card, 'path' => $profile?->aadhaar_path],
+        [
+            'label' => 'Aadhaar card',
+            'number' => $profile?->aadhaar_card,
+            'path' => $profile?->aadhaar_path,
+            // Checked against Surepass at registration time, not just typed in — see
+            // AadhaarVerificationService. Null/false alike read as unverified: today
+            // that covers both "never attempted" and "attempted, didn't match".
+            'verified' => (bool) $profile?->aadhaar_verified,
+            'verified_name' => $profile?->aadhaar_verified_name,
+        ],
         ['label' => 'RERA certificate', 'number' => $profile?->rera_number, 'path' => $profile?->rera_certificate_path],
         ['label' => 'GST certificate', 'number' => $profile?->gst_number, 'path' => $profile?->gst_path],
     ];
@@ -252,9 +261,24 @@
                         <li class="px-5 py-3">
                             <div class="flex items-start justify-between gap-3">
                                 <div class="min-w-0">
-                                    <p class="text-[12.5px] font-medium text-ink">{{ $doc['label'] }}</p>
+                                    <div class="flex items-center gap-1.5 flex-wrap">
+                                        <p class="text-[12.5px] font-medium text-ink">{{ $doc['label'] }}</p>
+                                        @if(array_key_exists('verified', $doc))
+                                            <x-badge :tone="$doc['verified'] ? 'success' : 'neutral'" size="sm" :dot="true">
+                                                {{ $doc['verified'] ? 'Verified' : 'Unverified' }}
+                                            </x-badge>
+                                        @endif
+                                    </div>
                                     @if(filled($doc['number']))
                                         <p class="text-[11.5px] text-ink-2 font-mono mt-0.5 break-all">{{ $doc['number'] }}</p>
+                                    @endif
+                                    {{-- Surepass's own answer for the name on the card — shown next to
+                                         whatever the broker typed elsewhere so an admin can eyeball a
+                                         mismatch without cross-referencing a separate screen. --}}
+                                    @if(($doc['verified'] ?? false) && filled($doc['verified_name'] ?? null))
+                                        <p class="text-[11px] text-success mt-0.5">
+                                            Matches: {{ $doc['verified_name'] }}
+                                        </p>
                                     @endif
                                 </div>
 
