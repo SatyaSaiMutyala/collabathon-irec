@@ -14,7 +14,7 @@
             ? 'Scoped to “' . $selectedProperty->name . '” — clear the listing filter to see every developer.'
             : 'Every developer, ranked by how many channel partners have requested their listings.'">
         <x-slot:actions>
-            <x-button variant="outline" icon="download">Export CSV</x-button>
+            <x-export-menu :export="$export" />
         </x-slot:actions>
     </x-page-header>
 

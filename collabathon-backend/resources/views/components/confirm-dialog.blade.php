@@ -15,7 +15,9 @@
               })">
 
     On accept the dialog calls form.submit(), which bypasses submit listeners — so the
-    handler above cannot re-fire and loop.
+    handler above cannot re-fire and loop. It also fires `navigate-start` on window,
+    the layout's cue to raise the page skeleton: the prevented submit that opened this
+    dialog deliberately does not raise it, or cancelling would strand it on screen.
 --}}
 
 <div x-data="confirmDialog()"
@@ -98,9 +100,13 @@
                         const form = this.form;
                         this.open = false;
                         this.form = null;
+                        if (!form) return;
+                        // The layout ignores the prevented submit that opened this dialog,
+                        // so the page skeleton has to be raised by hand for the real one.
+                        window.dispatchEvent(new CustomEvent('navigate-start'));
                         // .submit() skips submit listeners, so the dispatching handler
                         // that opened this dialog does not fire again.
-                        form?.submit();
+                        form.submit();
                     },
                 }));
             });

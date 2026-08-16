@@ -35,6 +35,11 @@ $paths = [
     'external' => '<path d="M14 4h6v6"/><path d="M20 4l-8.5 8.5"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
     'shield' => '<path d="M12 3l7 3v5.5c0 4.2-2.9 7.8-7 9-4.1-1.2-7-4.8-7-9V6l7-3Z"/><path d="M9 12l2 2 4-4"/>',
     'inbox' => '<path d="M4 13h4l1.5 2.5h5L16 13h4"/><path d="M4.5 13 6.8 5.6A1 1 0 0 1 7.8 5h8.4a1 1 0 0 1 1 .7L19.5 13v5a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-5Z"/>',
+    // A spreadsheet grid and a text document — the two export formats. `list` and
+    // `external` stood in for them and read as "a list" and "a link", which is not what
+    // an Excel/PDF choice is asking.
+    'sheet' => '<rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><path d="M3.5 9.5h17M3.5 14.5h17M9.5 9.5v10"/>',
+    'file-text' => '<path d="M13.5 3.5H7A1.5 1.5 0 0 0 5.5 5v14A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V8.5l-5-5Z"/><path d="M13.5 3.5V8a.5.5 0 0 0 .5.5h4.5"/><path d="M8.75 13h6.5M8.75 16.25h4"/>',
     'map-pin' => '<path d="M12 21s7-5.3 7-11a7 7 0 1 0-14 0c0 5.7 7 11 7 11Z"/><circle cx="12" cy="10" r="2.6"/>',
     'sparkles' => '<path d="M12 4l1.6 4.4L18 10l-4.4 1.6L12 16l-1.6-4.4L6 10l4.4-1.6L12 4Z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7.7-1.8Z"/>',
     'trending-up' => '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',

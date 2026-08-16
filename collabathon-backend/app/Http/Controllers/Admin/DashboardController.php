@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Concerns\ExportsList;
 use App\Http\Concerns\HandlesListQueries;
 use App\Http\Controllers\Controller;
 use App\Models\Developer;
@@ -12,10 +13,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class DashboardController extends Controller
 {
-    use HandlesListQueries;
+    use HandlesListQueries, ExportsList;
 
     /** A peek, not the full page's row count — "Open full page" is one click away. */
     protected function defaultPerPage(): int
@@ -23,16 +25,22 @@ class DashboardController extends Controller
         return 8;
     }
 
-    public function __invoke(Request $request): View
+    public function __invoke(Request $request): View|SymfonyResponse
     {
-        $developers = Developer::count();
-        $brokers = User::role(User::ROLE_BROKER)->status(User::STATUS_ACTIVE)->count();
-        $properties = Property::count();
-        $pending = User::role(User::ROLE_BROKER)->status(User::STATUS_PENDING)->count();
-        $matches = Lead::where('status', Lead::STATUS_ACCEPTED)->count();
-        // Same definition ActivityController::index() paginates — counted from the
-        // identical query so this tile and that page's total can never disagree.
-        $actions = ActivityController::baseQuery()->count();
+        // Same `?export=` convention every list screen uses, read before any of the page's
+        // own work — the export answers from the identical URL, so it carries whichever
+        // panel, search and filter the dashboard is currently showing.
+        if ($format = $this->exportFormat($request)) {
+            return $this->exportSectioned(
+                $format,
+                'dashboard',
+                'Dashboard' . ($request->query('panel') ? ' — ' . $this->panelMeta($request->query('panel'))['title'] : ''),
+                $this->exportSections($request),
+            );
+        }
+
+        ['developers' => $developers, 'brokers' => $brokers, 'properties' => $properties,
+            'pending' => $pending, 'matches' => $matches, 'actions' => $actions] = $this->counts();
 
         return view('admin.dashboard', [
             // Every tile drills into a row list scoped to that number, expanded inline
@@ -41,7 +49,7 @@ class DashboardController extends Controller
             // anything the peek doesn't cover. `color` tints only these six tiles (see
             // stat-card.blade.php) — every stat-card elsewhere in the app is untouched.
             'stats' => [
-                ['key' => 'developers', 'icon' => 'building', 'label' => 'Developers', 'value' => $developers,
+                ['key' => 'developers', 'icon' => 'building', 'label' => self::KPI_LABELS['developers'], 'value' => $developers,
                     'color' => 'info', 'route' => route('admin.dashboard', ['panel' => 'developers']) . '#panel',
                     'spark' => $this->weeklySeries(Developer::query())],
                 ['key' => 'brokers', 'icon' => 'users', 'label' => 'Active brokers', 'value' => $brokers,
@@ -92,12 +100,181 @@ class DashboardController extends Controller
 
     private const PANELS = ['developers', 'brokers', 'properties', 'pending', 'matches', 'actions'];
 
+    /** What each KPI tile is called, in the order the row renders them. */
+    private const KPI_LABELS = [
+        'developers' => 'Developers',
+        'brokers' => 'Active brokers',
+        'properties' => 'Listings',
+        'pending' => 'Pending approvals',
+        'matches' => 'Confirmed matches',
+        'actions' => 'Total actions',
+    ];
+
     /**
-     * Row data for whichever KPI tile is expanded below the KPI row, if any. Each
-     * branch reuses the exact same role/status scope its tile's count above is built
-     * from, so what a tile says and what its panel lists can never disagree. Search
-     * only — not the full filter set the dedicated page has, since this is a peek,
-     * not a replacement for that page (still one click away via "Open full page").
+     * The six figures on the KPI row, counted once and used by both the page and the
+     * export — a spreadsheet that disagrees with the screen it was exported from is worse
+     * than no spreadsheet.
+     *
+     * @return array<string,int>
+     */
+    private function counts(): array
+    {
+        return [
+            'developers' => Developer::count(),
+            'brokers' => User::role(User::ROLE_BROKER)->status(User::STATUS_ACTIVE)->count(),
+            'properties' => Property::count(),
+            'pending' => User::role(User::ROLE_BROKER)->status(User::STATUS_PENDING)->count(),
+            'matches' => Lead::where('status', Lead::STATUS_ACCEPTED)->count(),
+            // Same definition ActivityController::index() paginates — counted from the
+            // identical query so this tile and that page's total can never disagree.
+            'actions' => ActivityController::baseQuery()->count(),
+        ];
+    }
+
+    /**
+     * The dashboard is a set of small tables rather than one filtered list, so it builds
+     * its own sections and hands them to {@see ExportsList::exportSectioned()} instead of
+     * calling exportList() the way every other screen does. Same two formats, same file
+     * naming, same print sheet.
+     *
+     * Exports what is on screen: the summary always, plus the expanded panel's rows when
+     * a tile is open, honouring the same `search`/`status` the panel is showing.
+     *
+     * @return array<int,array{title:string,headings:array<int,string>,rows:array<int,array<int,string|int>>,note?:string}>
+     */
+    private function exportSections(Request $request): array
+    {
+        $funnel = $this->funnel();
+        [$viewed, $interested, $accepted] = array_map(fn ($stage) => $stage['value'], $funnel);
+
+        $summary = [];
+
+        foreach ($this->counts() as $key => $value) {
+            $summary[] = [self::KPI_LABELS[$key], $value];
+        }
+
+        foreach ($funnel as $stage) {
+            $summary[] = ['Interests — ' . $stage['stage'], $stage['value']];
+        }
+
+        // Percentages as text: a spreadsheet cell holding 62.5 and a cell holding "62.5%"
+        // are different claims, and this one is a rate, not a count to be summed.
+        $summary[] = ['Interest rate', $this->rate($interested, $viewed)];
+        $summary[] = ['Accept rate', $this->rate($accepted, $interested)];
+        $summary[] = ['Overall conversion', $this->rate($accepted, $viewed)];
+
+        $sections = [
+            [
+                'title' => 'Summary',
+                'headings' => ['Metric', 'Value'],
+                'rows' => $summary,
+            ],
+            [
+                'title' => 'Weekly engagement',
+                'headings' => ['Week starting', 'Views', 'Interests'],
+                'rows' => array_map(
+                    fn ($point) => [$point['label'], $point['views'], $point['interests']],
+                    $this->engagementTrend(),
+                ),
+            ],
+            [
+                'title' => 'Top listings',
+                'headings' => ['Listing', 'Developer', 'Interests'],
+                'rows' => array_map(
+                    fn ($row) => [$row['label'], $row['meta'] ?? '—', $row['value']],
+                    $this->topProperties(),
+                ),
+            ],
+        ];
+
+        if ($panel = $this->exportPanel($request)) {
+            $sections[] = $panel;
+        }
+
+        return $sections;
+    }
+
+    /**
+     * The expanded tile's rows, as their own section — the same query the panel on screen
+     * is showing, unpaginated, so the file matches the peek that prompted the export.
+     *
+     * @return array{title:string,headings:array<int,string>,rows:array<int,array<int,string|int>>,note?:string}|null
+     */
+    private function exportPanel(Request $request): ?array
+    {
+        $panel = $request->query('panel');
+
+        if (! in_array($panel, self::PANELS, true)) {
+            return null;
+        }
+
+        $meta = $this->panelMeta($panel);
+        $cap = $this->exportRowCap();
+        // One row over the cap, so "there was more" is a fact rather than a guess.
+        $rows = $this->panelQuery($panel, $request)->limit($cap + 1)->get();
+
+        $truncated = $rows->count() > $cap;
+        $rows = $rows->take($cap);
+
+        $date = fn ($value) => $value ? Carbon::parse($value)->format('d M Y') : '—';
+
+        [$headings, $mapped] = match ($meta['key']) {
+            'developers' => [
+                ['Company', 'Contact person', 'Email', 'Mobile', 'City', 'Status', 'Added'],
+                $rows->map(fn ($d) => [
+                    $d->company_name, $d->contact_person, $d->email, $d->mobile,
+                    $d->city ?: '—', ucfirst((string) $d->status), $date($d->created_at),
+                ])->all(),
+            ],
+            'properties' => [
+                ['Listing', 'Developer', 'City', 'Status', 'Interests', 'Added'],
+                $rows->map(fn ($p) => [
+                    $p->name, $p->developer?->company_name ?: '—', $p->city ?: '—',
+                    ucfirst(str_replace('_', ' ', (string) $p->listing_status)),
+                    (int) $p->interests_count, $date($p->created_at),
+                ])->all(),
+            ],
+            'activity' => [
+                ['When', 'Action', 'By', 'Subject'],
+                $rows->map(fn ($a) => [
+                    $a->occurred_at ? Carbon::parse($a->occurred_at)->format('d M Y, H:i') : '—',
+                    ActivityController::TYPES[$a->type]['label'] ?? $a->type,
+                    $a->actor_name ?: '—',
+                    $a->subject_name ?: '—',
+                ])->all(),
+            ],
+            // brokers and pending are the same record at two stages, so one mapping.
+            default => [
+                ['Name', 'Company', 'Email', 'Mobile', 'City', $meta['key'] === 'pending' ? 'Submitted' : 'Joined'],
+                $rows->map(fn ($u) => [
+                    $u->name, $u->brokerProfile?->company_name ?: 'Individual', $u->email,
+                    $u->mobile ?: '—', $u->brokerProfile?->city ?: '—', $date($u->created_at),
+                ])->all(),
+            ],
+        };
+
+        return array_filter([
+            'title' => $meta['title'],
+            'headings' => $headings,
+            'rows' => $mapped,
+            'note' => $truncated
+                ? 'Showing the first ' . number_format($cap) . ' rows in this panel — open the full page '
+                    . 'or narrow the search to capture the rest.'
+                : null,
+        ], fn ($value) => $value !== null);
+    }
+
+    private function rate(int $part, int $whole): string
+    {
+        return $whole > 0 ? number_format($part / $whole * 100, 1) . '%' : '—';
+    }
+
+    /**
+     * Row data for whichever KPI tile is expanded below the KPI row, if any.
+     *
+     * The heading and the query are split ({@see panelMeta()}, {@see panelQuery()})
+     * because the export needs the same rows without a paginator around them — one
+     * definition, so a filter that applies on screen cannot go missing from the file.
      */
     private function panel(Request $request): ?array
     {
@@ -107,100 +284,115 @@ class DashboardController extends Controller
             return null;
         }
 
-        $search = trim((string) $request->query('search', ''));
+        return $this->panelMeta($panel) + [
+            'rows' => $this->panelQuery($panel, $request)
+                ->paginate($this->perPage($request))
+                ->withQueryString(),
+        ];
+    }
 
+    /**
+     * Everything about a panel except its rows: what it is called, how it is tinted, and
+     * where "Open full page" goes.
+     *
+     * @return array<string,mixed>
+     */
+    private function panelMeta(string $panel): array
+    {
         return match ($panel) {
             'developers' => [
                 'key' => 'developers', 'title' => 'Developers', 'color' => 'info',
                 'subtitle' => 'Every developer company on the platform.',
                 'label' => 'developers', 'fullRoute' => route('admin.developers'),
                 'searchPlaceholder' => 'Search by company, contact or email…',
-                'rows' => Developer::query()
-                    ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
-                        ->where('company_name', 'like', "{$search}%")
-                        ->orWhere('contact_person', 'like', "{$search}%")
-                        ->orWhere('email', 'like', "{$search}%")))
-                    ->when($request->query('status'), fn ($q, $v) => $q->where('status', $v))
-                    ->latest()
-                    ->paginate($this->perPage($request))
-                    ->withQueryString(),
             ],
             'brokers' => [
                 'key' => 'brokers', 'title' => 'Active brokers', 'color' => 'primary',
                 'subtitle' => 'Channel partners already through approval.',
                 'label' => 'brokers', 'fullRoute' => route('admin.cp'),
                 'searchPlaceholder' => 'Search by name, company or email…',
-                'rows' => User::role(User::ROLE_BROKER)->status(User::STATUS_ACTIVE)
-                    ->with('brokerProfile:id,user_id,company_name,city,photo_path')
-                    ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
-                        ->where('name', 'like', "{$search}%")
-                        ->orWhere('email', 'like', "{$search}%")
-                        ->orWhereHas('brokerProfile', fn ($p) => $p
-                            ->where('company_name', 'like', "{$search}%"))))
-                    ->latest()
-                    ->paginate($this->perPage($request))
-                    ->withQueryString(),
             ],
             'properties' => [
                 'key' => 'properties', 'title' => 'Listings', 'color' => 'danger',
                 'subtitle' => 'Every project, live or not, across every developer.',
                 'label' => 'listings', 'fullRoute' => route('admin.properties'),
                 'searchPlaceholder' => 'Search by project name…',
-                'rows' => Property::query()
-                    ->with('developer:id,company_name')
-                    ->when($search !== '', fn ($q) => $q->where('name', 'like', "{$search}%"))
-                    ->when($request->query('status'), fn ($q, $v) => $q->where('listing_status', $v))
-                    ->latest()
-                    ->paginate($this->perPage($request))
-                    ->withQueryString(),
             ],
             'pending' => [
                 'key' => 'pending', 'title' => 'Pending approvals', 'color' => 'warning',
                 'subtitle' => 'Channel partners waiting on a decision.',
                 'label' => 'registrations', 'fullRoute' => route('admin.approvals'),
                 'searchPlaceholder' => 'Search by name, company or email…',
-                'rows' => User::role(User::ROLE_BROKER)->status(User::STATUS_PENDING)
-                    ->with('brokerProfile:id,user_id,company_name,city,photo_path')
-                    ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
-                        ->where('name', 'like', "{$search}%")
-                        ->orWhere('email', 'like', "{$search}%")
-                        ->orWhereHas('brokerProfile', fn ($p) => $p
-                            ->where('company_name', 'like', "{$search}%"))))
-                    ->latest()
-                    ->paginate($this->perPage($request))
-                    ->withQueryString(),
             ],
-            'matches', 'actions' => $this->activityPanel($panel, $search, $request),
+            // "Confirmed matches" and "Total actions" are the same feed, one type-filtered.
+            'matches', 'actions' => [
+                'key' => 'activity',
+                'title' => $panel === 'matches' ? 'Confirmed matches' : 'Total actions',
+                'color' => $panel === 'matches' ? 'success' : null,
+                'subtitle' => $panel === 'matches'
+                    ? 'Every interest a developer has accepted.'
+                    : 'Every recorded action across the platform.',
+                'label' => $panel === 'matches' ? 'matches' : 'actions',
+                'fullRoute' => route('admin.activity', $panel === 'matches' ? ['type' => 'lead_accepted'] : []),
+                'searchPlaceholder' => 'Search by person or project…',
+            ],
         };
     }
 
-    /** "Confirmed matches" and "Total actions" are the same feed, one type-filtered. */
-    private function activityPanel(string $panel, string $search, Request $request): array
+    /**
+     * The rows behind a panel, ordered but not yet paginated.
+     *
+     * Each branch reuses the exact same role/status scope its tile's count above is built
+     * from, so what a tile says and what its panel lists can never disagree. Search only —
+     * not the full filter set the dedicated page has, since this is a peek, not a
+     * replacement for that page (still one click away via "Open full page").
+     */
+    private function panelQuery(string $panel, Request $request)
     {
-        $type = $panel === 'matches' ? 'lead_accepted' : '';
+        $search = trim((string) $request->query('search', ''));
 
-        $rows = ActivityController::baseQuery()
-            ->when($type !== '', fn ($q) => $q->where('type', $type))
-            ->when($search !== '', fn ($q) => $q->where(fn ($qq) => $qq
-                ->where('actor_name', 'like', "%{$search}%")
-                ->orWhere('subject_name', 'like', "%{$search}%")))
-            ->orderByDesc('occurred_at')
-            ->orderByDesc('ref_id')
-            ->paginate($this->perPage($request))
-            ->withQueryString();
+        return match ($panel) {
+            'developers' => Developer::query()
+                ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
+                    ->where('company_name', 'like', "{$search}%")
+                    ->orWhere('contact_person', 'like', "{$search}%")
+                    ->orWhere('email', 'like', "{$search}%")))
+                ->when($request->query('status'), fn ($q, $v) => $q->where('status', $v))
+                ->latest(),
 
-        return [
-            'key' => 'activity',
-            'title' => $panel === 'matches' ? 'Confirmed matches' : 'Total actions',
-            'color' => $panel === 'matches' ? 'success' : null,
-            'subtitle' => $panel === 'matches'
-                ? 'Every interest a developer has accepted.'
-                : 'Every recorded action across the platform.',
-            'label' => $panel === 'matches' ? 'matches' : 'actions',
-            'fullRoute' => route('admin.activity', $type !== '' ? ['type' => $type] : []),
-            'searchPlaceholder' => 'Search by person or project…',
-            'rows' => $rows,
-        ];
+            'brokers' => User::role(User::ROLE_BROKER)->status(User::STATUS_ACTIVE)
+                ->with('brokerProfile:id,user_id,company_name,city,photo_path')
+                ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
+                    ->where('name', 'like', "{$search}%")
+                    ->orWhere('email', 'like', "{$search}%")
+                    ->orWhereHas('brokerProfile', fn ($p) => $p
+                        ->where('company_name', 'like', "{$search}%"))))
+                ->latest(),
+
+            'properties' => Property::query()
+                ->with('developer:id,company_name')
+                ->when($search !== '', fn ($q) => $q->where('name', 'like', "{$search}%"))
+                ->when($request->query('status'), fn ($q, $v) => $q->where('listing_status', $v))
+                ->latest(),
+
+            'pending' => User::role(User::ROLE_BROKER)->status(User::STATUS_PENDING)
+                ->with('brokerProfile:id,user_id,company_name,city,photo_path')
+                ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
+                    ->where('name', 'like', "{$search}%")
+                    ->orWhere('email', 'like', "{$search}%")
+                    ->orWhereHas('brokerProfile', fn ($p) => $p
+                        ->where('company_name', 'like', "{$search}%"))))
+                ->latest(),
+
+            'matches', 'actions' => ActivityController::baseQuery()
+                ->when($panel === 'matches', fn ($q) => $q->where('type', 'lead_accepted'))
+                ->when($search !== '', fn ($q) => $q->where(fn ($qq) => $qq
+                    ->where('actor_name', 'like', "%{$search}%")
+                    ->orWhere('subject_name', 'like', "%{$search}%")))
+                ->orderByDesc('occurred_at')
+                // Ties (same-second events) still need a stable order across pages.
+                ->orderByDesc('ref_id'),
+        };
     }
 
     /**

@@ -7,6 +7,53 @@
             <x-button variant="subtle" tag="a" icon="clock" href="{{ route('admin.approvals') }}">
                 Approval queue
             </x-button>
+
+            {{-- The one way a partner arrives here without passing through the approvals
+                 queue: a roster the admin has already vetted offline. --}}
+            <x-modal title="Bulk upload channel partners"
+                     subtitle="One row per partner. They land approved and able to sign in — KYC scans aren't part of the sheet, so add those on each partner's page afterward."
+                     width="max-w-lg"
+                     :open="$errors->any() && old('_form') === 'bulk-import'">
+                <x-slot:trigger>
+                    <x-button variant="outline" icon="upload">Bulk upload</x-button>
+                </x-slot:trigger>
+
+                <form method="POST" action="{{ route('admin.cp.bulk-import') }}"
+                      enctype="multipart/form-data" class="space-y-4">
+                    @csrf
+                    <input type="hidden" name="_form" value="bulk-import">
+
+                    {{-- The template download is a button, not a link inside the sentence:
+                         it is the first thing to do here, and a client reading the panel
+                         should not have to find it inside a paragraph. --}}
+                    <div class="rounded-lg bg-canvas border border-line px-3.5 py-3">
+                        <p class="text-[12.5px] text-ink-2 leading-relaxed">
+                            Start from the template so the column names match exactly.
+                            <span class="text-ink-3">Name, email and a 10-digit mobile are required per row;
+                                everything else is optional. Categories and zones take several values in one
+                                cell, separated by <span class="font-mono">|</span>.</span>
+                        </p>
+
+                        {{-- `download` is load-bearing, not decoration: the layout's click
+                             handler puts the page into its loading skeleton for any link
+                             without it, and a file download fires no pageshow to clear it
+                             again — the panel would sit there pretending to navigate. --}}
+                        <x-button variant="outline" size="sm" tag="a" icon="download" class="mt-3" download
+                                  href="{{ route('admin.cp.bulk-import.template') }}">
+                            Download CSV template
+                        </x-button>
+                    </div>
+
+                    <x-file-field label="CSV file" name="file" accept=".csv,text/csv" required
+                                  hint="Exported from Excel/Sheets as CSV — .xlsx is not read directly." />
+
+                    <x-button variant="gold" tag="button" type="submit" icon="upload" class="w-full">
+                        Upload &amp; create
+                    </x-button>
+                </form>
+            </x-modal>
+
+            <x-export-menu :export="$export" />
         </x-slot:actions>
     </x-page-header>
 

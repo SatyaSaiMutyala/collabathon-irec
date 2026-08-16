@@ -678,6 +678,18 @@ window.nearbyPlacesFinder = nearbyPlacesFinder;
         const link = event.target.closest('a[href]');
         if (!link || !isDashboardUrl(link.href)) return;
 
+        // Not every dashboard-shaped link is a panel to fetch. The export menu's two
+        // items point at this same /admin/dashboard path with `?export=` on it, and
+        // fetching those swallowed the response into the panel area instead of letting
+        // the browser download the CSV / open the print view — the export looked dead.
+        // `download` and `target=_blank` are precisely the two markers for that, and are
+        // the same pair admin.blade.php's own click handler skips.
+        if (link.hasAttribute('download') || link.target === '_blank') return;
+
+        // A modifier click means "open this somewhere else", which a fetch cannot honour.
+        if (event.defaultPrevented || event.metaKey || event.ctrlKey
+            || event.shiftKey || event.altKey || event.button !== 0) return;
+
         event.preventDefault();
         loadPanel(link.href);
     }, true);

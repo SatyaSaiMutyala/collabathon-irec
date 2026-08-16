@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Concerns\ExportsList;
 use App\Http\Concerns\HandlesListQueries;
 use App\Http\Controllers\Controller;
 use App\Models\Developer;
@@ -27,7 +28,7 @@ use Illuminate\View\View;
  */
 class LeadController extends Controller
 {
-    use HandlesListQueries;
+    use HandlesListQueries, ExportsList;
 
     protected function defaultPerPage(): int
     {
@@ -102,7 +103,7 @@ class LeadController extends Controller
     }
 
     /** Tier 1 — every developer with a request funnel, ranked by volume. */
-    public function index(Request $request): View
+    public function index(Request $request): View|\Symfony\Component\HttpFoundation\Response
     {
         $propertyId = $request->query('property_id');
         $search = trim((string) $request->query('search', ''));
@@ -119,8 +120,21 @@ class LeadController extends Controller
 
         $this->withLeadCounts($developers, 'developer_id', 'developers.id', $propertyId);
 
+        $developers->orderByDesc('requests_count');
+
+        $grouped = $this->exportColumns();
+
+        if ($format = $this->exportFormat($request)) {
+            $title = 'Lead requests by developer';
+            if ($propertyId && $name = Property::whereKey($propertyId)->value('name')) {
+                $title .= ' — ' . $name;
+            }
+
+            return $this->exportList($format, $developers, 'lead-requests', $title,
+                $this->flattenGroupedColumns($grouped), $request);
+        }
+
         $developers = $developers
-            ->orderByDesc('requests_count')
             ->paginate($this->perPage($request))
             ->withQueryString();
 
@@ -133,7 +147,29 @@ class LeadController extends Controller
             'stats' => $this->funnelStats($leadsForCounts),
             'trend' => $this->requestTrend($propertyId),
             'topDevelopers' => $this->topDevelopers($propertyId),
+            'export' => [
+                'groups' => $this->exportGroupLabels($grouped),
+                'templates' => [],
+            ],
         ]);
+    }
+
+    /**
+     * Exportable columns for the developer funnel, grouped for the picker.
+     *
+     * @return array<string,array<string,array{0:string,1:callable}>>
+     */
+    private function exportColumns(): array
+    {
+        return [
+            'Funnel' => [
+                'developer' => ['Developer', fn (Developer $d) => $d->company_name],
+                'requests' => ['Requests', fn (Developer $d) => (int) $d->requests_count],
+                'accepted' => ['Accepted', fn (Developer $d) => (int) $d->accepted_count],
+                'pending' => ['Pending', fn (Developer $d) => (int) $d->pending_count],
+                'declined' => ['Declined', fn (Developer $d) => (int) $d->declined_count],
+            ],
+        ];
     }
 
     /** Tier 2 — one developer's projects, each with the same funnel. */

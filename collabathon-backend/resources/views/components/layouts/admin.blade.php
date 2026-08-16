@@ -113,11 +113,23 @@ $toneClasses = [
           if (a.href === window.location.href) return;
           navigating = true;
       "
-      x-on:submit.capture="
+      {{--
+          Bubble phase here, unlike the click above: a form may cancel its own submit
+          to open a confirm dialog or to report a problem with the upload, and
+          `defaultPrevented` only means anything once the form's own handler has run.
+          Read in capture phase it is always false, which put the skeleton up over the
+          confirm dialog and then left it up for good when the dialog was cancelled —
+          no navigation was ever coming to clear it.
+
+          Anything that goes on to submit the form programmatically raises the flag
+          itself with `navigate-start`, since form.submit() fires no submit event.
+      --}}
+      x-on:submit="
           if (!$event.defaultPrevented && $event.target.getAttribute('method')?.toLowerCase() !== 'dialog') {
               navigating = true;
           }
       "
+      x-on:navigate-start.window="navigating = true"
       {{-- Restored from bfcache the document is reused, so clear the flag by hand. --}}
       x-on:pageshow.window="navigating = false">
 

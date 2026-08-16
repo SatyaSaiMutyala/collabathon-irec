@@ -207,6 +207,9 @@
                   }
 
                   this.saving = true;
+                  // form.submit() fires no submit event, so the layout's page skeleton
+                  // has to be asked for directly.
+                  window.dispatchEvent(new CustomEvent('navigate-start'));
                   form.submit();
 
                   // Safety net: if the navigation is blocked for any reason, hand the buttons

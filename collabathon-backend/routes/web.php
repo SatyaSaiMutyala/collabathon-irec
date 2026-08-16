@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\LeadController;
 use App\Http\Controllers\Admin\LocationController;
 use App\Http\Controllers\Admin\MeasurementUnitController;
 use App\Http\Controllers\Admin\NearbyPlacesController;
+use App\Http\Controllers\Admin\PasswordResetController;
 use App\Http\Controllers\Admin\ProjectTypeController;
 use App\Http\Controllers\Admin\PropertyController;
 use App\Http\Controllers\Admin\RoleController;
@@ -34,6 +35,27 @@ Route::get('/', fn () => redirect()->to(
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'show'])->name('login');
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
+
+    // Forgot password: email -> emailed 4-digit code -> new password. The three steps are
+    // chained through the session rather than a token in the URL, so each POST is only
+    // meaningful to the browser that started the flow — see PasswordResetController.
+    Route::get('/forgot-password', [PasswordResetController::class, 'showRequest'])->name('password.request');
+    // Tighter than login's 10/min: every accepted request sends an email to an address
+    // the sender chose, so the limit is what stops this being a way to spam an inbox.
+    Route::post('/forgot-password', [PasswordResetController::class, 'sendCode'])
+        ->middleware('throttle:5,1')->name('password.email');
+    Route::post('/forgot-password/resend', [PasswordResetController::class, 'resend'])
+        ->middleware('throttle:5,1')->name('password.resend');
+
+    Route::get('/forgot-password/verify', [PasswordResetController::class, 'showVerify'])->name('password.verify');
+    // Per-challenge guessing is already capped by PasswordResetOtp::MAX_ATTEMPTS; this
+    // caps the rate across challenges, so requesting new codes doesn't buy more guesses.
+    Route::post('/forgot-password/verify', [PasswordResetController::class, 'verify'])
+        ->middleware('throttle:10,1')->name('password.verify.store');
+
+    Route::get('/reset-password', [PasswordResetController::class, 'showReset'])->name('password.reset');
+    Route::post('/reset-password', [PasswordResetController::class, 'reset'])
+        ->middleware('throttle:10,1')->name('password.update');
 });
 
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
@@ -80,6 +102,10 @@ Route::prefix('admin')
 
         Route::get('/cp', [ChannelPartnerController::class, 'index'])->name('cp')
             ->middleware("can:view-module,'cp'");
+        Route::get('/cp/bulk-import/template', [ChannelPartnerController::class, 'bulkImportTemplate'])
+            ->name('cp.bulk-import.template')->middleware("can:view-module,'cp'");
+        Route::post('/cp/bulk-import', [ChannelPartnerController::class, 'bulkImport'])
+            ->name('cp.bulk-import');
 
         // Address lookup behind the developer form's "find on map" control.
         Route::get('/geocode', GeocodeController::class)->name('geocode');

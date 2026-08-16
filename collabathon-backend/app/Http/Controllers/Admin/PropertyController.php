@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Concerns\ExportsList;
 use App\Http\Concerns\HandlesListQueries;
 use App\Http\Controllers\Controller;
 use App\Mail\ProjectAssignedMail;
@@ -34,7 +35,7 @@ use Illuminate\View\View;
 
 class PropertyController extends Controller
 {
-    use HandlesListQueries;
+    use HandlesListQueries, ExportsList;
 
     protected function defaultPerPage(): int
     {
@@ -77,7 +78,7 @@ class PropertyController extends Controller
         // uncollected field would be blanked on each edit rather than simply left alone.
     ];
 
-    public function index(Request $request): View
+    public function index(Request $request): View|\Symfony\Component\HttpFoundation\Response
     {
         $query = Property::query()
             ->with('developer:id,company_name,logo_path')
@@ -87,6 +88,13 @@ class PropertyController extends Controller
             ]));
 
         $query = $this->applySort($query, $request, self::SORTABLE);
+
+        $grouped = $this->exportColumns();
+
+        if ($format = $this->exportFormat($request)) {
+            return $this->exportList($format, $query, 'listings', 'Listings',
+                $this->flattenGroupedColumns($grouped), $request);
+        }
 
         // One grouped query for the header tiles rather than four COUNT(*) round trips.
         $counts = Property::selectRaw('COUNT(*) as total')
@@ -111,7 +119,68 @@ class PropertyController extends Controller
                 'awaiting' => (int) $counts->awaiting,
                 'declined' => (int) $counts->declined,
             ],
+            'export' => [
+                'groups' => $this->exportGroupLabels($grouped),
+                'templates' => $this->exportTemplates(),
+            ],
         ]);
+    }
+
+    /**
+     * Exportable columns, grouped for the picker: group label => key => [label, getter].
+     * Flattened for the export by {@see \App\Http\Concerns\ExportsList}, in this order.
+     *
+     * @return array<string,array<string,array{0:string,1:callable}>>
+     */
+    private function exportColumns(): array
+    {
+        return [
+            'Listing' => [
+                'name' => ['Listing', fn (Property $p) => $p->name],
+                'developer' => ['Developer', fn (Property $p) => $p->developer?->company_name],
+                'type' => ['Type', fn (Property $p) => $p->project_type],
+                'project_status' => ['Project status', fn (Property $p) => $p->project_status],
+                'listing_status' => ['Listing status', fn (Property $p) => ucfirst((string) $p->listing_status)],
+                'developer_status' => ['Developer status', fn (Property $p) => ucfirst((string) $p->developer_status)],
+                'rera_number' => ['RERA number', fn (Property $p) => $p->rera_number],
+            ],
+            'Location' => [
+                'city' => ['City', fn (Property $p) => $p->city],
+                'state' => ['State', fn (Property $p) => $p->state],
+                'locality' => ['Locality', fn (Property $p) => $p->locality],
+                'pincode' => ['Pincode', fn (Property $p) => $p->pincode],
+            ],
+            'Pricing' => [
+                'price_min' => ['Price min', fn (Property $p) => $p->price_min],
+                'price_max' => ['Price max', fn (Property $p) => $p->price_max],
+                'price_per_sqft' => ['Price / sqft', fn (Property $p) => $p->price_per_sqft],
+                'currency' => ['Currency', fn (Property $p) => $p->currency],
+            ],
+            'Scale' => [
+                'total_units' => ['Total units', fn (Property $p) => $p->total_units],
+                'towers' => ['Towers', fn (Property $p) => $p->towers],
+                'possession_date' => ['Possession', fn (Property $p) => $p->possession_date?->format('Y-m-d')],
+            ],
+            'Engagement' => [
+                'views' => ['Views', fn (Property $p) => $p->views_count],
+                'interests' => ['Interests', fn (Property $p) => $p->interests_count],
+                'created' => ['Created', fn (Property $p) => $p->created_at?->format('Y-m-d')],
+            ],
+        ];
+    }
+
+    /**
+     * Named starting points for the picker; Select all / Deselect all are always offered too.
+     *
+     * @return array<string,array<int,string>>
+     */
+    private function exportTemplates(): array
+    {
+        return [
+            'Standard' => ['name', 'developer', 'city', 'type', 'listing_status', 'developer_status', 'created'],
+            'Pricing' => ['name', 'developer', 'price_min', 'price_max', 'price_per_sqft', 'currency'],
+            'Engagement' => ['name', 'developer', 'views', 'interests', 'listing_status'],
+        ];
     }
 
     /** The nine-step intake form — one form, one POST. */
@@ -290,9 +359,18 @@ class PropertyController extends Controller
 
         $request->validate([
             'file' => ['required', 'file', 'mimes:csv,txt', 'max:5120'],
+        ], [
+            'file.required' => 'Choose the filled-in CSV file first.',
+            'file.mimes' => 'That is not a CSV file. In Excel or Google Sheets use '
+                . '"Save as"/"Download" and pick CSV — an .xlsx is not read directly.',
+            'file.max' => 'That file is over 5 MB. Split it into a few smaller sheets and upload them one by one.',
         ]);
 
-        $rows = CsvReader::rows($request->file('file'));
+        // The columns a listing cannot be created without — checked as a header before any
+        // row is read, so the wrong sheet fails once instead of on every row.
+        $rows = CsvReader::rows($request->file('file'), [
+            'developer', 'name', 'project_type', 'project_status', 'city', 'price_min',
+        ]);
 
         $results = [];
 

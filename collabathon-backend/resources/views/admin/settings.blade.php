@@ -139,7 +139,7 @@ $openTab = in_array(request()->query('tab'), array_column($tabs, 'key'), true)
 
                             <form method="POST" action="{{ route('admin.settings.locations.countries.destroy', $country) }}"
                                   x-data
-                                  @submit.prevent="if (confirm('Delete “{{ $country->name }}”? Its states and cities go too.')) $el.submit()">
+                                  @submit.prevent="if (confirm('Delete “{{ $country->name }}”? Its states and cities go too.')) { window.dispatchEvent(new CustomEvent('navigate-start')); $el.submit() }">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="text-ink-3 hover:text-danger p-1" aria-label="Delete {{ $country->name }}">
                                     <x-icon name="x" class="w-3.5 h-3.5" />
@@ -179,7 +179,7 @@ $openTab = in_array(request()->query('tab'), array_column($tabs, 'key'), true)
 
                             <form method="POST" action="{{ route('admin.settings.locations.states.destroy', $state) }}"
                                   x-data
-                                  @submit.prevent="if (confirm('Delete “{{ $state->name }}”? Its cities go too.')) $el.submit()">
+                                  @submit.prevent="if (confirm('Delete “{{ $state->name }}”? Its cities go too.')) { window.dispatchEvent(new CustomEvent('navigate-start')); $el.submit() }">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="text-ink-3 hover:text-danger p-1" aria-label="Delete {{ $state->name }}">
                                     <x-icon name="x" class="w-3.5 h-3.5" />
@@ -216,7 +216,7 @@ $openTab = in_array(request()->query('tab'), array_column($tabs, 'key'), true)
 
                             <form method="POST" action="{{ route('admin.settings.locations.cities.destroy', $city) }}"
                                   x-data
-                                  @submit.prevent="if (confirm('Delete “{{ $city->name }}”?')) $el.submit()">
+                                  @submit.prevent="if (confirm('Delete “{{ $city->name }}”?')) { window.dispatchEvent(new CustomEvent('navigate-start')); $el.submit() }">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="text-ink-3 hover:text-danger p-1" aria-label="Delete {{ $city->name }}">
                                     <x-icon name="x" class="w-3.5 h-3.5" />

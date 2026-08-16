@@ -39,7 +39,9 @@ $conversionRings = [
         title="Dashboard"
         subtitle="Platform activity across every developer, channel partner and listing on iREC.">
         <x-slot:actions>
-            <x-button variant="outline" icon="download">Export</x-button>
+            {{-- Carries the current URL, so an open KPI panel (and its search) exports
+                 alongside the summary — see DashboardController::exportSections(). --}}
+            <x-export-menu />
         </x-slot:actions>
     </x-page-header>
 

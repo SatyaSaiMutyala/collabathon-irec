@@ -1,12 +1,15 @@
-{{-- Shared by both DeveloperController::bulkImport() and PropertyController::bulkImport()
-     — `type` ('developers'|'properties') is the only thing that varies between them, so
-     this stays one view instead of two near-identical copies. --}}
+{{-- Shared by the developers, listings and channel-partner imports — `type`
+     ('developers'|'properties'|'cp') is the only thing that varies between them, so this
+     stays one view instead of three near-identical copies. `label` is the human wording
+     for the back link, needed once `cp` arrived and "Back to cp" stopped reading as
+     English; it defaults to the type the other two already read well as. --}}
+@php $label ??= $type; @endphp
 <x-layouts.admin :active="$type" title="Bulk upload result" section="Manage">
 
     <a href="{{ route('admin.' . $type) }}"
        class="inline-flex items-center gap-1.5 text-[12.5px] text-ink-2 hover:text-ink transition-colors mb-4">
         <x-icon name="chevron-left" class="w-4 h-4" />
-        Back to {{ $type }}
+        Back to {{ $label }}
     </a>
 
     <x-page-header title="Bulk upload result"
@@ -46,6 +49,14 @@
                                 <a href="{{ route('admin.properties.show', $row['property_id']) }}"
                                    class="inline-flex items-center gap-1 text-[12px] text-primary hover:underline mt-1">
                                     Open &amp; add images <x-icon name="external" class="w-3 h-3" />
+                                </a>
+                            @endif
+                            {{-- Same page the roster and the approvals queue open — where the
+                                 KYC scans a spreadsheet can't carry get attached. --}}
+                            @if(isset($row['partner_id']))
+                                <a href="{{ route('admin.approvals.show', $row['partner_id']) }}"
+                                   class="inline-flex items-center gap-1 text-[12px] text-primary hover:underline mt-1">
+                                    Open &amp; add documents <x-icon name="external" class="w-3 h-3" />
                                 </a>
                             @endif
                         @else

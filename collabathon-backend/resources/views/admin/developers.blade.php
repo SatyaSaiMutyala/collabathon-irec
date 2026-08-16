@@ -36,7 +36,10 @@
                           busy = true;
                           Promise.resolve(window.compressFileInputs?.($el))
                               .catch((error) => console.error('Logo compression failed; uploading original.', error))
-                              .finally(() => $el.submit());
+                              .finally(() => {
+                                  window.dispatchEvent(new CustomEvent('navigate-start'));
+                                  $el.submit();
+                              });
                       ">
                     @csrf
 
@@ -159,15 +162,19 @@
                     @csrf
                     <input type="hidden" name="_form" value="bulk-import">
 
-                    <div class="flex items-start gap-2.5 rounded-lg bg-canvas border border-line px-3.5 py-3">
-                        <x-icon name="download" class="w-4 h-4 text-ink-3 shrink-0 mt-0.5" />
+                    {{-- Button rather than a link inside the sentence — see the note on the
+                         matching block in cp.blade.php. --}}
+                    <div class="rounded-lg bg-canvas border border-line px-3.5 py-3">
                         <p class="text-[12.5px] text-ink-2 leading-relaxed">
-                            Start from the template so the column names match exactly —
-                            <a href="{{ route('admin.developers.bulk-import.template') }}"
-                               class="text-primary-dark hover:underline font-medium">download it here</a>.
+                            Start from the template so the column names match exactly.
                             <span class="text-ink-3">Company name, contact person, email, mobile and city are
                                 required per row; everything else is optional.</span>
                         </p>
+
+                        <x-button variant="outline" size="sm" tag="a" icon="download" class="mt-3" download
+                                  href="{{ route('admin.developers.bulk-import.template') }}">
+                            Download CSV template
+                        </x-button>
                     </div>
 
                     <x-file-field label="CSV file" name="file" accept=".csv,text/csv" required
@@ -178,6 +185,8 @@
                     </x-button>
                 </form>
             </x-modal>
+
+            <x-export-menu :export="$export" />
         </x-slot:actions>
     </x-page-header>
 

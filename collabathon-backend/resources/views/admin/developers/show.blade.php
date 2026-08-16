@@ -386,7 +386,10 @@
                       busy = true;
                       Promise.resolve(window.compressFileInputs?.($el))
                           .catch((error) => console.error('Logo compression failed; uploading original.', error))
-                          .finally(() => $el.submit());
+                          .finally(() => {
+                              window.dispatchEvent(new CustomEvent('navigate-start'));
+                              $el.submit();
+                          });
                   ">
                 @csrf @method('PATCH')
                 <input type="hidden" name="_form" value="developer-edit">

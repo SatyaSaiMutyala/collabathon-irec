@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Developer;
+use App\Models\Lead;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,7 +21,15 @@ class AuthController extends Controller
             return redirect()->route('admin.dashboard');
         }
 
-        return view('auth.login');
+        // Live figures for the brand-panel stats — same definitions the dashboard uses:
+        // active channel partners, all developer accounts, every lead on record.
+        return view('auth.login', [
+            'stats' => [
+                ['value' => User::role(User::ROLE_BROKER)->status(User::STATUS_ACTIVE)->count(), 'label' => 'Channel Partners'],
+                ['value' => Developer::count(), 'label' => 'Developers'],
+                ['value' => Lead::count(), 'label' => 'Leads tracked'],
+            ],
+        ]);
     }
 
     public function login(Request $request): RedirectResponse

@@ -20,10 +20,10 @@
                 </p>
 
                 <div class="flex items-center gap-8 mt-10 pt-8 border-t border-nav-line">
-                    @foreach([['58', 'Channel Partners'], ['5', 'Developers'], ['640', 'Leads tracked']] as [$value, $label])
+                    @foreach($stats as $stat)
                         <div>
-                            <p class="text-white text-[20px] font-semibold leading-none">{{ $value }}</p>
-                            <p class="text-nav-text-3 text-[11.5px] mt-1.5">{{ $label }}</p>
+                            <p class="text-white text-[20px] font-semibold leading-none">{{ number_format($stat['value']) }}</p>
+                            <p class="text-nav-text-3 text-[11.5px] mt-1.5">{{ $stat['label'] }}</p>
                         </div>
                     @endforeach
                 </div>
@@ -48,6 +48,16 @@
                     <p class="text-[13px] text-ink-2 mt-1.5">Sign in to manage developers, channel partners and projects.</p>
                 </div>
 
+                {{-- Set by PasswordResetController::reset(), which lands here after a
+                     successful reset so the outcome is confirmed on the page being asked
+                     for the new password. --}}
+                @if(session('status'))
+                    <div class="flex items-start gap-2.5 rounded-lg bg-success-soft ring-1 ring-inset ring-success-ring px-3.5 py-3 mb-4">
+                        <x-icon name="check" class="w-4 h-4 text-success shrink-0 mt-0.5" />
+                        <p class="text-[12.5px] text-ink-2 leading-relaxed">{{ session('status') }}</p>
+                    </div>
+                @endif
+
                 @if($errors->any())
                     <div class="flex items-start gap-2.5 rounded-lg bg-danger-soft ring-1 ring-inset ring-danger-ring px-3.5 py-3 mb-4">
                         <x-icon name="x" class="w-4 h-4 text-danger shrink-0 mt-0.5" />
@@ -69,7 +79,7 @@
                     <div>
                         <div class="flex items-center justify-between mb-1.5">
                             <label for="password" class="text-[12.5px] font-medium text-ink">Password</label>
-                            <a href="#" class="text-[11.5px] text-primary-dark hover:underline">Forgot?</a>
+                            <a href="{{ route('password.request') }}" class="text-[11.5px] text-primary-dark hover:underline">Forgot?</a>
                         </div>
                         <div class="relative">
                             <x-icon name="lock" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-3 pointer-events-none" />

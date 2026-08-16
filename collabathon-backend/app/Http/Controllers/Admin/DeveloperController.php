@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Concerns\ExportsList;
 use App\Http\Concerns\HandlesListQueries;
 use App\Http\Controllers\Controller;
 use App\Models\Developer;
@@ -20,7 +21,7 @@ use Illuminate\View\View;
 
 class DeveloperController extends Controller
 {
-    use HandlesListQueries;
+    use HandlesListQueries, ExportsList;
 
     protected function defaultPerPage(): int
     {
@@ -37,7 +38,7 @@ class DeveloperController extends Controller
     /** How many of a developer's projects the profile lists before linking out. */
     private const PROJECTS_ON_PROFILE = 8;
 
-    public function index(Request $request): View
+    public function index(Request $request): View|\Symfony\Component\HttpFoundation\Response
     {
         $query = Developer::query()
             // The row menu shares the login email — eager-loaded to keep the list at
@@ -55,6 +56,13 @@ class DeveloperController extends Controller
             ->when($request->query('status'), fn ($q, $v) => $q->where('status', $v));
 
         $query = $this->applySort($query, $request, self::SORTABLE);
+
+        $grouped = $this->exportColumns();
+
+        if ($format = $this->exportFormat($request)) {
+            return $this->exportList($format, $query, 'developers', 'Developers',
+                $this->flattenGroupedColumns($grouped), $request);
+        }
 
         return view('admin.developers', [
             'developers' => $this->paginate($query, $request),
@@ -75,7 +83,75 @@ class DeveloperController extends Controller
                 'states' => Developer::distinct()->whereNotNull('state')->count('state'),
                 'cities' => Developer::distinct()->whereNotNull('city')->count('city'),
             ],
+            'export' => [
+                'groups' => $this->exportGroupLabels($grouped),
+                'templates' => $this->exportTemplates(),
+            ],
         ]);
+    }
+
+    /**
+     * Exportable columns, grouped for the picker: group label => key => [label, getter].
+     * Flattened for the export by {@see \App\Http\Concerns\ExportsList}, in this order.
+     *
+     * @return array<string,array<string,array{0:string,1:callable}>>
+     */
+    private function exportColumns(): array
+    {
+        return [
+            'Company' => [
+                'company' => ['Company', fn (Developer $d) => $d->company_name],
+                'website' => ['Website', fn (Developer $d) => $d->website],
+                'rera_number' => ['RERA number', fn (Developer $d) => $d->rera_number],
+                'verified' => ['Verified', fn (Developer $d) => $d->verified === null ? null : ($d->verified ? 'Yes' : 'No')],
+                'status' => ['Status', fn (Developer $d) => ucfirst((string) $d->status)],
+            ],
+            'Contact' => [
+                'contact_person' => ['Contact person', fn (Developer $d) => $d->contact_person],
+                'contact_designation' => ['Designation', fn (Developer $d) => $d->contact_designation],
+                'email' => ['Email', fn (Developer $d) => $d->email ?: $d->user?->email],
+                'mobile' => ['Mobile', fn (Developer $d) => $d->mobile],
+            ],
+            'Key contact' => [
+                'key_contact_person' => ['Key contact', fn (Developer $d) => $d->key_contact_person],
+                'key_contact_designation' => ['Key designation', fn (Developer $d) => $d->key_contact_designation],
+                'key_contact_mobile' => ['Key mobile', fn (Developer $d) => $d->key_contact_mobile],
+                'key_contact_email' => ['Key email', fn (Developer $d) => $d->key_contact_email],
+            ],
+            'Location' => [
+                'city' => ['City', fn (Developer $d) => $d->city],
+                'state' => ['State', fn (Developer $d) => $d->state],
+                'country' => ['Country', fn (Developer $d) => $d->country],
+                'pincode' => ['Pincode', fn (Developer $d) => $d->pincode],
+                'address' => ['Address', fn (Developer $d) => $d->address],
+            ],
+            'Commercial' => [
+                'payout' => ['CP payout %', fn (Developer $d) => $d->cp_payout_percent !== null ? $d->cp_payout_percent . '%' : null],
+                'listings' => ['Listings', fn (Developer $d) => $d->properties_count],
+                'created' => ['Created', fn (Developer $d) => $d->created_at?->format('Y-m-d')],
+            ],
+            'Social' => [
+                'instagram' => ['Instagram', fn (Developer $d) => $d->instagram],
+                'facebook' => ['Facebook', fn (Developer $d) => $d->facebook],
+                'youtube' => ['YouTube', fn (Developer $d) => $d->youtube],
+                'twitter' => ['Twitter', fn (Developer $d) => $d->twitter],
+                'linkedin' => ['LinkedIn', fn (Developer $d) => $d->linkedin],
+            ],
+        ];
+    }
+
+    /**
+     * Named starting points for the picker; Select all / Deselect all are always offered too.
+     *
+     * @return array<string,array<int,string>>
+     */
+    private function exportTemplates(): array
+    {
+        return [
+            'Standard' => ['company', 'contact_person', 'email', 'mobile', 'city', 'country', 'status', 'listings'],
+            'Contact' => ['company', 'contact_person', 'contact_designation', 'email', 'mobile'],
+            'Commercial' => ['company', 'payout', 'listings', 'status', 'created'],
+        ];
     }
 
     /** The full record behind a row: company, login, commercial terms and activity. */
@@ -261,9 +337,18 @@ class DeveloperController extends Controller
 
         $request->validate([
             'file' => ['required', 'file', 'mimes:csv,txt', 'max:5120'],
+        ], [
+            'file.required' => 'Choose the filled-in CSV file first.',
+            'file.mimes' => 'That is not a CSV file. In Excel or Google Sheets use '
+                . '"Save as"/"Download" and pick CSV — an .xlsx is not read directly.',
+            'file.max' => 'That file is over 5 MB. Split it into a few smaller sheets and upload them one by one.',
         ]);
 
-        $rows = CsvReader::rows($request->file('file'));
+        // The columns a developer cannot be created without — checked as a header before
+        // any row is read, so the wrong sheet fails once instead of on every row.
+        $rows = CsvReader::rows($request->file('file'), [
+            'company_name', 'contact_person', 'email', 'mobile', 'city',
+        ]);
 
         $results = [];
 
