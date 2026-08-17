@@ -320,7 +320,7 @@ class PropertyController extends Controller
 
         $columns = [
             'developer', 'name', 'project_type', 'project_status',
-            'tagline', 'description', 'rera_number',
+            'tagline', 'description',
             'country', 'state', 'city', 'locality', 'full_address', 'landmark', 'pincode', 'zone',
             'latitude', 'longitude', 'maps_link',
             'price_min', 'price_max', 'extent_metric', 'total_units', 'towers', 'floors_per_tower',
@@ -329,7 +329,7 @@ class PropertyController extends Controller
 
         $sample = [
             'Skyline Realty Group', 'Emerald Meadows Phase 2', 'Residential', 'Under Construction',
-            'Where green living meets modern comfort', '', 'RERA/TEL/PRJ/00000',
+            'Where green living meets modern comfort', '',
             'India', 'Telangana', 'Hyderabad', 'Kokapet', '', '', '500075', 'West',
             '17.4065', '78.3269', '',
             '8500000', '16500000', 'Sq.ft.', '216', '3', '18',
@@ -411,7 +411,6 @@ class PropertyController extends Controller
                 'project_status' => $row['project_status'] ?? '',
                 'tagline' => $row['tagline'] ?? null,
                 'description' => $row['description'] ?? null,
-                'rera_number' => $row['rera_number'] ?? null,
                 'country' => $row['country'] ?? null,
                 'state' => $row['state'] ?? null,
                 'city' => $row['city'] ?? '',
@@ -453,7 +452,6 @@ class PropertyController extends Controller
                 'project_status' => ['required', 'in:New Launch,Under Construction,Ready to Move,Nearing Completion'],
                 'tagline' => ['nullable', 'string', 'max:255'],
                 'description' => ['nullable', 'string', 'max:20000'],
-                'rera_number' => ['nullable', 'string', 'max:64'],
                 'country' => ['nullable', 'string', 'max:96'],
                 'state' => ['nullable', 'string', 'max:96'],
                 'city' => ['required', 'string', 'max:96'],
@@ -648,7 +646,7 @@ class PropertyController extends Controller
 
         $values = $property->only([
             'developer_id', 'name', 'project_type', 'project_status', 'listing_status',
-            'tagline', 'description', 'rera_number',
+            'tagline', 'description',
             'country', 'state', 'city', 'locality', 'full_address', 'landmark', 'pincode', 'zone',
             'latitude', 'longitude', 'maps_link',
             'price_min', 'price_max', 'extent_metric', 'currency',
@@ -759,7 +757,6 @@ class PropertyController extends Controller
             'tagline' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:20000'],
             'logo' => ['nullable', 'image', 'max:2048'],
-            'rera_number' => ['nullable', 'string', 'max:64'],
 
             // 2 · Location details
             'country' => ['nullable', 'string', 'max:96'],
@@ -908,9 +905,9 @@ class PropertyController extends Controller
     {
         $columns = [
             'developer_id', 'name', 'project_type', 'project_status', 'listing_status',
-            // rera_registered_at / rera_valid_till are no longer collected — the columns
-            // stay so existing records keep their dates, but the form owns neither.
-            'tagline', 'description', 'rera_number',
+            // rera_number / rera_registered_at / rera_valid_till are no longer collected —
+            // the columns stay so existing records keep their values, but the form owns none.
+            'tagline', 'description',
             'country', 'state', 'city', 'locality', 'full_address', 'landmark', 'pincode', 'zone',
             'latitude', 'longitude', 'maps_link',
             'price_min', 'price_max', 'extent_metric', 'currency',

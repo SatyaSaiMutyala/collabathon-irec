@@ -111,6 +111,7 @@ const Dropdown = ({
           transparent
           animationType="fade"
           statusBarTranslucent
+          navigationBarTranslucent
           onRequestClose={() => setIsOpen(false)}>
           <Pressable style={{flex: 1}} onPress={() => setIsOpen(false)}>
             <View

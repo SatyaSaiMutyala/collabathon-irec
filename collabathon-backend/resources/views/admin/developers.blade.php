@@ -123,12 +123,8 @@
 
                     {{-- Credentials & branding ---------------------------------------- --}}
                     <div class="border-t border-line-soft space-y-3 pt-4">
-                        {{-- No RERA / licence number at creation: it is nullable in
-                             DeveloperController::store and is added later from the edit
-                             form, once the licence is to hand. The two-column grid went
-                             with it — the logo field alone in it sat at half width. --}}
-                        <x-file-field label="Company logo" name="logo" accept="image/*"
-                                      hint="PNG or JPG, up to 2 MB." />
+                        <x-logo-field label="Company logo" name="logo"
+                                      hint="Crop to fit — most logos are wide wordmarks, not square." />
 
                         <x-field label="About the company" name="about" type="textarea" rows="3"
                                  placeholder="Track record, flagship projects, years in market…" />
@@ -195,7 +191,18 @@
          is where they are, not how many listings they hold. --}}
     <div class="grid grid-cols-2 md:grid-cols-5 gap-3.5 mb-5">
         <x-stat-card icon="building" label="Total developers" :value="$totals['all']" />
-        <x-stat-card icon="check" label="Active" :value="$totals['active']" />
+
+        {{-- The one filterable tile: jumps the list below to status=active, keeping
+             whatever search/country/city filter is already applied. The other four
+             tiles are coverage counts with no matching row-level filter, so they stay
+             plain reads rather than links to nowhere. --}}
+        <a href="{{ request()->fullUrlWithQuery(['status' => 'active', 'page' => null]) }}" class="block h-full">
+            <x-stat-card icon="check" label="Active" :value="$totals['active']"
+                :class="(request('status') === 'active' ? 'border-primary-ring shadow-md ' : '')
+                    . 'h-full hover:border-primary-ring hover:shadow-md
+                       transition-[border-color,box-shadow] duration-200 ease-out cursor-pointer'" />
+        </a>
+
         <x-stat-card icon="map-pin" label="Countries" :value="$totals['countries']" />
         <x-stat-card icon="map-pin" label="States" :value="$totals['states']" />
         <x-stat-card icon="map-pin" label="Cities" :value="$totals['cities']" />
@@ -233,12 +240,7 @@
                 x-on:click="if (! $event.target.closest('[data-row-actions]')) window.location = @js(route('admin.developers.show', $dev))">
                 <td class="px-4 py-3">
                     <div class="flex items-center gap-2.5 min-w-0">
-                        @if($dev->logo_path)
-                            <img src="{{ asset('storage/' . $dev->logo_path) }}"
-                                 alt="" class="w-8 h-8 rounded-lg object-cover border border-line-soft shrink-0">
-                        @else
-                            <x-avatar :name="$dev->company_name" :src="$dev->logo_path" size="md" />
-                        @endif
+                        <x-avatar :name="$dev->company_name" :src="$dev->logo_path" shape="square" size="md" />
                         <div class="min-w-0">
                             <p class="flex items-center gap-1.5 text-[13px] font-medium text-ink">
                                 <a href="{{ route('admin.developers.show', $dev) }}"
@@ -248,7 +250,7 @@
                                             title="Verified developer" />
                                 @endif
                             </p>
-                            <p class="text-[11.5px] text-ink-3 truncate">{{ $dev->rera_number ?: $dev->email }}</p>
+                            <p class="text-[11.5px] text-ink-3 truncate">{{ $dev->email }}</p>
                         </div>
                     </div>
                 </td>

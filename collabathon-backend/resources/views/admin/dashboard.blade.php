@@ -37,13 +37,7 @@ $conversionRings = [
 
     <x-page-header
         title="Dashboard"
-        subtitle="Platform activity across every developer, channel partner and listing on iREC.">
-        <x-slot:actions>
-            {{-- Carries the current URL, so an open KPI panel (and its search) exports
-                 alongside the summary — see DashboardController::exportSections(). --}}
-            <x-export-menu />
-        </x-slot:actions>
-    </x-page-header>
+        subtitle="Platform activity across every developer, channel partner and listing on iREC." />
 
 
     {{-- ---------------------------- KPI row ---------------------------- --}}
@@ -95,33 +89,8 @@ $conversionRings = [
         @include('admin.partials.dashboard-panel')
     </div>
 
-    {{-- ------------------- Trend + funnel ------------------- --}}
-    <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
-        <x-panel
-            title="Engagement over time"
-            subtitle="Listing views and the interests they converted into, per week"
-            class="xl:col-span-2"
-            padded>
-            <x-chart-trend :points="$trend" :series="$series" :height="250" />
-        </x-panel>
-
-        <x-panel title="Lead funnel" subtitle="Where every recorded lead ended up" padded>
-            <x-chart-donut :segments="$funnelSegments" center-label="Total leads" />
-
-            <div class="mt-5 pt-4 border-t border-line-soft flex items-center justify-center gap-3">
-                @foreach($conversionRings as $ring)
-                    <x-chart-progress-ring :value="$ring['value']" :label="$ring['label']" :color="$ring['color']" :size="72" :stroke="7" />
-                @endforeach
-            </div>
-        </x-panel>
-    </div>
-
-    {{-- ------------------- Ranked + activity + queue ------------------- --}}
-    <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-
-        <x-panel title="Most in-demand listings" subtitle="By channel partner interests" padded>
-            <x-chart-bar-vertical :rows="$topProperties" color="var(--color-chart-1)" :height="180" />
-        </x-panel>
+    {{-- ------------------- Recent activity + queue ------------------- --}}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
 
         <x-panel title="Recent activity" flush>
             <x-slot:actions>
@@ -147,7 +116,7 @@ $conversionRings = [
             @endforelse
         </x-panel>
 
-        <x-panel title="Awaiting your review" flush class="lg:col-span-2 xl:col-span-1"
+        <x-panel title="Awaiting your review" flush
                  :subtitle="$pendingBrokers->count() . ' channel partners cannot sign in until approved'">
             <x-slot:actions>
                 <a href="{{ route('admin.approvals') }}"
@@ -172,4 +141,28 @@ $conversionRings = [
             @endforelse
         </x-panel>
     </div>
+
+    {{-- ------------------- Lead funnel ------------------- --}}
+    <x-panel title="Lead funnel" subtitle="Where every recorded lead ended up" class="mb-4" padded>
+        <x-chart-donut :segments="$funnelSegments" center-label="Total leads" />
+
+        <div class="mt-5 pt-4 border-t border-line-soft flex items-center justify-center gap-3">
+            @foreach($conversionRings as $ring)
+                <x-chart-progress-ring :value="$ring['value']" :label="$ring['label']" :color="$ring['color']" :size="72" :stroke="7" />
+            @endforeach
+        </div>
+    </x-panel>
+
+    {{-- ------------------- Most in-demand listings ------------------- --}}
+    <x-panel title="Most in-demand listings" subtitle="By channel partner interests" class="mb-4" padded>
+        <x-chart-bar-vertical :rows="$topProperties" color="var(--color-chart-1)" :height="180" />
+    </x-panel>
+
+    {{-- ------------------- Engagement trend ------------------- --}}
+    <x-panel
+        title="Engagement over time"
+        subtitle="Listing views and the interests they converted into, per week"
+        padded>
+        <x-chart-trend :points="$trend" :series="$series" :height="250" />
+    </x-panel>
 </x-layouts.admin>

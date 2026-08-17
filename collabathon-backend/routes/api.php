@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ConfigController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DeveloperController;
 use App\Http\Controllers\Api\KycController;
@@ -21,7 +22,13 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->group(function () {
 
     // ---------------------------------------------------------------- public
-    Route::post('auth/register', [AuthController::class, 'register'])
+    // Read before anything else — the Welcome screen needs this to know which
+    // channel-partner sign-in screen to open, before there is any auth to gate it.
+    Route::get('config', ConfigController::class);
+
+    // Step 1 (Personal info) of the 3-step registration wizard — creates the draft
+    // account and issues the token every later step authenticates with.
+    Route::post('auth/register/start', [AuthController::class, 'startRegistration'])
         ->middleware('throttle:10,1');
 
     // Tight limit — this is the credential-stuffing surface.
@@ -46,6 +53,12 @@ Route::prefix('v1')->group(function () {
     // for why this is public rather than behind auth:sanctum.
     Route::post('kyc/aadhaar/verify', [KycController::class, 'verifyAadhaar'])
         ->middleware('throttle:10,1');
+    Route::post('kyc/aadhaar/verify-xml', [KycController::class, 'verifyAadhaarXml'])
+        ->middleware('throttle:10,1');
+    Route::post('kyc/aadhaar/verify-eaadhaar', [KycController::class, 'verifyAadhaarEaadhaar'])
+        ->middleware('throttle:10,1');
+    Route::post('kyc/pan/verify', [KycController::class, 'verifyPan'])
+        ->middleware('throttle:10,1');
 
     // ---------------------------------------------------------------- authenticated
     Route::middleware('auth:sanctum')->group(function () {
@@ -54,6 +67,13 @@ Route::prefix('v1')->group(function () {
         Route::get('dashboard', DashboardController::class);
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::delete('auth/account', [AuthController::class, 'deleteAccount']);
+
+        // Steps 2-3 of the wizard, and Save Draft on any step — see
+        // AuthController::saveRegistrationStep for the save_draft/finalize shape.
+        // Higher throttle than register/login: this fires on every Next/Save Draft
+        // tap across a 3-step form, plausibly several times per session.
+        Route::patch('auth/register/step', [AuthController::class, 'saveRegistrationStep'])
+            ->middleware('throttle:20,1');
 
         // Push registration. Sent right after sign-in and cleared on sign-out.
         Route::post('auth/device-token', [AuthController::class, 'registerDevice']);

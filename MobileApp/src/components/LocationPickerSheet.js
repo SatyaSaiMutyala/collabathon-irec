@@ -14,18 +14,24 @@ const LocationPickerSheet = ({
   onUseCurrentLocation,
   isDetecting,
 }) => {
-  const {colors, radius, spacing} = useAppTheme();
+  const {colors, roundedRadius, spacing} = useAppTheme();
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+      navigationBarTranslucent>
       <Pressable style={{flex: 1, backgroundColor: colors.overlayStrong}} onPress={onClose}>
         <Pressable
           onPress={e => e.stopPropagation()}
           style={{
             marginTop: 'auto',
             backgroundColor: colors.card,
-            borderTopLeftRadius: radius.xl,
-            borderTopRightRadius: radius.xl,
+            borderTopLeftRadius: roundedRadius.sheet,
+            borderTopRightRadius: roundedRadius.sheet,
             paddingHorizontal: spacing.lg,
             paddingTop: spacing.sm,
             paddingBottom: spacing.xxl,

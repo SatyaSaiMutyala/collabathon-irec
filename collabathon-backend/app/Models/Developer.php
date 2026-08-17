@@ -10,8 +10,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /** A developer company. Created by an admin — developers never self-register. */
 #[Fillable([
     'user_id', 'company_name', 'contact_person', 'mobile', 'email', 'city', 'state',
-    'rera_number', 'logo_path', 'about', 'cp_payout_percent', 'verified', 'status',
-    // Contacts. `key_contact_*` is admin-only — see DeveloperResource, which omits it.
+    'logo_path', 'about', 'cp_payout_percent', 'verified', 'status',
+    // Contacts. `key_contact_*`'s number/email are masked to a broker until this
+    // developer accepts their lead — see DeveloperResource::withContact().
     'contact_designation', 'key_contact_person', 'key_contact_designation',
     'key_contact_mobile', 'key_contact_email',
     // Location / geo-fence

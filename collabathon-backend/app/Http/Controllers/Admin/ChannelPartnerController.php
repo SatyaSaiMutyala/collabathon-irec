@@ -11,6 +11,7 @@ use App\Models\Lead;
 use App\Models\User;
 use App\Support\CsvReader;
 use App\Support\SocialPlatforms;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
@@ -188,6 +189,134 @@ class ChannelPartnerController extends Controller
     private function companyType(?bool $isCompany): ?string
     {
         return $isCompany === null ? null : ($isCompany ? 'Company' : 'Individual');
+    }
+
+    /**
+     * A single channel partner, created directly rather than through the approvals
+     * queue — the same "already vetted, just add them" path {@see bulkImport()} offers
+     * for a whole roster, but for the common case of adding one at a time. Lands active
+     * immediately with its own ApprovalDecision, exactly like a bulk row does.
+     *
+     * KYC scans (PAN, Aadhaar, RERA certificate) have no field here, same reason as the
+     * bulk sheet: added on the partner's own review page afterward, same as a developer's
+     * logo is added after the developer record itself exists.
+     */
+    public function store(Request $request): RedirectResponse
+    {
+        $this->authorize('edit-module', 'cp');
+
+        $data = $request->all();
+        $data['mobile'] = self::normaliseMobile($data['mobile'] ?? '');
+        $data['alternate_mobile'] = self::normaliseMobile($data['alternate_mobile'] ?? '') ?: null;
+
+        $clean = Validator::make($data, [
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            // digits:10, not a free-form max:32 — see the matching note on
+            // importPartnerRow(): OTP sign-in matches this exactly.
+            'mobile' => ['required', 'digits:10', 'unique:users,mobile'],
+            'alternate_mobile' => ['nullable', 'digits:10'],
+            'residence_address' => ['nullable', 'string', 'max:1000'],
+            // Same bound AuthController::startRegistration uses for the mobile app's
+            // own photo upload.
+            'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'is_company' => ['nullable', 'boolean'],
+            'company_name' => ['nullable', 'string', 'max:255'],
+            'office_address' => ['nullable', 'string', 'max:1000'],
+            'company_website' => ['nullable', 'string', 'max:255'],
+            ...SocialPlatforms::rules(),
+            'city' => ['nullable', 'string', 'max:96'],
+            'state' => ['nullable', 'string', 'max:96'],
+            'segments' => ['nullable', 'array'],
+            'segments.*' => ['string', 'max:64'],
+            'zones' => ['nullable', 'array'],
+            'zones.*' => ['string', 'max:96'],
+            'project_contributions' => ['nullable', 'string', 'max:5000'],
+            'years_of_experience' => ['nullable', 'integer', 'min:0', 'max:80'],
+            'team_size' => ['nullable', 'integer', 'min:0', 'max:10000'],
+            'rera_number' => ['nullable', 'string', 'max:64'],
+            'pan_card' => ['nullable', 'string', 'max:32'],
+            'aadhaar_card' => ['nullable', 'string', 'max:32'],
+            'gst_number' => ['nullable', 'string', 'max:32'],
+            // Same field names, mime rules and 8 MB bound as saveRegistrationStep's own
+            // DOCUMENTS map — aadhaar_file alone also allows the UIDAI offline XML.
+            'rera_certificate_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:8192'],
+            'pan_card_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:8192'],
+            'aadhaar_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf,xml', 'max:8192'],
+            'gst_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:8192'],
+        ], [
+            'mobile.digits' => 'Enter a 10-digit mobile number.',
+            'mobile.unique' => 'Another account already uses this mobile number.',
+            'alternate_mobile.digits' => 'The alternate mobile must be 10 digits, or left blank.',
+        ])->validate();
+
+        $clean['is_company'] = (bool) ($clean['is_company'] ?? false);
+
+        // A broker account signs in with email/mobile + OTP, never a password — see
+        // AuthController::startRegistration's own note. `users.password` is NOT NULL
+        // regardless, so this is an unusable random hash purely to satisfy the column,
+        // never shown or shared — unlike a developer, a broker has nothing to sign in
+        // with it.
+        $password = Str::password(32);
+
+        if ($request->hasFile('photo')) {
+            $clean['photo_path'] = $request->file('photo')->store('broker-photos', 'public');
+        }
+
+        foreach ([
+            'pan_card_file' => 'pan_card_path',
+            'aadhaar_file' => 'aadhaar_path',
+            'rera_certificate_file' => 'rera_certificate_path',
+            'gst_file' => 'gst_path',
+        ] as $field => $column) {
+            if ($request->hasFile($field)) {
+                $clean[$column] = $request->file($field)->store('broker-documents', 'public');
+            }
+        }
+
+        $user = DB::transaction(function () use ($clean, $password, $request) {
+            $user = User::create([
+                'name' => $clean['name'],
+                'email' => $clean['email'],
+                'password' => $password,
+                'mobile' => $clean['mobile'],
+                'role' => User::ROLE_BROKER,
+                'status' => User::STATUS_ACTIVE,
+            ]);
+
+            BrokerProfile::create(collect($clean)->only([
+                'alternate_mobile', 'residence_address', 'photo_path', 'is_company', 'company_name',
+                'office_address', 'company_website',
+                ...array_keys(SocialPlatforms::ALL),
+                'years_of_experience', 'team_size',
+                'pan_card', 'pan_card_path', 'aadhaar_card', 'aadhaar_path',
+                'rera_number', 'rera_certificate_path',
+                'gst_number', 'gst_path',
+                'state', 'city', 'segments', 'zones', 'project_contributions',
+            ])->merge([
+                'user_id' => $user->id,
+                // The declaration is the partner's own signature on their own
+                // submission — an admin adding them by hand has not given it, same as
+                // the bulk-import path.
+                'confirm_accuracy' => false,
+                'submitted_at' => now(),
+            ])->all());
+
+            ApprovalDecision::create([
+                'user_id' => $user->id,
+                'decided_by' => $request->user()->id,
+                'decision' => 'approved',
+                'internal_note' => 'Created directly by admin.',
+            ]);
+
+            return $user;
+        });
+
+        // No 'credentials' flash, unlike developer store() — there is no password to
+        // share; a broker's login is their email/mobile plus an OTP.
+        return redirect()
+            ->route('admin.cp')
+            ->with('success', "{$user->name} added.");
     }
 
     /**

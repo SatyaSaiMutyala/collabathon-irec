@@ -37,7 +37,13 @@ const RightDrawer = ({visible, onClose, children}) => {
   }
 
   return (
-    <Modal visible transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+    <Modal
+      visible
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+      statusBarTranslucent
+      navigationBarTranslucent>
       <SafeAreaProvider>
         <View style={styles.row}>
           <Pressable style={styles.backdrop} onPress={onClose} />

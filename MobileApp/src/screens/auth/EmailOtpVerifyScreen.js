@@ -14,9 +14,18 @@ const RESEND_COOLDOWN_S = 30;
  * Channel-partner sign-in, step 2 of 2 — same fork shape as OtpVerifyScreen, one
  * digit shorter. `verifyEmailOtp`'s own status decides what happens next:
  *
- *   'login'    — RootNavigator swaps to the broker stack the instant `isLoggedIn`
- *                flips; this screen calls no navigation itself.
- *   'register' — no account for this email yet; on to Register, carrying the
+ *   'login'    — RootNavigator swaps to a *different* navigator (AuthNavigator ->
+ *                BrokerRootStack) the instant `isLoggedIn` flips, which really does
+ *                unmount/remount and land on the right screen; this screen calls no
+ *                navigation itself.
+ *   'draft'    — a registration already in progress for this email; the reducer
+ *                hydrates the session exactly like 'login' does, but RootNavigator's
+ *                `registrationStatus === 'draft'` branch stays on this same
+ *                AuthNavigator instance (just a changed `initialRouteName` prop,
+ *                which React Navigation only reads on a navigator's first mount) —
+ *                so unlike 'login', nothing there actually moves this screen
+ *                anywhere. This screen has to navigate itself, same as 'register'.
+ *   'register' — no account for this email yet; on to CompleteProfile, carrying the
  *                verified email so the form can prefill (and lock) that field.
  *   403        — an account exists but isn't approved yet (or was rejected); on to
  *                PendingApproval.
@@ -49,10 +58,11 @@ const EmailOtpVerifyScreen = ({navigation, route}) => {
       const result = await dispatch(verifyEmailOtp({email, code: submittedCode}));
 
       if (verifyEmailOtp.fulfilled.match(result)) {
-        if (result.payload.status === 'register') {
-          navigation.replace('Register', {email: result.payload.email});
+        if (result.payload.status === 'register' || result.payload.status === 'draft') {
+          navigation.replace('CompleteProfile', {email: result.payload.email});
         }
-        // 'login' needs no navigation call here — RootNavigator reacts to isLoggedIn.
+        // Only 'login' needs no navigation call here — that one swaps the whole
+        // navigator, which RootNavigator reacts to on its own.
         return;
       }
 

@@ -8,11 +8,31 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /**
  * List shape. Detail-only relations are emitted with whenLoaded, so the same resource
  * serves both the index (narrow) and the show (full) without an N+1.
+ *
+ * `withContact()` — same mask-by-default posture as `DeveloperResource`/
+ * `PartnerResource`/`PropertyDetailResource`, and it is exactly the same flag these
+ * pass to the embedded `developer` and `detail` (the sales contact) below: whether
+ * the developer owning this listing has accepted the viewing broker's lead. The
+ * controller computes it once (a single query — see PropertyController::show(), or a
+ * page-wide set for list endpoints, never one query per row) and hands it in, the
+ * same shape as DeveloperController::show() already does for the standalone
+ * developer endpoint.
  */
 class PropertyResource extends JsonResource
 {
+    private bool $contactVisible = false;
+
+    public function withContact(bool $visible): static
+    {
+        $this->contactVisible = $visible;
+
+        return $this;
+    }
+
     public function toArray(Request $request): array
     {
+        $visible = $this->contactVisible;
+
         // Discriminates show from index. The previous `$request->routeIs('*.show')` test
         // could never fire: routeIs matches route NAMES, and the mobile API routes in
         // routes/api.php are unnamed — so `description` was silently dropped from every
@@ -68,18 +88,12 @@ class PropertyResource extends JsonResource
             'views_count' => (int) $this->views_count,
             'interests_count' => (int) $this->interests_count,
 
-            'developer' => new DeveloperResource($this->whenLoaded('developer')),
+            'developer' => (new DeveloperResource($this->whenLoaded('developer')))->withContact($visible),
 
             // Detail screen only. These all live on the `properties` row that is already
             // selected, so gating them costs nothing to fetch — it only keeps the list
             // payload narrow, which is the same reason `description` is gated.
             'description' => $this->when($isDetail, $this->description),
-
-            'rera' => $this->when($isDetail, fn () => [
-                'number' => $this->rera_number,
-                'registered_at' => $this->rera_registered_at?->toDateString(),
-                'valid_till' => $this->rera_valid_till?->toDateString(),
-            ]),
 
             'scale' => $this->when($isDetail, fn () => [
                 'total_units' => $this->total_units,
@@ -98,7 +112,7 @@ class PropertyResource extends JsonResource
             ]),
 
             'logo_url' => $this->logo_path ? asset('storage/' . $this->logo_path) : null,
-            'detail' => new PropertyDetailResource($this->whenLoaded('detail')),
+            'detail' => (new PropertyDetailResource($this->whenLoaded('detail')))->withContact($visible),
             'unit_types' => PropertyUnitTypeResource::collection($this->whenLoaded('unitTypes')),
             'media' => PropertyMediaResource::collection($this->whenLoaded('media')),
 

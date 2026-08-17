@@ -34,7 +34,13 @@ const ConfirmDialog = ({
   const accent = tone === 'danger' ? colors.danger : colors.primary;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onCancel}
+      statusBarTranslucent
+      navigationBarTranslucent>
       <Pressable
         style={[styles.backdrop, {backgroundColor: colors.overlayStrong}]}
         onPress={busy ? undefined : onCancel}>

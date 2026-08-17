@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\DeveloperResource;
 use App\Http\Resources\PropertyResource;
 use App\Models\Developer;
+use App\Models\Lead;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -36,14 +37,25 @@ class DeveloperController extends Controller
         return DeveloperResource::collection($this->paginate($query, $request));
     }
 
-    /** GET /api/developers/{developer} */
-    public function show(Developer $developer): JsonResponse
+    /**
+     * GET /api/developers/{developer} — the developer's contact channels (public and
+     * key contact alike) stay masked to a browsing broker until *this* developer has
+     * accepted one of their leads, same rule as `PartnerResource` in the other
+     * direction. A developer or admin viewing this always sees it masked too — the
+     * `broker_id` scope below only ever matches a broker's own accepted lead.
+     */
+    public function show(Request $request, Developer $developer): JsonResponse
     {
         abort_unless($developer->status === 'active', 404);
 
         $developer->loadCount(['properties' => fn ($q) => $q->brokerVisible()]);
 
-        return response()->json(['data' => new DeveloperResource($developer)]);
+        $visible = Lead::where('broker_id', $request->user()->id)
+            ->where('developer_id', $developer->id)
+            ->where('status', Lead::STATUS_ACCEPTED)
+            ->exists();
+
+        return response()->json(['data' => (new DeveloperResource($developer))->withContact($visible)]);
     }
 
     /**
@@ -75,6 +87,19 @@ class DeveloperController extends Controller
             'name' => 'name',
         ]);
 
-        return PropertyResource::collection($this->paginate($query, $request));
+        // One determination for the whole page, not per row — every property here
+        // belongs to the same `$developer`, so a single accepted-lead check answers
+        // for all of them. See PropertyResource::withContact().
+        $visible = $user && $user->isBroker()
+            ? Lead::where('broker_id', $user->id)
+                ->where('developer_id', $developer->id)
+                ->where('status', Lead::STATUS_ACCEPTED)
+                ->exists()
+            : false;
+
+        $resource = PropertyResource::collection($this->paginate($query, $request));
+        $resource->collection->each(fn (PropertyResource $item) => $item->withContact($visible));
+
+        return $resource;
     }
 }

@@ -1059,6 +1059,45 @@ $openTab = in_array(request()->query('tab'), array_column($tabs, 'key'), true)
                 </dl>
             </x-panel>
 
+            {{-- Channel partner sign-in method -------------------------------
+                 Both flows (email OTP, mobile OTP) are fully built server- and
+                 app-side either way — this only decides which one a channel
+                 partner without an account yet lands on from the mobile app's
+                 Welcome screen. See ConfigController for how the app reads it. --}}
+            <x-panel title="Channel partner sign-in method"
+                     subtitle="Which screen a channel partner sees first, before any account exists"
+                     padded class="xl:col-span-2">
+                <form method="POST" action="{{ route('admin.settings.cp-login-method') }}"
+                      x-data="{ picked: '{{ $cpLoginMethod }}' }">
+                    @csrf @method('PATCH')
+                    <input type="hidden" name="cp_login_method" :value="picked">
+
+                    <div class="flex flex-wrap gap-2.5">
+                        <button type="button" @click="picked = 'email'"
+                                :class="picked === 'email' ? 'border-nav bg-canvas' : 'border-line hover:border-ink-3'"
+                                class="group flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 transition-colors">
+                            <x-icon name="mail" class="w-4 h-4 text-ink-2 shrink-0" />
+                            <span class="text-[12.5px] font-medium text-ink">Email + OTP</span>
+                            <x-icon name="check" class="w-4 h-4 text-primary-dark ml-1"
+                                    x-show="picked === 'email'" x-cloak />
+                        </button>
+                        <button type="button" @click="picked = 'mobile'"
+                                :class="picked === 'mobile' ? 'border-nav bg-canvas' : 'border-line hover:border-ink-3'"
+                                class="group flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 transition-colors">
+                            <x-icon name="phone" class="w-4 h-4 text-ink-2 shrink-0" />
+                            <span class="text-[12.5px] font-medium text-ink">Mobile number + OTP</span>
+                            <x-icon name="check" class="w-4 h-4 text-primary-dark ml-1"
+                                    x-show="picked === 'mobile'" x-cloak />
+                        </button>
+                    </div>
+
+                    <div class="mt-5 pt-4 border-t border-line-soft flex flex-wrap items-center justify-between gap-3">
+                        <p class="text-[12px] text-ink-3">Applies the next time the app is opened.</p>
+                        <x-button variant="gold" tag="button" type="submit" icon="check">Save</x-button>
+                    </div>
+                </form>
+            </x-panel>
+
             {{-- Firebase service account ----------------------------------- --}}
             @can('manage-team')
             <x-panel title="Push notifications"

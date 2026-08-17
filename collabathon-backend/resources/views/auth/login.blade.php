@@ -81,12 +81,22 @@
                             <label for="password" class="text-[12.5px] font-medium text-ink">Password</label>
                             <a href="{{ route('password.request') }}" class="text-[11.5px] text-primary-dark hover:underline">Forgot?</a>
                         </div>
-                        <div class="relative">
+                        {{-- Same reveal pattern as x-password-field, minus the "Generate one"
+                             link — this is a login field, not a temporary password. --}}
+                        <div class="relative" x-data="{ reveal: false }">
                             <x-icon name="lock" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-3 pointer-events-none" />
-                            <input id="password" name="password" type="password" placeholder="Enter password" required
-                                   class="w-full h-10 pl-9 pr-3.5 rounded-lg bg-panel border border-line text-[13.5px] text-ink
+                            <input id="password" name="password" placeholder="Enter password" required
+                                   :type="reveal ? 'text' : 'password'" type="password"
+                                   class="w-full h-10 pl-9 pr-10 rounded-lg bg-panel border border-line text-[13.5px] text-ink
                                           placeholder:text-ink-3 focus:outline-none focus:border-primary
                                           focus:ring-[3px] focus:ring-primary-ring transition-[border-color,box-shadow]">
+
+                            <button type="button" @click="reveal = ! reveal" tabindex="-1"
+                                    :aria-label="reveal ? 'Hide password' : 'Show password'"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 text-ink-3 hover:text-ink p-1.5 rounded-md transition-colors">
+                                <x-icon name="eye" class="w-4 h-4" x-show="! reveal" />
+                                <x-icon name="eye-off" class="w-4 h-4" x-show="reveal" x-cloak />
+                            </button>
                         </div>
                     </div>
 

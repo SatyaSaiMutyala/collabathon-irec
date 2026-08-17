@@ -8,6 +8,153 @@
                 Approval queue
             </x-button>
 
+            {{-- The one-at-a-time counterpart to bulk upload below — same "already
+                 vetted, lands active immediately" outcome, for the common case of
+                 adding a single partner rather than a whole roster. --}}
+            <x-modal title="Add channel partner"
+                     subtitle="A login account is created — they sign in with email/mobile and an OTP, same as every channel partner."
+                     width="max-w-2xl"
+                     :open="$errors->any() && old('_form') === 'cp-create'">
+                <x-slot:trigger>
+                    <x-button variant="gold" icon="plus">Add channel partner</x-button>
+                </x-slot:trigger>
+
+                {{-- No password field: a broker account signs in with email/mobile + OTP,
+                     never a password — see AuthController::startRegistration's own note.
+
+                     Every required field here (name/mobile/email) stays visible regardless
+                     of the company toggle, so native validation runs first and this handler
+                     only fires once the form is valid — same reasoning as the developer
+                     create form's own note. Compresses the photo and every KYC document the
+                     same way a developer's logo is compressed, since a phone-camera photo of
+                     a PAN or Aadhaar card is exactly the kind of file that needs it. --}}
+                <form method="POST" action="{{ route('admin.cp.store') }}" enctype="multipart/form-data"
+                      class="space-y-5"
+                      x-data="{ isCompany: {{ old('is_company') ? 'true' : 'false' }}, busy: false }"
+                      x-on:submit="
+                          $event.preventDefault();
+                          busy = true;
+                          Promise.resolve(window.compressFileInputs?.($el))
+                              .catch((error) => console.error('Attachment compression failed; uploading originals.', error))
+                              .finally(() => {
+                                  window.dispatchEvent(new CustomEvent('navigate-start'));
+                                  $el.submit();
+                              });
+                      ">
+                    @csrf
+                    <input type="hidden" name="_form" value="cp-create">
+
+                    {{-- A native file input can never be repopulated by old() — see the
+                         matching note on x-file-field. If this reopened after a validation
+                         error, any photo/document already picked is gone, and re-submitting
+                         as-is silently saves the partner with none attached. --}}
+                    @if($errors->any() && old('_form') === 'cp-create')
+                        <div class="flex items-start gap-2.5 rounded-lg bg-warning-soft ring-1 ring-inset ring-warning-ring px-3.5 py-3">
+                            <x-icon name="shield" class="w-4 h-4 text-warning shrink-0 mt-0.5" />
+                            <p class="text-[12.5px] text-ink-2 leading-relaxed">
+                                <span class="font-medium text-ink">Re-select any photo or documents below.</span>
+                                File choices can't survive a failed save — everything else you typed is still here.
+                            </p>
+                        </div>
+                    @endif
+
+                    {{-- Personal ---------------------------------------------------- --}}
+                    <div class="space-y-3">
+                        <x-field label="Full name" name="name" placeholder="e.g. Rahul Verma" required />
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <x-field label="Mobile number" name="mobile" placeholder="10-digit mobile" icon="phone" required />
+                            <x-field label="Alternate mobile" name="alternate_mobile" placeholder="Optional" icon="phone" />
+                        </div>
+
+                        <x-field label="Email" name="email" type="email" placeholder="name@example.com" icon="mail" required
+                                  hint="This becomes their login." />
+
+                        <x-field label="Residence address" name="residence_address" type="textarea" rows="2"
+                                  placeholder="Flat / street / area / city / pincode" />
+
+                        <x-file-field label="Photo" name="photo" accept="image/*"
+                                      hint="Passport-size photo — shown as their avatar across the app." />
+                    </div>
+
+                    {{-- Business ------------------------------------------------------ --}}
+                    <div class="border-t border-line-soft space-y-3 pt-4">
+                        <x-switch-field label="Registering as a company?" name="is_company" x-model="isCompany" />
+
+                        <div x-show="isCompany" x-cloak class="space-y-3">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <x-field label="Company name" name="company_name" placeholder="Firm name" />
+                                <x-field label="Company website" name="company_website" placeholder="https://..." />
+                            </div>
+                            <x-field label="Office address" name="office_address" placeholder="Office location" />
+
+                            <div>
+                                <p class="text-[12.5px] font-medium text-ink mb-1.5">Social media</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    @foreach(\App\Support\SocialPlatforms::ALL as $key => $label)
+                                        <x-field :label="$label" :name="$key" placeholder="@handle or profile URL" />
+                                    @endforeach
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Location & coverage -------------------------------------------- --}}
+                    <div class="border-t border-line-soft space-y-3 pt-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <x-field label="City" name="city" placeholder="Hyderabad" />
+                            <x-field label="State" name="state" placeholder="Telangana" />
+                        </div>
+
+                        {{-- Same category/zone vocabulary the mobile app's own
+                             registration form offers — see CompleteProfileScreen's
+                             SEGMENT_OPTIONS / ZONE_OPTIONS. --}}
+                        <x-checkbox-group label="Categories" name="segments" columns="3"
+                                           :options="['Residential', 'Commercial', 'Lands', 'Liaisoning', 'All']" />
+                        <x-checkbox-group label="Zones" name="zones" columns="3"
+                                           :options="['East', 'West', 'North', 'South', 'Central', 'All']" />
+
+                        <x-field label="Project contributions" name="project_contributions" type="textarea" rows="2"
+                                  placeholder="Notable projects worked on" />
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <x-field label="Years of experience" name="years_of_experience" type="number" placeholder="e.g. 5" />
+                            <x-field label="Team size" name="team_size" type="number" placeholder="e.g. 4" />
+                        </div>
+                    </div>
+
+                    {{-- KYC ------------------------------------------------------------ --}}
+                    <div class="border-t border-line-soft space-y-3 pt-4">
+                        <div class="flex items-center gap-2">
+                            <h4 class="text-[13px] font-semibold text-ink">KYC & compliance</h4>
+                            <x-badge tone="neutral" size="sm">Optional</x-badge>
+                        </div>
+
+                        <x-field label="RERA number" name="rera_number" placeholder="A02400012345" />
+                        <x-file-field label="RERA certificate" name="rera_certificate_file" accept=".pdf,image/*"
+                                      hint="PDF or a photo of the certificate." />
+
+                        <x-field label="PAN card number" name="pan_card" placeholder="ABCDE1234F" />
+                        <x-file-field label="PAN card copy" name="pan_card_file" accept=".pdf,image/*"
+                                      hint="PDF or a photo of the card." />
+
+                        <x-field label="Aadhaar number" name="aadhaar_card" placeholder="XXXX XXXX XXXX" />
+                        <x-file-field label="Aadhaar copy" name="aadhaar_file" accept=".pdf,.xml,image/*"
+                                      hint="PDF, UIDAI offline XML, or a photo of the card." />
+
+                        <x-field label="GST number" name="gst_number" placeholder="Optional" />
+                        <x-file-field label="GST certificate" name="gst_file" accept=".pdf,image/*" hint="Optional." />
+                    </div>
+
+                    <div class="pt-1">
+                        <x-button variant="gold" tag="button" type="submit" icon="check" class="w-full" x-bind:disabled="busy">
+                            <span x-show="! busy">Add channel partner</span>
+                            <span x-show="busy" x-cloak>Optimising attachments…</span>
+                        </x-button>
+                    </div>
+                </form>
+            </x-modal>
+
             {{-- The one way a partner arrives here without passing through the approvals
                  queue: a roster the admin has already vetted offline. --}}
             <x-modal title="Bulk upload channel partners"

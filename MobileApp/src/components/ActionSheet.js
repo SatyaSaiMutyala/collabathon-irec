@@ -17,23 +17,34 @@ import AppText from './AppText';
  * camera) takes over the screen.
  */
 const ActionSheet = ({visible, onClose, title, options = [], cancelLabel = 'Cancel'}) => {
-  const {colors, radius, spacing} = useAppTheme();
+  const {colors, roundedRadius, spacing} = useAppTheme();
 
   const select = onPress => {
     onClose();
-    onPress?.();
+    // Closing this Modal and opening another native surface (camera, gallery) in the
+    // same tick is a race on Android: the first dialog's window hasn't actually torn
+    // down yet, so the second one is silently dropped — nothing opens until a second
+    // tap, by which point the first has finished closing. The delay is short enough
+    // not to read as a pause but long enough to clear that window.
+    setTimeout(() => onPress?.(), 350);
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+      navigationBarTranslucent>
       <Pressable style={{flex: 1, backgroundColor: colors.overlayStrong}} onPress={onClose}>
         <Pressable
           onPress={event => event.stopPropagation()}
           style={{
             marginTop: 'auto',
             backgroundColor: colors.card,
-            borderTopLeftRadius: radius.xl,
-            borderTopRightRadius: radius.xl,
+            borderTopLeftRadius: roundedRadius.sheet,
+            borderTopRightRadius: roundedRadius.sheet,
             paddingHorizontal: spacing.lg,
             paddingTop: spacing.sm,
             paddingBottom: spacing.xxl,

@@ -17,13 +17,28 @@ import {unregisterDevice} from '../../services/push';
  * is `pending` and receives no token until an admin approves them. That gate applies
  * the same way whichever door was used, so `verifyOtp`/`verifyEmailOtp` can land on
  * it too, not just `login`.
+ *
+ * Registration itself is 3 steps (Personal -> Professional -> Business), each saved
+ * to the database as it's completed rather than all at once — `startRegistration`
+ * (step 1) creates the account as `registrationStatus: 'draft'` and issues a token,
+ * `saveRegistrationStep` (steps 2-3, and Save Draft on any step) reuses it. A `draft`
+ * session persists and resumes exactly like an approved one does — see
+ * RootNavigator, which opens straight to CompleteProfileScreen at `registrationStep`
+ * for this status instead of the broker/developer stacks.
  */
 
 const initialState = {
   token: null,
   user: null,
   role: null, // 'broker' | 'developer'
-  registrationStatus: 'guest', // guest | pendingApproval | rejected | approved
+  registrationStatus: 'guest', // guest | draft | pendingApproval | rejected | approved
+  // The furthest of the 3 wizard steps reached so far — only meaningful alongside
+  // registrationStatus === 'draft'. 1 until a step-1 save says otherwise.
+  registrationStep: 1,
+  // The broker_profile fields already saved for an in-progress registration, exactly
+  // as UserResource::draftProfile() shapes them — CompleteProfileScreen seeds its form
+  // from this when resuming rather than starting blank.
+  draftProfile: null,
   isLoggedIn: false,
   status: 'idle', // idle | loading | succeeded | failed
   error: null,
@@ -55,14 +70,35 @@ const initialState = {
 
 // ---------------------------------------------------------------- thunks
 
-export const registerBroker = createAsyncThunk(
-  'auth/register',
+/**
+ * Step 1 (Personal info) — the only step that isn't already authenticated, since
+ * nothing exists server-side yet for a token to belong to. Fulfilling this hydrates
+ * the session exactly like `login` does (see the reducer below): from this point on,
+ * every later step is a normal authenticated `saveRegistrationStep` call.
+ */
+export const startRegistration = createAsyncThunk(
+  'auth/startRegistration',
   async (payload, {rejectWithValue}) => {
     try {
-      const {data} = await authApi.register(payload);
-      // The server's own confirmation wording travels with the user, so the screen shows
-      // what the API actually said rather than a copy of it that can drift.
-      return {user: data.data, message: data.message};
+      const {data} = await authApi.startRegistration(payload);
+      return data;
+    } catch (error) {
+      return rejectWithValue(extractError(error));
+    }
+  },
+);
+
+/**
+ * Steps 2-3, and Save Draft on any step. `payload.save_draft` (boolean) and
+ * `payload.step` (2|3) travel straight through to the API — see
+ * AuthController::saveRegistrationStep for what each combination does server-side.
+ */
+export const saveRegistrationStep = createAsyncThunk(
+  'auth/saveRegistrationStep',
+  async (payload, {rejectWithValue}) => {
+    try {
+      const {data} = await authApi.saveRegistrationStep(payload);
+      return data;
     } catch (error) {
       return rejectWithValue(extractError(error));
     }
@@ -283,23 +319,62 @@ const authSlice = createSlice({
 
   extraReducers: builder => {
     builder
-      // ------------------------------------------------ register
-      .addCase(registerBroker.pending, state => {
+      // ------------------------------------------------ registration wizard
+      .addCase(startRegistration.pending, state => {
         state.status = 'loading';
         state.error = null;
         state.fieldErrors = {};
       })
-      .addCase(registerBroker.fulfilled, (state, action) => {
+      .addCase(startRegistration.fulfilled, (state, action) => {
+        const {token, data} = action.payload;
+        setAuthToken(token);
+
         state.status = 'succeeded';
+        state.token = token;
+        state.user = data;
         state.role = 'broker';
-        state.user = action.payload.user;
-        // No token is issued until an admin approves.
-        state.registrationStatus = 'pendingApproval';
-        state.isLoggedIn = false;
+        state.isLoggedIn = true;
+        state.registrationStatus = 'draft';
+        state.registrationStep = data.registration_step ?? 1;
+        state.draftProfile = data.draft_profile ?? null;
+        state.error = null;
       })
-      .addCase(registerBroker.rejected, (state, action) => {
+      .addCase(startRegistration.rejected, (state, action) => {
         state.status = 'failed';
-        state.error = action.payload?.message ?? 'Registration failed.';
+        state.error = action.payload?.message ?? 'Could not start registration.';
+        state.fieldErrors = action.payload?.errors ?? {};
+      })
+
+      .addCase(saveRegistrationStep.pending, state => {
+        state.status = 'loading';
+        state.error = null;
+        state.fieldErrors = {};
+      })
+      .addCase(saveRegistrationStep.fulfilled, (state, action) => {
+        const {data} = action.payload;
+        state.status = 'succeeded';
+        state.user = data;
+        state.error = null;
+
+        // Step 3's real submit (not Save Draft) finalizes: the account is `pending`
+        // now, UserResource no longer sends registration_step/draft_profile at all,
+        // and there's no session left to keep signed into — same as registerBroker
+        // used to do, no token was ever issued for this status either.
+        if (data.status === 'pending') {
+          setAuthToken(null);
+          state.token = null;
+          state.isLoggedIn = false;
+          state.registrationStatus = 'pendingApproval';
+          state.draftProfile = null;
+          return;
+        }
+
+        state.registrationStep = data.registration_step ?? state.registrationStep;
+        state.draftProfile = data.draft_profile ?? state.draftProfile;
+      })
+      .addCase(saveRegistrationStep.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload?.message ?? 'Could not save this step.';
         state.fieldErrors = action.payload?.errors ?? {};
       })
 
@@ -358,10 +433,9 @@ const authSlice = createSlice({
         state.otp.status = 'idle';
         state.otp.error = null;
 
-        // Only the 'login' branch changes session state — 'register' hands the
-        // screen a verification_token to carry forward on its own (see the thunk),
-        // and there is nothing yet to consider "signed in" about it.
-        if (payload.status === 'login') {
+        // 'register' hands the screen a verification_token to carry forward on its
+        // own (see the thunk) — nothing to consider "signed in" about it yet.
+        if (payload.status === 'login' || payload.status === 'draft') {
           const {token, data} = payload;
           setAuthToken(token);
 
@@ -369,7 +443,9 @@ const authSlice = createSlice({
           state.user = data;
           state.role = data.role;
           state.isLoggedIn = true;
-          state.registrationStatus = 'approved';
+          state.registrationStatus = payload.status === 'draft' ? 'draft' : 'approved';
+          state.registrationStep = data.registration_step ?? state.registrationStep;
+          state.draftProfile = data.draft_profile ?? null;
         }
       })
       .addCase(verifyOtp.rejected, (state, action) => {
@@ -412,9 +488,9 @@ const authSlice = createSlice({
         state.emailOtp.status = 'idle';
         state.emailOtp.error = null;
 
-        // Only the 'login' branch changes session state — 'register' hands the
-        // screen the verified email to carry forward via navigation params.
-        if (payload.status === 'login') {
+        // 'register' hands the screen the verified email to carry forward via
+        // navigation params — nothing to consider "signed in" about it yet.
+        if (payload.status === 'login' || payload.status === 'draft') {
           const {token, data} = payload;
           setAuthToken(token);
 
@@ -422,7 +498,9 @@ const authSlice = createSlice({
           state.user = data;
           state.role = data.role;
           state.isLoggedIn = true;
-          state.registrationStatus = 'approved';
+          state.registrationStatus = payload.status === 'draft' ? 'draft' : 'approved';
+          state.registrationStep = data.registration_step ?? state.registrationStep;
+          state.draftProfile = data.draft_profile ?? null;
         }
       })
       .addCase(verifyEmailOtp.rejected, (state, action) => {
@@ -440,6 +518,18 @@ const authSlice = createSlice({
       .addCase(fetchMe.fulfilled, (state, action) => {
         state.user = action.payload;
         state.role = action.payload.role;
+
+        // A plain app-reopen (token already valid, no fresh OTP verify) needs this
+        // too — otherwise only the moment right after a live step save reflects a
+        // draft session correctly, and a returning `draft` user's persisted
+        // registrationStatus (which loadAuthState restores before this thunk even
+        // resolves) would go stale the instant they reach step 2 or 3 on some other
+        // device/reinstall.
+        if (action.payload.status === 'draft') {
+          state.registrationStatus = 'draft';
+          state.registrationStep = action.payload.registration_step ?? state.registrationStep;
+          state.draftProfile = action.payload.draft_profile ?? state.draftProfile;
+        }
       })
 
       // ------------------------------------------------ logout

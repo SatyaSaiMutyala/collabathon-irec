@@ -56,6 +56,8 @@ if ($pendingCount > 0) {
         'icon' => 'user-check', 'tone' => 'info',
         'text' => $pendingCount . ' channel partner ' . Str::plural('registration', $pendingCount) . ' awaiting review',
         'time' => 'Now',
+        // A count, not one record — the queue itself is the only sensible destination.
+        'href' => route('admin.approvals'),
     ];
 }
 
@@ -68,6 +70,7 @@ foreach (Lead::where('contact_unlocked', true)
         'icon' => 'trending-up', 'tone' => 'success',
         'text' => ($lead->broker?->name ?? 'A broker') . ' is interested in ' . ($lead->property?->name ?? 'a listing'),
         'time' => $lead->interested_at?->diffForHumans() ?? '',
+        'href' => route('admin.leads.show', $lead),
     ];
 }
 
@@ -102,6 +105,17 @@ $toneClasses = [
           Skipped for anything that does not replace this document: new tabs, modified
           clicks, downloads, in-page anchors, and javascript:/mailto:/tel: schemes —
           flagging those would leave the skeleton stuck up with no navigation coming.
+
+          `navigating` is set after a short delay rather than immediately: on a fast
+          request (anything local, or any request the network finishes in well under a
+          human-perceptible beat) the real page replaces this one before the delay ever
+          fires, so the skeleton never shows at all — and the timer dies with the
+          document being torn down, nothing to cancel by hand. Without this, every click
+          flashed the skeleton for a single frame even on instant navigations, and since
+          the skeleton is a generic page shape (not this page's actual stat-card count or
+          spacing) that one frame read as the real content jumping/shaking rather than
+          loading. Only a genuinely slow request now shows it, which is the one case a
+          loading state is actually earning its keep.
       --}}
       x-on:click.capture="
           const a = $event.target.closest('a');
@@ -111,7 +125,7 @@ $toneClasses = [
           const href = a.getAttribute('href') || '';
           if (!href || href.startsWith('#') || /^(javascript|mailto|tel):/i.test(href)) return;
           if (a.href === window.location.href) return;
-          navigating = true;
+          setTimeout(() => { navigating = true }, 150);
       "
       {{--
           Bubble phase here, unlike the click above: a form may cancel its own submit
@@ -126,7 +140,7 @@ $toneClasses = [
       --}}
       x-on:submit="
           if (!$event.defaultPrevented && $event.target.getAttribute('method')?.toLowerCase() !== 'dialog') {
-              navigating = true;
+              setTimeout(() => { navigating = true }, 150);
           }
       "
       x-on:navigate-start.window="navigating = true"
@@ -246,8 +260,9 @@ $toneClasses = [
                             <span class="text-[11px] text-ink-3 nums">{{ count($notifications) }} new</span>
                         </div>
                         <div class="max-h-72 overflow-y-auto scrollbar-slim py-1">
-                            @foreach($notifications as $note)
-                                <div class="flex items-start gap-2.5 px-3 py-2.5 hover:bg-canvas transition-colors">
+                            @forelse($notifications as $note)
+                                <a href="{{ $note['href'] }}"
+                                   class="flex items-start gap-2.5 px-3 py-2.5 hover:bg-canvas transition-colors">
                                     <span class="w-7 h-7 rounded-notification flex items-center justify-center shrink-0 mt-0.5 {{ $toneClasses[$note['tone']] }}">
                                         <x-icon :name="$note['icon']" class="w-3.5 h-3.5" />
                                     </span>
@@ -255,8 +270,10 @@ $toneClasses = [
                                         <p class="text-[12.5px] text-ink leading-snug">{{ $note['text'] }}</p>
                                         <p class="text-[11px] text-ink-3 mt-0.5">{{ $note['time'] }}</p>
                                     </div>
-                                </div>
-                            @endforeach
+                                </a>
+                            @empty
+                                <p class="px-3 py-6 text-center text-[12.5px] text-ink-3">You're all caught up.</p>
+                            @endforelse
                         </div>
                         <div class="px-3 py-2 border-t border-line-soft">
                             <a href="{{ route('admin.approvals') }}" class="text-[12px] font-medium text-primary-dark hover:underline">

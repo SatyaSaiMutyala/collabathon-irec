@@ -1,12 +1,26 @@
-# Resolve react_native_pods.rb with node to allow for hoisting
-require Pod::Executable.execute_command('node', ['-p',
-  'require.resolve(
-    "react-native/scripts/react_native_pods.rb",
-    {paths: [process.argv[1]]},
-  )', __dir__]).strip
+def node_require(script)
+  # Resolve script with node to allow for hoisting
+  require Pod::Executable.execute_command('node', ['-p',
+    "require.resolve(
+      '#{script}',
+      {paths: [process.argv[1]]},
+    )", __dir__]).strip
+end
 
-platform :ios, '15.0'
+node_require('react-native/scripts/react_native_pods.rb')
+node_require('react-native-permissions/scripts/setup.rb')
+
+platform :ios, '15.1'
 prepare_react_native_project!
+
+# Only these get compiled in — everything else in the library stays unlinked so the
+# binary doesn't carry permission dialogs (and usage-description requirements) for
+# capabilities the app never asks for.
+setup_permissions([
+  'Camera',
+  'PhotoLibrary',
+  'LocationWhenInUse',
+])
 
 # react-native-firebase's Swift dependencies (GoogleUtilities, FirebaseCoreInternal, etc.)
 # require proper module maps. Static frameworks (not `use_modular_headers!`, which conflicts
@@ -19,7 +33,10 @@ target 'Collabathon' do
   use_react_native!(
     :path => config[:reactNativePath],
     # An absolute path to your application root.
-    :app_path => "#{Pod::Config.instance.installation_root}/.."
+    :app_path => "#{Pod::Config.instance.installation_root}/..",
+    # Matches android/gradle.properties' newArchEnabled=false. Explicit rather than left
+    # to the default: this project deliberately stays off Fabric/bridgeless for now.
+    :new_arch_enabled => false
   )
 
   target 'CollabathonTests' do
@@ -35,6 +52,25 @@ target 'Collabathon' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # fmt 11.0.2's own basic_format_string consteval constructor fails to compile under Xcode
+    # 26's clang ("call to consteval function ... is not a constant expression") — a real
+    # compiler/library incompatibility fmt 11.0.2 predates, fixed upstream in later fmt
+    # releases, but RN's third-party podspecs pin 11.0.2. Command-line -D flags can't
+    # override this: base.h computes FMT_USE_CONSTEVAL and FMT_CONSTEVAL with plain #define,
+    # no #ifndef guard, so fmt's own header just clobbers any predefined value. Patching the
+    # vendored header directly to force FMT_USE_CONSTEVAL off is the only thing that sticks.
+    fmt_base_header = Pod::Config.instance.installation_root + 'Pods/fmt/include/fmt/base.h'
+    if File.exist?(fmt_base_header)
+      contents = File.read(fmt_base_header)
+      marker = "#if FMT_USE_CONSTEVAL\n#  define FMT_CONSTEVAL consteval"
+      patched = contents.sub(marker, "#undef FMT_USE_CONSTEVAL\n#define FMT_USE_CONSTEVAL 0\n#{marker}")
+      if patched != contents
+        # CocoaPods vendors this header read-only (-r--r--r--); make it writable before patching.
+        File.chmod(0644, fmt_base_header)
+        File.write(fmt_base_header, patched)
+      end
+    end
 
     # CocoaPods emits LIBRARY_SEARCH_PATHS = "${TOOLCHAIN_DIR}/usr/lib/swift/${PLATFORM_NAME}",
     # but under Xcode 26 TOOLCHAIN_DIR expands to the Metal toolchain at link time, so the Swift

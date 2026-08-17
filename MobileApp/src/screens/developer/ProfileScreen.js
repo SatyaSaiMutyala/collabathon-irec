@@ -67,6 +67,7 @@ const ProfileScreen = () => {
               uri={company?.logo_url}
               name={company?.company_name}
               size="lg"
+              shape="square"
               ringColor={company?.verified ? colors.primary : colors.border}
               showVerified={company?.verified}
             />
@@ -113,7 +114,6 @@ const ProfileScreen = () => {
         <SectionTitle spacing={spacing}>Company</SectionTitle>
         <Card style={{paddingVertical: spacing.xxs}}>
           <InfoRow icon="business-outline" label="Company name" value={company?.company_name} />
-          <InfoRow icon="shield-checkmark-outline" label="RERA / licence" value={company?.rera_number} />
           <InfoRow
             icon="globe-outline"
             label="Website"

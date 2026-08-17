@@ -17,6 +17,7 @@ import {
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {deleteAccount, logout} from '../../store/slices/authSlice';
 import {showSnackbar} from '../../store/slices/uiSlice';
+import {splitSuffix} from '../../utils/name';
 
 const fallback = value => (value && String(value).trim() ? value : '—');
 const yesNo = value => (value ? 'Yes' : 'No');
@@ -49,9 +50,12 @@ const ProfileScreen = () => {
   // this screen renders so the field list below stays untouched.
   const user = useAppSelector(state => state.auth.user) ?? {};
   const profile = user.broker_profile ?? {};
+  // There is no separate `suffix` column — registration joins it straight into
+  // `name` ("Mr. Satya"), so reading it back out is the only way to show it here.
+  const {suffix, rest: fullNameAsRera} = splitSuffix(user.name);
   const broker = {
-    suffix: '',
-    fullNameAsRera: user.name,
+    suffix,
+    fullNameAsRera,
     mobileNumber: user.mobile,
     emailId: user.email,
     photoAttachment: user.avatar_url,

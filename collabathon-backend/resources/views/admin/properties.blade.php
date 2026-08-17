@@ -115,7 +115,7 @@
 
                 <td class="px-4 py-3 hidden lg:table-cell">
                     <div class="flex items-center gap-2 min-w-0">
-                        <x-avatar :name="$p->developer?->company_name ?? '—'" :src="$p->developer?->logo_path" size="xs" />
+                        <x-avatar :name="$p->developer?->company_name ?? '—'" :src="$p->developer?->logo_path" size="xs" shape="square" />
                         <span class="text-[12.5px] text-ink-2 truncate">{{ $p->developer?->company_name }}</span>
                     </div>
                 </td>

@@ -28,6 +28,11 @@ class User extends Authenticatable
     public const ROLE_BROKER = 'broker';
     public const ROLE_DEVELOPER = 'developer';
 
+    // A channel partner mid-registration: register/start (step 1) created the row, but
+    // step 3's final submit hasn't happened yet. Deliberately distinct from PENDING —
+    // ApprovalController's queue filters on PENDING specifically, so a half-finished
+    // registration never shows up there.
+    public const STATUS_DRAFT = 'draft';
     public const STATUS_PENDING = 'pending';
     public const STATUS_ACTIVE = 'active';
     public const STATUS_REJECTED = 'rejected';
@@ -134,6 +139,11 @@ class User extends Authenticatable
     public function isActive(): bool
     {
         return $this->status === self::STATUS_ACTIVE;
+    }
+
+    public function isDraft(): bool
+    {
+        return $this->status === self::STATUS_DRAFT;
     }
 
     // ------------------------------------------------------------------ scopes

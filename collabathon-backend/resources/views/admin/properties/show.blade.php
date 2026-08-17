@@ -33,10 +33,6 @@
             'Project status' => $property->project_status,
             'Possession date' => $date($property->possession_date),
             'Title' => $property->tagline,
-            // The registered-on / valid-till dates are no longer collected on the form, so
-            // they are not shown either — a read-only row for a field nothing can edit
-            // reads as a broken control. Both columns still hold their existing values.
-            'RERA registration number' => $property->rera_number,
         ],
         'Location' => [
             'State / Emirate' => $property->state,

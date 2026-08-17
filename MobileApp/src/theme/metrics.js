@@ -38,11 +38,20 @@ export const roundedRadius = {
   notification: moderateScale(999), // notification row icon disc + unread dot
   control: moderateScale(999), // circular icon controls, e.g. the back button
   avatar: moderateScale(999), // profile photos and their initials fallback
+  // Company logos, not people: a logo is usually a wide wordmark, and a circular crop
+  // cuts off its edges — a plain, unrounded 5:2 frame instead (no border-radius at all,
+  // matching avatar.blade.php on the web side), paired with Avatar's shape="square"
+  // (resizeMode 'contain' so the whole logo is always visible regardless of its own
+  // aspect ratio).
+  logo: 0,
   step: moderateScale(999), // numbered section markers (1, 2, 3) in SectionHeader
   statusIcon: moderateScale(999), // the large icon disc on a full-screen status message
   // The only exception that is not a full pill: the snackbar is a wide bar, and pilling
   // it turns the ends into long arcs that read as a lozenge rather than a surface.
   snackbar: moderateScale(10),
+  // A bottom sheet floats over the current screen the same way a snackbar does, rather
+  // than sitting in the normal content flow — round like it, not like a panel.
+  sheet: moderateScale(20),
 };
 
 export const iconSize = {

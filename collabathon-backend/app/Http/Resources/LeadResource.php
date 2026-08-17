@@ -30,8 +30,16 @@ class LeadResource extends JsonResource
             'responded_at' => $this->responded_at?->toIso8601String(),
             'developer_note' => $this->developer_note,
 
-            'property' => new PropertyResource($this->whenLoaded('property')),
-            'developer' => new DeveloperResource($this->whenLoaded('developer')),
+            // `property` carries its own sales contact number, and the `developer` below
+            // carries the developer's — both gated the same way as `broker` further down.
+            'property' => $this->whenLoaded(
+                'property',
+                fn () => (new PropertyResource($this->property))->withContact($this->revealsContact())
+            ),
+            'developer' => $this->whenLoaded(
+                'developer',
+                fn () => (new DeveloperResource($this->developer))->withContact($this->revealsContact())
+            ),
 
             'broker' => $this->whenLoaded(
                 'broker',

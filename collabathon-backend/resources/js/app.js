@@ -554,6 +554,178 @@ export function nearbyPlacesFinder(config = {}) {
     };
 }
 
+/**
+ * Interactive crop for logo uploads — a fixed 5:2 ratio (a logo is a wide wordmark, not a
+ * square headshot), drag to reposition and a slider to zoom, canvas-based like
+ * compressImage above rather than a runtime cropping library (this project has none, and
+ * deliberately hand-rolls its own image handling — see the file header).
+ *
+ * The real <input type="file"> stays empty until apply() runs: a picked file only ever
+ * produces a bitmap held in memory here, never sits in the input's own FileList directly.
+ * A raw, uncropped file can never reach the form. compressFileInputs() still runs at
+ * submit time same as any other file input — it operates generically over
+ * `input[type="file"]` with no knowledge of "crop," so the cropped PNG this produces just
+ * gets whatever further re-encoding its own size warrants, same as any upload.
+ */
+const LOGO_RATIO = 5 / 2;
+const LOGO_OUTPUT_WIDTH = 600;
+const LOGO_OUTPUT_HEIGHT = Math.round(LOGO_OUTPUT_WIDTH / LOGO_RATIO);
+const LOGO_FRAME_WIDTH = 320;
+const LOGO_FRAME_HEIGHT = Math.round(LOGO_FRAME_WIDTH / LOGO_RATIO);
+
+export function cropTool() {
+    return {
+        frameWidth: LOGO_FRAME_WIDTH,
+        frameHeight: LOGO_FRAME_HEIGHT,
+
+        editing: false,
+        fileName: '',
+        previewUrl: null,
+        bitmap: null,
+        scale: 1,
+        minScale: 1,
+        offsetX: 0,
+        offsetY: 0,
+        dragging: false,
+        dragStartX: 0,
+        dragStartY: 0,
+        dragOriginX: 0,
+        dragOriginY: 0,
+
+        async onFileChange(event) {
+            const file = event.target.files?.[0];
+            if (! file) return;
+
+            this.fileName = file.name;
+
+            let bitmap;
+            try {
+                // `from-image` applies EXIF orientation — without it, phone photos land rotated.
+                bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+            } catch {
+                // Not decodable in-browser (e.g. HEIC) — nothing to crop against. Leave the
+                // raw file sitting in the input as picked; the server still validates it.
+                return;
+            }
+
+            this.bitmap?.close?.();
+            this.bitmap = bitmap;
+
+            // The smallest scale at which the image still fully covers the frame on both
+            // axes — below this, the frame would show empty space at an edge.
+            this.minScale = Math.max(this.frameWidth / bitmap.width, this.frameHeight / bitmap.height);
+            this.scale = this.minScale;
+            this.offsetX = 0;
+            this.offsetY = 0;
+            this.editing = true;
+
+            await this.$nextTick();
+            this.draw();
+        },
+
+        startDrag(event) {
+            this.dragging = true;
+            this.dragStartX = event.clientX;
+            this.dragStartY = event.clientY;
+            this.dragOriginX = this.offsetX;
+            this.dragOriginY = this.offsetY;
+        },
+
+        onDrag(event) {
+            if (! this.dragging) return;
+            this.offsetX = this.dragOriginX + (event.clientX - this.dragStartX);
+            this.offsetY = this.dragOriginY + (event.clientY - this.dragStartY);
+            this.clampOffset();
+            this.draw();
+        },
+
+        endDrag() {
+            this.dragging = false;
+        },
+
+        onZoom(value) {
+            this.scale = Number(value);
+            this.clampOffset();
+            this.draw();
+        },
+
+        /** Keeps the frame fully covered — the image can be panned, never past its own edge. */
+        clampOffset() {
+            const width = this.bitmap.width * this.scale;
+            const height = this.bitmap.height * this.scale;
+            const maxX = Math.max(0, (width - this.frameWidth) / 2);
+            const maxY = Math.max(0, (height - this.frameHeight) / 2);
+            this.offsetX = Math.min(maxX, Math.max(-maxX, this.offsetX));
+            this.offsetY = Math.min(maxY, Math.max(-maxY, this.offsetY));
+        },
+
+        draw() {
+            const canvas = this.$refs.canvas;
+            if (! canvas || ! this.bitmap) return;
+
+            canvas.width = this.frameWidth;
+            canvas.height = this.frameHeight;
+
+            const context = canvas.getContext('2d');
+            context.clearRect(0, 0, this.frameWidth, this.frameHeight);
+
+            const width = this.bitmap.width * this.scale;
+            const height = this.bitmap.height * this.scale;
+            const x = (this.frameWidth - width) / 2 + this.offsetX;
+            const y = (this.frameHeight - height) / 2 + this.offsetY;
+            context.drawImage(this.bitmap, x, y, width, height);
+        },
+
+        async apply() {
+            if (! this.bitmap) return;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = LOGO_OUTPUT_WIDTH;
+            canvas.height = LOGO_OUTPUT_HEIGHT;
+
+            // Same crop, rendered at the real output resolution rather than the (smaller)
+            // on-screen preview size.
+            const outputScale = LOGO_OUTPUT_WIDTH / this.frameWidth;
+            const width = this.bitmap.width * this.scale * outputScale;
+            const height = this.bitmap.height * this.scale * outputScale;
+            const x = (LOGO_OUTPUT_WIDTH - width) / 2 + this.offsetX * outputScale;
+            const y = (LOGO_OUTPUT_HEIGHT - height) / 2 + this.offsetY * outputScale;
+
+            const context = canvas.getContext('2d');
+            context.drawImage(this.bitmap, x, y, width, height);
+
+            // PNG, not JPEG — preserves transparency for a wordmark logo on a transparent
+            // background. compressFileInputs() still flattens/re-encodes this later, but
+            // only if its own size actually warrants it.
+            const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+            if (! blob) return;
+
+            const name = this.fileName.replace(/\.[^.]+$/, '') + '-cropped.png';
+            const file = new File([blob], name, { type: 'image/png' });
+
+            // Same DataTransfer technique compressFileInputs uses — FileList is read-only.
+            const transfer = new DataTransfer();
+            transfer.items.add(file);
+            this.$refs.input.files = transfer.files;
+
+            if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
+            this.previewUrl = URL.createObjectURL(blob);
+
+            this.editing = false;
+            this.bitmap.close?.();
+            this.bitmap = null;
+        },
+
+        cancel() {
+            this.editing = false;
+            this.bitmap?.close?.();
+            this.bitmap = null;
+            this.fileName = '';
+            this.$refs.input.value = '';
+        },
+    };
+}
+
 // Alpine loads from a CDN and evaluates its expressions from the global scope, so the
 // wizard and the credential dialogs reach these through `window` rather than an import.
 window.compressFileInputs = compressFileInputs;
@@ -561,6 +733,7 @@ window.makePassword = makePassword;
 window.addressFinder = addressFinder;
 window.locationFinder = locationFinder;
 window.nearbyPlacesFinder = nearbyPlacesFinder;
+window.cropTool = cropTool;
 
 /* ------------------------------------------------------------------ dashboard KPI panel */
 
@@ -589,6 +762,28 @@ window.nearbyPlacesFinder = nearbyPlacesFinder;
         } catch {
             return false;
         }
+    };
+
+    // A dashboard-shaped href is only actually *panel* traffic if it opens/switches a
+    // tile (`?panel=…`, e.g. a KPI tile or the panel's own search/sort/pagination — all
+    // built with `withQueryString()`, so they keep `panel=`) or belongs to the panel's
+    // own chrome (its "Close" button, which deliberately points at the bare
+    // `/admin/dashboard` with no `panel=` so the page still works with JS off — that
+    // link is only distinguishable by living inside #panel-wrap). The sidebar's
+    // persistent "Dashboard" link is the *same* bare URL as that Close button but lives
+    // outside #panel-wrap, in the nav — without this containment check it was
+    // indistinguishable from Close and got the same in-place, scroll-preserving swap
+    // instead of the real navigation (and scroll-to-top) re-clicking "Dashboard" should do.
+    const isPanelLink = (link) => {
+        if (!isDashboardUrl(link.href)) return false;
+
+        try {
+            if (new URL(link.href, window.location.origin).searchParams.has('panel')) return true;
+        } catch {
+            return false;
+        }
+
+        return panelWrap()?.contains(link) ?? false;
     };
 
     // The fragment route is always `.../dashboard/panel` with the same query string —
@@ -676,7 +871,7 @@ window.nearbyPlacesFinder = nearbyPlacesFinder;
         if (!panelWrap()) return;
 
         const link = event.target.closest('a[href]');
-        if (!link || !isDashboardUrl(link.href)) return;
+        if (!link || !isPanelLink(link)) return;
 
         // Not every dashboard-shaped link is a panel to fetch. The export menu's two
         // items point at this same /admin/dashboard path with `?export=` on it, and

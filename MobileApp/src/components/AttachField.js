@@ -46,9 +46,19 @@ function runCrop(promise, onPicked) {
  * has to be square, but forcing a PAN card or a cancelled cheque through a square cropper
  * would make the user cut off the part of the document that matters.
  */
+/**
+ * `quality` alone only changes JPEG compression, not pixel dimensions — a full
+ * camera photo (commonly 3000-4000px on a side) still decodes to the same huge
+ * bitmap wherever it's processed, quality setting or not. `maxWidth`/`maxHeight`
+ * are what actually shrink the image itself; a document photo doesn't need to be
+ * any bigger than this to stay legible (or, for Aadhaar, to keep its QR code
+ * readable — see AadhaarVerificationService's matching server-side resize).
+ */
+const NON_CROP_PICKER_OPTIONS = {mediaType: 'photo', quality: 0.7, maxWidth: 1600, maxHeight: 1600};
+
 function pickFromCamera(onPicked, crop) {
   if (!crop) {
-    launchCamera({mediaType: 'photo', quality: 0.7}, response => {
+    launchCamera(NON_CROP_PICKER_OPTIONS, response => {
       // Cancelling is a normal outcome, same as the crop path below — nothing to alert.
       if (response.didCancel) {
         return;
@@ -76,7 +86,7 @@ function pickFromCamera(onPicked, crop) {
 
 function pickFromLibrary(onPicked, crop) {
   if (!crop) {
-    launchImageLibrary({mediaType: 'photo', quality: 0.7}, response => {
+    launchImageLibrary(NON_CROP_PICKER_OPTIONS, response => {
       const uri = response?.assets?.[0]?.uri;
       if (uri) {
         onPicked(uri);
@@ -99,7 +109,13 @@ const ImageViewer = ({uri, label, visible, onClose}) => {
   const {colors, spacing} = useAppTheme();
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+      navigationBarTranslucent>
       <Pressable style={{flex: 1, backgroundColor: colors.overlayStrong}} onPress={onClose}>
         <View
           style={{

@@ -49,7 +49,12 @@ class MyPropertyController extends Controller
 
         $query = $this->applySort($query, $request, self::SORTABLE);
 
-        return PropertyResource::collection($this->paginate($query, $request));
+        // Always this developer's own listings — every row's contact channels
+        // (their own) are always visible to them. See PropertyResource::withContact().
+        $resource = PropertyResource::collection($this->paginate($query, $request));
+        $resource->collection->each(fn (PropertyResource $item) => $item->withContact(true));
+
+        return $resource;
     }
 
     /** GET /api/v1/my/properties/{property} — full detail, any status. */
@@ -59,7 +64,7 @@ class MyPropertyController extends Controller
 
         $property->load(['developer', 'detail', 'unitTypes', 'media']);
 
-        return response()->json(['data' => new PropertyResource($property)]);
+        return response()->json(['data' => (new PropertyResource($property))->withContact(true)]);
     }
 
     /**
@@ -85,7 +90,7 @@ class MyPropertyController extends Controller
             'message' => $data['status'] === Property::DEV_ACCEPTED
                 ? 'Project accepted — it is now visible to channel partners.'
                 : 'Project declined. The admin has been notified.',
-            'data' => new PropertyResource($property),
+            'data' => (new PropertyResource($property))->withContact(true),
         ]);
     }
 

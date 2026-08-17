@@ -6,36 +6,69 @@ import {roundedRadius, useAppTheme} from '../theme';
 import AppText from './AppText';
 import {initialsOf} from '../utils/name';
 
-const Avatar = ({uri, name, size = 'md', ringColor, showVerified}) => {
+// A logo is a wide wordmark, not a square headshot — logo mode keeps `dim` as the
+// height and widens to a fixed 5:2 ratio instead of reusing the square person-photo
+// box, so a properly-cropped logo fills its frame edge-to-edge instead of sitting tiny
+// and letterboxed inside a square one.
+const LOGO_RATIO = 2.5;
+
+const Avatar = ({uri, name, size = 'md', ringColor, showVerified, shape = 'circle'}) => {
   const {colors, avatarSize} = useAppTheme();
   const dim = avatarSize[size];
-  const ringWidth = ringColor ? moderateScale(2) : 0;
+  const width = shape === 'square' ? dim * LOGO_RATIO : dim;
+  // A ring reads as an intentional frame on a person photo, but on a logo it shows up
+  // as a stray border cutting across the image itself — skip it regardless of whether
+  // a caller passes ringColor, same as avatar.blade.php does on the web side.
+  const ringWidth = ringColor && shape !== 'square' ? moderateScale(2) : 0;
+  const radius = shape === 'square' ? roundedRadius.logo : roundedRadius.avatar;
 
   return (
     <View
       style={[
         styles.wrapper,
         {
-          width: dim + ringWidth * 2,
+          width: width + ringWidth * 2,
           height: dim + ringWidth * 2,
-          borderRadius: roundedRadius.avatar,
+          borderRadius: radius,
           borderWidth: ringWidth,
           borderColor: ringColor,
         },
       ]}>
       {uri ? (
-        <Image
-          source={{uri}}
-          style={{width: dim, height: dim, borderRadius: roundedRadius.avatar}}
-        />
+        shape === 'square' ? (
+          // No padding here on purpose: a logo picked through the crop tool is already
+          // cropped to this exact 5:2 ratio before it's saved, so `contain` alone fills
+          // the box edge to edge. Padding was tried as a hedge for legacy un-cropped
+          // logos, but it eats into width and height unevenly at a 5:2 box — the
+          // *content* area it leaves behind isn't 5:2 anymore, so `contain` reintroduces
+          // a gap even for an image that was already cropped correctly. A background on
+          // the wrapper (not the Image) is still the fallback for the rare source that
+          // still doesn't match the ratio.
+          <View
+            style={{
+              width,
+              height: dim,
+              borderRadius: radius,
+              backgroundColor: colors.card,
+              overflow: 'hidden',
+            }}>
+            <Image source={{uri}} resizeMode="contain" style={{width: '100%', height: '100%'}} />
+          </View>
+        ) : (
+          <Image
+            source={{uri}}
+            resizeMode="cover"
+            style={{width, height: dim, borderRadius: radius}}
+          />
+        )
       ) : (
         <View
           style={[
             styles.fallback,
             {
-              width: dim,
+              width,
               height: dim,
-              borderRadius: roundedRadius.avatar,
+              borderRadius: radius,
               backgroundColor: colors.primarySoft,
             },
           ]}>

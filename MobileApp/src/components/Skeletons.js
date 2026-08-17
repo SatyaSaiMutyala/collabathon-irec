@@ -152,18 +152,12 @@ export const LeadCardSkeleton = () => {
   );
 };
 
-/** Mirrors DeveloperCard: logo + name + meta row. */
+/** Mirrors DeveloperCard: the full card is just the logo, nothing below it. */
 export const DeveloperCardSkeleton = () => {
-  const {spacing, avatarSize} = useAppTheme();
+  const {spacing} = useAppTheme();
   return (
-    <Card style={{marginBottom: spacing.sm}}>
-      <View style={styles.row}>
-        <Skeleton width={avatarSize.md} height={avatarSize.md} radius={moderateScale(999)} />
-        <View style={{flex: 1, marginLeft: spacing.sm}}>
-          <Skeleton width="65%" height={LINE} />
-          <Skeleton width="45%" height={LINE_SM} style={{marginTop: moderateScale(6)}} />
-        </View>
-      </View>
+    <Card padded={false} style={{marginBottom: spacing.md, overflow: 'hidden'}}>
+      <Skeleton width="100%" height={moderateScale(150)} radius={0} />
     </Card>
   );
 };

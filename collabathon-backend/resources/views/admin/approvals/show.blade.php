@@ -13,6 +13,27 @@
     ]);
 
     /**
+     * Aadhaar is the one document number sensitive enough to keep off-screen even
+     * from an admin reviewing the registration — the document itself (viewable via
+     * its own link below) is still the actual verification evidence; this is just
+     * the typed-in number shown for a quick eyeball match. Normalises to the
+     * standard "XXXX XXXX 1234" masked form regardless of how it was typed
+     * (with or without spaces).
+     */
+    $maskAadhaar = function (?string $number) {
+        if (blank($number)) {
+            return $number;
+        }
+
+        $digits = preg_replace('/\D/', '', $number);
+        if ($digits === '' || strlen($digits) <= 4) {
+            return $number;
+        }
+
+        return 'XXXX XXXX ' . substr($digits, -4);
+    };
+
+    /**
      * Every uploaded document, in the order the mobile app collects them. Paths are
      * frequently null — a registration can reach the queue with none attached — so each
      * row renders either a link or a plain "Not provided".
@@ -30,10 +51,18 @@
      * Both columns are left on `broker_profiles` — existing registrations still hold data.
      */
     $documents = [
-        ['label' => 'PAN card', 'number' => $profile?->pan_card, 'path' => $profile?->pan_card_path],
+        [
+            'label' => 'PAN card',
+            'number' => $profile?->pan_card,
+            'path' => $profile?->pan_card_path,
+            // Checked against Surepass at registration time, same as Aadhaar below —
+            // see PanVerificationService / KycController::verifyPan.
+            'verified' => (bool) $profile?->pan_verified,
+            'verified_name' => $profile?->pan_verified_name,
+        ],
         [
             'label' => 'Aadhaar card',
-            'number' => $profile?->aadhaar_card,
+            'number' => $maskAadhaar($profile?->aadhaar_card),
             'path' => $profile?->aadhaar_path,
             // Checked against Surepass at registration time, not just typed in — see
             // AadhaarVerificationService. Null/false alike read as unverified: today
@@ -85,10 +114,13 @@
     $socialCell = count($socialLinks)
         ? new \Illuminate\Support\HtmlString(
             collect($socialLinks)->map(fn ($link) => sprintf(
-                '<a href="%s" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-primary-dark hover:underline">%s</a>',
+                '<a href="%s" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-primary-dark hover:underline"><span class="inline-flex shrink-0">%s</span><span>%s</span></a>',
                 e(\Illuminate\Support\Str::startsWith($link['value'], ['http://', 'https://'])
                     ? $link['value']
                     : 'https://' . ltrim($link['value'], '@')),
+                // $link['key'] is one of SocialPlatforms::ALL's keys, which is also
+                // exactly the matching icon's name in icon.blade.php.
+                view('components.icon', ['name' => $link['key'], 'class' => 'w-3.5 h-3.5 shrink-0'])->render(),
                 e($link['label'])
             ))->join('<span class="text-ink-3 mx-0.5">·</span>')
         )

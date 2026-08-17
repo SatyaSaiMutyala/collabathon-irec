@@ -1,6 +1,7 @@
 import React, {useRef, useState} from 'react';
-import {StyleSheet, TouchableOpacity, View} from 'react-native';
+import {ActivityIndicator, Alert, StyleSheet, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import DocumentPicker, {isCancel as isDocumentPickCancelled} from 'react-native-document-picker';
 import {moderateScale} from '../../theme/scaling';
 import {KeyboardAwareScrollView} from 'react-native-keyboard-aware-scroll-view';
 import {useAppTheme} from '../../theme';
@@ -17,7 +18,9 @@ import {
   SignaturePad,
   toApiDate,
 } from '../../components';
-import {useAppDispatch} from '../../store/hooks';
+import {kycApi} from '../../api/endpoints';
+import {extractError} from '../../api/client';
+import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {registerBroker} from '../../store/slices/authSlice';
 import {showSnackbar} from '../../store/slices/uiSlice';
 
@@ -146,7 +149,19 @@ const initialForm = {
   panCard: '',
   panCardAttachment: '',
   aadhaarCard: '',
-  aadhaarAttachment: '',
+  // {uri, name, type} from the document picker — the offline XML, eAadhaar PDF, or
+  // a photo of the card, or null. Kept as the picker's own object rather than a
+  // bare uri string (every other attachment's shape) because the upload needs its
+  // real name/type, which a bare uri can't carry, and which endpoint it routes to
+  // depends on which of the three this turned out to be.
+  aadhaarAttachment: null,
+  // Only asked for if the broker's UIDAI XML download needed one — most don't set
+  // a share code at all, so this is never required.
+  aadhaarShareCode: '',
+  // Only relevant for a password-protected eAadhaar PDF — UIDAI derives that
+  // password from name + year of birth, so this is what verifyAadhaarEaadhaar
+  // needs to open one. Unused for the XML or photo paths.
+  aadhaarYob: '',
   reraNumber: '',
   reraCertificateAttachment: '',
   // A Date, not a typed string: the calendar cannot produce an unparseable value.
@@ -164,7 +179,7 @@ const initialForm = {
 };
 
 const RegisterScreen = ({navigation, route}) => {
-  const {colors, spacing} = useAppTheme();
+  const {colors, radius, spacing} = useAppTheme();
   const dispatch = useAppDispatch();
   // Arrives from EmailOtpVerify once a code was confirmed for an email with no
   // account yet — already proven to belong to this person, so it's prefilled and
@@ -173,7 +188,20 @@ const RegisterScreen = ({navigation, route}) => {
   const [form, setForm] = useState(() =>
     verifiedEmail ? {...initialForm, emailId: verifiedEmail} : initialForm,
   );
+  // Multiple photo/PDF attachments ride along on submit, so the upload can take a
+  // real few seconds on a normal connection — with no loading state on the button,
+  // that stretch looked exactly like "nothing happening" when the tap was already
+  // registered and working.
+  const isSubmitting = useAppSelector(state => state.auth.status === 'loading');
   const [errors, setErrors] = useState({});
+  // Kicked off the moment an Aadhaar XML is attached, independent of the rest of
+  // the form's validation/submit cycle — this is a live check of the document
+  // itself, not something that should wait for "Submit" to run.
+  const [aadhaarVerification, setAadhaarVerification] = useState({
+    status: 'idle', // idle | verifying | verified | rejected | unavailable
+    name: null,
+    message: null,
+  });
   const [isScrollEnabled, setIsScrollEnabled] = useState(true);
 
   // One ref per text field, so a failed submit can put the cursor in the offending one.
@@ -242,7 +270,7 @@ const RegisterScreen = ({navigation, route}) => {
       next.aadhaarCard = 'Enter Aadhaar number';
     }
     if (!form.aadhaarAttachment) {
-      next.aadhaarAttachment = 'Attach a copy of the Aadhaar card';
+      next.aadhaarAttachment = 'Attach your Aadhaar (XML, PDF, or a photo of the card)';
     }
     if (!form.reraNumber.trim()) {
       next.reraNumber = 'Enter RERA number';
@@ -304,6 +332,92 @@ const RegisterScreen = ({navigation, route}) => {
       ? {uri, name: uri.split('/').pop() || fallbackName, type: 'image/jpeg'}
       : null;
 
+  /** Extension (lowercased, no dot) that decides which Surepass endpoint a picked file routes to. */
+  const aadhaarDocumentKind = name => {
+    const ext = (name ?? '').split('.').pop()?.toLowerCase();
+    if (ext === 'xml') return 'xml';
+    if (ext === 'pdf') return 'pdf';
+    if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) return 'image';
+    return null;
+  };
+
+  /**
+   * Opens the document picker for any of the three documents Surepass can verify
+   * an Aadhaar from — the offline XML, the eAadhaar PDF, or a photo of the card —
+   * then immediately verifies whatever was picked. Filtered to `allFiles` rather
+   * than a specific MIME/UTI list: what a file manager reports varies enough
+   * across devices that a strict type filter risked hiding the broker's own file
+   * from the picker; the extension check below plus each endpoint's own server-side
+   * `mimes:` validation are what actually gate this, not the picker's filter.
+   */
+  const pickAadhaarDocument = async () => {
+    let picked;
+    try {
+      picked = await DocumentPicker.pickSingle({type: [DocumentPicker.types.allFiles]});
+    } catch (error) {
+      if (!isDocumentPickCancelled(error)) {
+        Alert.alert('Could not open file picker', error?.message ?? 'Please try again.');
+      }
+      return;
+    }
+
+    const kind = aadhaarDocumentKind(picked.name);
+    if (!kind) {
+      Alert.alert(
+        'Unsupported file',
+        'Choose your Aadhaar offline XML, eAadhaar PDF, or a photo of the card (.xml, .pdf, .jpg, or .png).',
+      );
+      return;
+    }
+
+    const file = {uri: picked.uri, name: picked.name, type: picked.type || 'application/octet-stream'};
+    update('aadhaarAttachment')(file);
+    verifyAadhaarDocument(file, kind);
+  };
+
+  /**
+   * Best-effort and non-blocking by design — every branch here just updates the
+   * inline status shown under the attach box; nothing here stops the broker from
+   * filling in the rest of the form or submitting regardless of what this call
+   * answers (see KycController's own docblock for why: a bad file or an
+   * unreachable Surepass must not gate registration itself).
+   */
+  const verifyAadhaarDocument = async (file, kind) => {
+    setAadhaarVerification({status: 'verifying', name: null, message: null});
+
+    try {
+      const fullName = [form.suffix, form.fullNameAsRera].filter(Boolean).join(' ').trim();
+      const {data} =
+        kind === 'xml'
+          ? await kycApi.verifyAadhaarXml(file, form.aadhaarShareCode.trim())
+          : kind === 'pdf'
+            ? await kycApi.verifyAadhaarEaadhaar(file, form.aadhaarYob.trim(), fullName)
+            : await kycApi.verifyAadhaar(file);
+
+      if (data.status === 'verified') {
+        const verifiedName = data.data?.name ?? null;
+        setAadhaarVerification({status: 'verified', name: verifiedName, message: null});
+
+        // Only when the name field is still empty — a verified match should never
+        // overwrite something the broker already typed themselves.
+        if (verifiedName) {
+          setForm(prev =>
+            prev.fullNameAsRera.trim() ? prev : {...prev, fullNameAsRera: verifiedName},
+          );
+        }
+        return;
+      }
+
+      setAadhaarVerification({status: data.status, name: null, message: data.message ?? null});
+    } catch (error) {
+      setAadhaarVerification({
+        status: 'unavailable',
+        name: null,
+        message: extractError(error).message ?? 'Could not verify right now.',
+      });
+    }
+  };
+
   /** Maps the empanelment form onto the API's register contract. */
   const toPayload = () => ({
     name: [form.suffix, form.fullNameAsRera].filter(Boolean).join(' ').trim(),
@@ -329,6 +443,11 @@ const RegisterScreen = ({navigation, route}) => {
 
     pan_card: form.panCard.trim() || null,
     aadhaar_card: form.aadhaarCard.trim() || null,
+    // What verifyAadhaarPhoto already found out about the attached photo, carried
+    // into the same submit — see AuthController::register()'s note on why this is
+    // trusted as reported rather than re-checked server-side.
+    aadhaar_verified: aadhaarVerification.status === 'verified',
+    aadhaar_verified_name: aadhaarVerification.status === 'verified' ? aadhaarVerification.name : null,
     rera_number: form.reraNumber.trim() || null,
     rera_certificate_expiry: form.reraCertificateExpiry
       ? toApiDate(form.reraCertificateExpiry)
@@ -353,12 +472,18 @@ const RegisterScreen = ({navigation, route}) => {
     // registration arrived with the numbers and none of the documents, and the admin's
     // Documents panel read "Not provided" for all of them.
     pan_card_file: filePart(form.panCardAttachment, 'pan-card.jpg'),
-    aadhaar_file: filePart(form.aadhaarAttachment, 'aadhaar.jpg'),
+    // Already the {uri, name, type} the document picker returned, not a bare uri —
+    // no filePart() needed (that helper's own hardcoded 'image/jpeg' type would be
+    // wrong for this one anyway; this file is XML).
+    aadhaar_file: form.aadhaarAttachment,
     rera_certificate_file: filePart(form.reraCertificateAttachment, 'rera-certificate.jpg'),
     gst_file: filePart(form.gstAttachment, 'gst.jpg'),
   });
 
   const handleSubmit = async () => {
+    if (isSubmitting) {
+      return;
+    }
     const localErrors = validate();
     if (Object.keys(localErrors).length > 0) {
       reportErrors(localErrors);
@@ -711,17 +836,126 @@ const RegisterScreen = ({navigation, route}) => {
             onChangeText={update('aadhaarCard')}
             error={errors.aadhaarCard}
           />
-          <View style={{marginBottom: spacing.sm}}>
-            <AttachBox
-              uri={form.aadhaarAttachment}
-              onPick={update('aadhaarAttachment')}
-              onRemove={() => update('aadhaarAttachment')('')}
-              label="Aadhaar card"
-              placeholder="Attach a photo of your Aadhaar"
-              height={120}
-              error={errors.aadhaarAttachment}
-            />
+
+          {/* One picker, three accepted documents — see aadhaarDocumentKind(). The XML
+              or eAadhaar PDF (both downloaded from UIDAI ahead of time) verify by a
+              plain upload; a photo of the card still works too, verified by decoding
+              its QR code, but is the least reliable of the three (a real, dense
+              Aadhaar "Secure QR" needs more of the frame in sharp focus than a
+              whole-card photo reliably delivers) — prefer XML or PDF when the broker
+              has either. */}
+          <AppText variant="caption" color={colors.textSecondary} style={styles.label}>
+            Aadhaar (XML, PDF, or photo) *
+          </AppText>
+          <TouchableOpacity activeOpacity={0.85} onPress={pickAadhaarDocument} style={{marginBottom: spacing.xs}}>
+            {form.aadhaarAttachment ? (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: radius.md,
+                  paddingVertical: spacing.sm,
+                  paddingHorizontal: spacing.sm,
+                  backgroundColor: colors.background,
+                }}>
+                <Icon name="document-text-outline" size={moderateScale(20)} color={colors.primaryDark} />
+                <AppText
+                  variant="caption"
+                  color={colors.textPrimary}
+                  numberOfLines={1}
+                  style={{flex: 1, marginLeft: spacing.xs}}>
+                  {form.aadhaarAttachment.name}
+                </AppText>
+                <TouchableOpacity
+                  onPress={() => {
+                    update('aadhaarAttachment')(null);
+                    setAadhaarVerification({status: 'idle', name: null, message: null});
+                  }}
+                  hitSlop={8}>
+                  <Icon name="close-circle" size={moderateScale(18)} color={colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View
+                style={{
+                  borderWidth: 1.5,
+                  borderStyle: 'dashed',
+                  borderColor: errors.aadhaarAttachment ? colors.danger : colors.primary,
+                  borderRadius: radius.md,
+                  paddingVertical: spacing.md,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: colors.primarySoft,
+                }}>
+                <Icon name="document-attach-outline" size={moderateScale(20)} color={colors.primaryDark} />
+                <AppText variant="caption" color={colors.primaryDark} style={{marginTop: moderateScale(4)}}>
+                  Tap to attach — XML, PDF, or a photo of the card
+                </AppText>
+              </View>
+            )}
+          </TouchableOpacity>
+          {errors.aadhaarAttachment && (
+            <AppText variant="caption" color={colors.danger} style={{marginTop: moderateScale(-2), marginBottom: spacing.xs}}>
+              {errors.aadhaarAttachment}
+            </AppText>
+          )}
+
+          <View style={{flexDirection: 'row'}}>
+            <View style={{flex: 1, marginRight: spacing.xs}}>
+              <Input
+                label="Share code (XML only, if any)"
+                placeholder="4-digit code"
+                keyboardType="number-pad"
+                maxLength={4}
+                value={form.aadhaarShareCode}
+                onChangeText={update('aadhaarShareCode')}
+              />
+            </View>
+            <View style={{flex: 1, marginLeft: spacing.xs}}>
+              <Input
+                label="Year of birth (PDF only, if any)"
+                placeholder="e.g. 1990"
+                keyboardType="number-pad"
+                maxLength={4}
+                value={form.aadhaarYob}
+                onChangeText={update('aadhaarYob')}
+              />
+            </View>
           </View>
+
+          {aadhaarVerification.status === 'verifying' && (
+            <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm}}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <AppText variant="caption" color={colors.textSecondary} style={{marginLeft: spacing.xs}}>
+                Verifying Aadhaar…
+              </AppText>
+            </View>
+          )}
+          {aadhaarVerification.status === 'verified' && (
+            <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm}}>
+              <Icon name="checkmark-circle" size={moderateScale(14)} color={colors.success} />
+              <AppText variant="caption" color={colors.success} style={{marginLeft: spacing.xs}}>
+                {aadhaarVerification.name ? `Verified — ${aadhaarVerification.name}` : 'Verified'}
+              </AppText>
+            </View>
+          )}
+          {/* qr_not_found is only reachable via the photo path — see verifyAadhaar's
+              own status enum — the XML/PDF paths only ever answer 'rejected'. */}
+          {(aadhaarVerification.status === 'rejected' || aadhaarVerification.status === 'qr_not_found') && (
+            <View style={{flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.sm}}>
+              <Icon name="alert-circle-outline" size={moderateScale(14)} color={colors.warning} style={{marginTop: moderateScale(1)}} />
+              <AppText variant="caption" color={colors.warning} style={{marginLeft: spacing.xs, flex: 1}}>
+                {aadhaarVerification.message ?? 'Could not verify this file.'}
+              </AppText>
+            </View>
+          )}
+          {aadhaarVerification.status === 'unavailable' && (
+            <AppText variant="caption" color={colors.textMuted} style={{marginBottom: spacing.sm}}>
+              {aadhaarVerification.message ?? 'Could not verify right now.'}
+            </AppText>
+          )}
 
           <Input
             ref={registerRef('reraNumber')}
@@ -744,7 +978,7 @@ const RegisterScreen = ({navigation, route}) => {
             />
           </View>
 
-          <DateField
+          {/* <DateField
             label="RERA certificate validity / expiry date *"
             placeholder="Tap to pick a date"
             value={form.reraCertificateExpiry}
@@ -754,7 +988,7 @@ const RegisterScreen = ({navigation, route}) => {
             minimumDate={TODAY}
             maximumDate={MAX_EXPIRY}
             error={errors.reraCertificateExpiry}
-          />
+          /> */}
 
           <Input
             ref={registerRef('gstNumber')}
@@ -877,10 +1111,12 @@ const RegisterScreen = ({navigation, route}) => {
           </AppText>
         )}
         <Button
-          label="Submit for approval"
-          icon="arrow-forward"
+          label={isSubmitting ? 'Submitting…' : 'Submit for approval'}
+          icon={isSubmitting ? undefined : 'arrow-forward'}
           iconPosition="right"
           onPress={handleSubmit}
+          loading={isSubmitting}
+          disabled={isSubmitting}
         />
 
         <View style={styles.footerRow}>

@@ -147,18 +147,13 @@
                 x-on:click="window.location = @js(route('admin.leads.developer', $dev))">
                 <td class="px-4 py-3">
                     <div class="flex items-center gap-2.5 min-w-0">
-                        @if($dev->logo_path)
-                            <img src="{{ asset('storage/' . $dev->logo_path) }}"
-                                 alt="" class="w-8 h-8 rounded-lg object-cover border border-line-soft shrink-0">
-                        @else
-                            <x-avatar :name="$dev->company_name" size="md" />
-                        @endif
+                        <x-avatar :name="$dev->company_name" :src="$dev->logo_path" shape="square" size="md" />
                         <div class="min-w-0">
                             <a href="{{ route('admin.leads.developer', $dev) }}"
                                class="text-[13px] font-medium text-ink hover:underline truncate block">
                                 {{ $dev->company_name }}
                             </a>
-                            <p class="text-[11.5px] text-ink-3 truncate">{{ $dev->rera_number ?: $dev->email }}</p>
+                            <p class="text-[11.5px] text-ink-3 truncate">{{ $dev->email }}</p>
                         </div>
                     </div>
                 </td>

@@ -14,11 +14,22 @@ const RESEND_COOLDOWN_S = 30;
  * (OtpInput's `onComplete`). What happens next is entirely the server's own fork (see
  * `verifyOtp`'s thunk and `AuthController::verifyOtp`) —
  *
- *   'login'    — RootNavigator swaps to the broker stack the instant `isLoggedIn`
- *                flips in the store; this screen calls no navigation itself, it just
- *                stops being shown.
+ *   'login'    — RootNavigator swaps to a *different* navigator (AuthNavigator ->
+ *                BrokerRootStack) the instant `isLoggedIn` flips, which really does
+ *                unmount/remount and land on the right screen; this screen calls no
+ *                navigation itself.
+ *   'draft'    — a registration already in progress for this number; the reducer
+ *                hydrates the session exactly like 'login' does, but RootNavigator's
+ *                `registrationStatus === 'draft'` branch stays on this same
+ *                AuthNavigator instance (just a changed `initialRouteName` prop,
+ *                which React Navigation only reads on a navigator's first mount) —
+ *                so unlike 'login', nothing there actually moves this screen
+ *                anywhere. This screen has to navigate itself, same as 'register'.
  *   'register' — no account for this number yet; on to CompleteProfile, carrying the
- *                one-time verification_token that screen submits instead of a password.
+ *                one-time verification_token this path still issues (unused by
+ *                startRegistration, which re-validates the mobile number's own
+ *                uniqueness itself — kept only because this path stays registered but
+ *                unlinked, see AuthNavigator).
  *   403        — an account exists but isn't approved yet (or was rejected); on to
  *                PendingApproval, which reads the status the thunk already wrote.
  *   otherwise  — wrong code: shown inline, boxes clear, ready to retry immediately.
@@ -60,8 +71,11 @@ const OtpVerifyScreen = ({navigation, route}) => {
             mobile: result.payload.mobile,
             verificationToken: result.payload.verification_token,
           });
+        } else if (result.payload.status === 'draft') {
+          navigation.replace('CompleteProfile', {mobile: result.payload.data?.mobile});
         }
-        // 'login' needs no navigation call here — RootNavigator reacts to isLoggedIn.
+        // Only 'login' needs no navigation call here — that one swaps the whole
+        // navigator, which RootNavigator reacts to on its own.
         return;
       }
 

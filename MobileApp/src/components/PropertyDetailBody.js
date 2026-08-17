@@ -56,6 +56,10 @@ const PropertyDetailBody = ({project, highlightCommission = false}) => {
   // dash sitting under the price on a compact mobile card. Only "onwards" (or nothing)
   // shows here; the range itself is still the real number underneath if anyone taps in.
   const priceSuffix = project.priceUnit?.startsWith('–') ? '' : project.priceUnit;
+  // The server already sends a starred sales_contact_number when this is false — see
+  // PropertyDetailResource::withContact() — so this only decides how the row itself
+  // reads (muted, with an explanatory note), not whether the number is real.
+  const contactVisible = project.developer?.contact_visible ?? false;
 
   return (
     <View style={{paddingHorizontal: spacing.lg, marginTop: spacing.lg}}>
@@ -120,7 +124,6 @@ const PropertyDetailBody = ({project, highlightCommission = false}) => {
             overview.projectStatus,
             overview.projectType,
             overview.possessionDate && `Possession: ${overview.possessionDate}`,
-            overview.reraNumber && `RERA ${overview.reraNumber}`,
           ]
             .filter(Boolean)
             .map(label => (
@@ -281,10 +284,6 @@ const PropertyDetailBody = ({project, highlightCommission = false}) => {
         </>
       )}
 
-      {/* The Approvals & Legal card is gone with the intake step behind it — the RERA
-          registration number, the one field of it still collected, rides in the badge
-          row above. */}
-
       {/* ---------------------------------------------------------------- attachments */}
       {!!project.plans?.length && (
         <>
@@ -320,10 +319,27 @@ const PropertyDetailBody = ({project, highlightCommission = false}) => {
             Sales &amp; Booking
           </SectionTitle>
           <Card>
+            {!contactVisible && !!sales.contactNumber && (
+              <View style={{flexDirection: 'row', alignItems: 'flex-start', paddingBottom: spacing.sm}}>
+                <Icon name="lock-closed" size={moderateScale(15)} color={colors.warning} />
+                <AppText
+                  variant="caption"
+                  color={colors.textSecondary}
+                  style={{marginLeft: moderateScale(8), flex: 1}}>
+                  The last few digits are hidden until this developer accepts your
+                  request. Accepting releases the full number.
+                </AppText>
+              </View>
+            )}
             <InfoRow icon="business-outline" label="Sales Office Address" value={sales.officeAddress} />
             <InfoRow icon="time-outline" label="Site Visit Timings" value={sales.visitTimings} />
             <InfoRow icon="person-outline" label="Contact Person" value={sales.contactName} />
-            <InfoRow icon="call-outline" label="Contact Number" value={sales.contactNumber} />
+            <InfoRow
+              icon="call-outline"
+              label="Contact Number"
+              value={sales.contactNumber}
+              valueColor={contactVisible ? undefined : colors.textMuted}
+            />
             <InfoRow icon="clipboard-outline" label="Booking Process" value={sales.bookingProcess} />
           </Card>
         </>

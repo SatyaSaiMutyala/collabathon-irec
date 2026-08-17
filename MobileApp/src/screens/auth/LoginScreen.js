@@ -127,7 +127,7 @@ const LoginScreen = ({navigation}) => {
           <AppText variant="body" color={colors.textSecondary}>
             New channel partner?{' '}
           </AppText>
-          <TouchableOpacity onPress={() => navigation.navigate('Register')} hitSlop={8}>
+          <TouchableOpacity onPress={() => navigation.navigate('CompleteProfile')} hitSlop={8}>
             <AppText variant="bodyMedium" color={colors.primary}>
               Create an account
             </AppText>

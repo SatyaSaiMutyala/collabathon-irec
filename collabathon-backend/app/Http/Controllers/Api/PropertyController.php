@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Concerns\HandlesListQueries;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PropertyResource;
+use App\Models\Lead;
 use App\Models\Property;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -49,7 +50,21 @@ class PropertyController extends Controller
 
         $query = $this->applySort($query, $request, self::SORTABLE);
 
-        return PropertyResource::collection($this->paginate($query, $request));
+        // One query for the whole page rather than one per row: every developer_id
+        // this broker already has an accepted lead with, checked in-memory below
+        // instead of re-querying per property. See PropertyResource::withContact().
+        $acceptedDeveloperIds = ($user && $user->isBroker())
+            ? Lead::where('broker_id', $user->id)->where('status', Lead::STATUS_ACCEPTED)->pluck('developer_id')->all()
+            : [];
+
+        $resource = PropertyResource::collection($this->paginate($query, $request));
+        $resource->collection->each(
+            fn (PropertyResource $item) => $item->withContact(
+                in_array($item->resource->developer_id, $acceptedDeveloperIds, true)
+            )
+        );
+
+        return $resource;
     }
 
     /** GET /api/properties/{property} — records a view for brokers. */
@@ -66,6 +81,13 @@ class PropertyController extends Controller
             $property->load(['myLead' => fn ($q) => $q->where('broker_id', $user->id)]);
         }
 
-        return response()->json(['data' => new PropertyResource($property)]);
+        $visible = $user && $user->isBroker()
+            ? Lead::where('broker_id', $user->id)
+                ->where('developer_id', $property->developer_id)
+                ->where('status', Lead::STATUS_ACCEPTED)
+                ->exists()
+            : false;
+
+        return response()->json(['data' => (new PropertyResource($property))->withContact($visible)]);
     }
 }

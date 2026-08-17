@@ -2,14 +2,38 @@
 
 namespace App\Http\Resources;
 
+use App\Support\ContactMask;
 use App\Support\RichText;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * `sales_contact_number` is the one reachable channel in here — masked to a broker
+ * until the owning developer has accepted one of their leads, same rule
+ * `DeveloperResource`/`PartnerResource` apply everywhere else, and the same
+ * mask-by-default posture: `withContact()` defaults to `false`, so a construction
+ * site that forgets to call it fails safe (over-masked) rather than leaking. Every
+ * controller that legitimately shows this to the owning developer viewing their own
+ * listing (MyPropertyController's actions) calls `withContact(true)` explicitly.
+ * `sales_contact_name` stays unmasked regardless (a name alone reaches no one);
+ * `sales_office_address` and `site_visit_timings` are plain project facts, not a
+ * private channel, so they are left alone too.
+ */
 class PropertyDetailResource extends JsonResource
 {
+    private bool $contactVisible = false;
+
+    public function withContact(bool $visible): static
+    {
+        $this->contactVisible = $visible;
+
+        return $this;
+    }
+
     public function toArray(Request $request): array
     {
+        $visible = $this->contactVisible;
+
         return [
             'connectivity_highlights' => $this->connectivity_highlights ?? [],
             'nearby_infrastructure' => $this->nearby_infrastructure ?? [],
@@ -36,7 +60,7 @@ class PropertyDetailResource extends JsonResource
             'sales_office_address' => $this->sales_office_address,
             'site_visit_timings' => $this->site_visit_timings,
             'sales_contact_name' => $this->sales_contact_name,
-            'sales_contact_number' => $this->sales_contact_number,
+            'sales_contact_number' => $visible ? $this->sales_contact_number : ContactMask::phone($this->sales_contact_number),
             'booking_process' => $this->booking_process,
 
             /**

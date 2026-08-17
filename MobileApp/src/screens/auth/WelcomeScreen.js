@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   Image,
   ScrollView,
@@ -13,6 +13,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
 import {AppText} from '../../components';
+import {configApi} from '../../api/endpoints';
 
 /**
  * Landing screen for signed-out users, built to a supplied reference design rather
@@ -26,12 +27,11 @@ import {AppText} from '../../components';
  * through the notch/home-indicator insets) while the status bar gets its own solid
  * top-of-gradient colour — two different values `<ScreenContainer>` cannot express.
  *
- * Channel partners route to EmailOtpLoginScreen (email + a 4-digit code, no
- * password — see AuthController::sendEmailOtp); developers route to the shared
- * `Login` screen (email + password, admin-provisioned accounts). (A mobile-number +
- * OTP path also exists — MobileOtpLoginScreen / OtpVerifyScreen — but isn't linked
- * from here: no SMS provider is wired up, which is exactly what the email version
- * replaces it with.)
+ * Channel partners route to either EmailOtpLoginScreen (email + a 4-digit code) or
+ * MobileOtpLoginScreen (mobile number + a code) — admin-controlled, see
+ * SettingsController::updateCpLoginMethod and the /config fetch below. Developers
+ * always route to the shared `Login` screen (email + password, admin-provisioned
+ * accounts) — there is no self-serve path for that role, so nothing to configure.
  */
 
 const INK = '#151A34';
@@ -39,7 +39,13 @@ const INDIGO = '#6C4FE0';
 const MUTED = '#6B7280';
 const HAIRLINE = 'rgba(21, 26, 52, 0.12)';
 
-const ROLES = [
+/** Keyed by the /config value so picking the broker card's screen is a lookup, not an if. */
+const BROKER_LOGIN_SCREENS = {
+  email: 'EmailOtpLogin',
+  mobile: 'MobileOtpLogin',
+};
+
+const buildRoles = brokerScreen => [
   {
     key: 'broker',
     icon: 'briefcase-outline',
@@ -47,8 +53,7 @@ const ROLES = [
     body: 'Browse live inventory, mark projects of interest, and follow your requests through to close.',
     accent: '#7B61FF',
     soft: '#EFE9FD',
-    // Email + a 4-digit code — see the note above.
-    screen: 'EmailOtpLogin',
+    screen: brokerScreen,
   },
   {
     key: 'developer',
@@ -64,6 +69,33 @@ const ROLES = [
 
 const WelcomeScreen = ({navigation}) => {
   const {spacing} = useAppTheme();
+
+  // Defaults to the email flow — the fully-configured-by-default path — so the card
+  // is never stuck unusable while the fetch is in flight or if it fails outright.
+  const [brokerScreen, setBrokerScreen] = useState(BROKER_LOGIN_SCREENS.email);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    configApi
+      .fetch()
+      .then(({data}) => {
+        const method = data?.data?.cp_login_method;
+        if (isMounted && BROKER_LOGIN_SCREENS[method]) {
+          setBrokerScreen(BROKER_LOGIN_SCREENS[method]);
+        }
+      })
+      .catch(() => {
+        // Stays on the email default — a config fetch failing on the very first
+        // screen the app shows is not worth surfacing as an error.
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const roles = buildRoles(brokerScreen);
 
   return (
     <View style={styles.flex}>
@@ -123,6 +155,7 @@ const WelcomeScreen = ({navigation}) => {
             the app a height it can assume. */}
         <ScrollView
           style={styles.scroll}
+          showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.content, {paddingHorizontal: spacing.lg}]}>
           {/* Width-capped and centred. Stretched the full width of a tablet the role
               cards become very wide bands holding two short lines of text, which is
@@ -194,7 +227,7 @@ const WelcomeScreen = ({navigation}) => {
             </View>
 
             <View style={{marginTop: spacing.xl}}>
-              {ROLES.map(role => (
+              {roles.map(role => (
                 <TouchableOpacity
                   key={role.key}
                   activeOpacity={0.85}

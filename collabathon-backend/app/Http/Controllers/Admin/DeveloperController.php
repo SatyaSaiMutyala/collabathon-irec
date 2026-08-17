@@ -102,7 +102,6 @@ class DeveloperController extends Controller
             'Company' => [
                 'company' => ['Company', fn (Developer $d) => $d->company_name],
                 'website' => ['Website', fn (Developer $d) => $d->website],
-                'rera_number' => ['RERA number', fn (Developer $d) => $d->rera_number],
                 'verified' => ['Verified', fn (Developer $d) => $d->verified === null ? null : ($d->verified ? 'Yes' : 'No')],
                 'status' => ['Status', fn (Developer $d) => ucfirst((string) $d->status)],
             ],
@@ -223,7 +222,6 @@ class DeveloperController extends Controller
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
 
-            'rera_number' => ['nullable', 'string', 'max:64'],
             'logo' => ['nullable', 'image', 'max:2048'],
             'about' => ['nullable', 'string', 'max:5000'],
             'website' => ['nullable', 'string', 'max:255'],
@@ -300,13 +298,13 @@ class DeveloperController extends Controller
 
         $columns = [
             'company_name', 'contact_person', 'email', 'mobile', 'city',
-            'country', 'state', 'pincode', 'address', 'rera_number', 'about', 'website',
+            'country', 'state', 'pincode', 'address', 'about', 'website',
             'instagram', 'facebook', 'youtube', 'twitter', 'linkedin', 'password',
         ];
 
         $sample = [
             'Skyline Realty Group', 'Ahmed Al Farsi', 'ahmed@skylinerealty.example', '+91 90000 00000', 'Hyderabad',
-            'India', 'Telangana', '500032', '', 'RERA/TEL/DEV/00000', '', '',
+            'India', 'Telangana', '500032', '', '', '',
             '', '', '', '', '', '',
         ];
 
@@ -388,7 +386,6 @@ class DeveloperController extends Controller
                 'state' => $row['state'] ?? null,
                 'pincode' => $row['pincode'] ?? null,
                 'address' => $row['address'] ?? null,
-                'rera_number' => $row['rera_number'] ?? null,
                 'about' => $row['about'] ?? null,
                 'website' => $row['website'] ?? null,
                 'instagram' => $row['instagram'] ?? null,
@@ -421,7 +418,6 @@ class DeveloperController extends Controller
                 'state' => ['nullable', 'string', 'max:96'],
                 'pincode' => ['nullable', 'string', 'max:12'],
                 'address' => ['nullable', 'string', 'max:1000'],
-                'rera_number' => ['nullable', 'string', 'max:64'],
                 'about' => ['nullable', 'string', 'max:5000'],
                 'website' => ['nullable', 'string', 'max:255'],
                 ...SocialPlatforms::rules(),
@@ -561,7 +557,6 @@ class DeveloperController extends Controller
 
             'website' => ['sometimes', 'nullable', 'string', 'max:255'],
             ...SocialPlatforms::rules(sometimes: true),
-            'rera_number' => ['sometimes', 'nullable', 'string', 'max:64'],
             'logo' => ['nullable', 'image', 'max:2048'],
             'about' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'cp_payout_percent' => ['sometimes', 'required', 'numeric', 'min:0', 'max:100'],

@@ -47,22 +47,37 @@ function toFormData(payload) {
 }
 
 // ---------------------------------------------------------------- auth
+// ---------------------------------------------------------------- public config
+export const configApi = {
+  /** Admin-controlled, read before sign-in — see ConfigController. */
+  fetch: () => client.get('/config'),
+};
+
 export const authApi = {
   /**
-   * Registration carries a passport photo and the KYC scans, so it goes out as multipart
-   * when anything was picked and as plain JSON when nothing was — a JSON body cannot
-   * carry a file, and forcing multipart on every registration would turn every boolean
-   * and array into a string the server then has to un-stringify.
-   *
-   * The check is "any file part", not "photo": a broker who attached their PAN and
-   * Aadhaar but skipped the photo was sent as JSON, and every scan was silently dropped.
+   * Step 1 (Personal info) of the 3-step registration wizard — creates the draft
+   * account and issues the Sanctum token every later step authenticates with. Same
+   * JSON-vs-multipart fork as `saveRegistrationStep` below: a plain JSON body cannot
+   * carry the profile photo, and forcing multipart when nothing was picked would turn
+   * every boolean into a string the server then has to un-stringify for no reason.
    */
-  register: payload =>
+  startRegistration: payload =>
     Object.values(payload).some(isFilePart)
-      ? client.post('/auth/register', toFormData(payload), {
+      ? client.post('/auth/register/start', toFormData(payload), {
           headers: {'Content-Type': 'multipart/form-data'},
         })
-      : client.post('/auth/register', payload),
+      : client.post('/auth/register/start', payload),
+  /**
+   * Steps 2-3, and Save Draft on any step — `payload.save_draft` decides whether the
+   * server enforces that step's required fields (`false`, "Next"/final submit) or
+   * accepts whatever's present as-is (`true`). Same file-detection fork as above.
+   */
+  saveRegistrationStep: payload =>
+    Object.values(payload).some(isFilePart)
+      ? client.patch('/auth/register/step', toFormData(payload), {
+          headers: {'Content-Type': 'multipart/form-data'},
+        })
+      : client.patch('/auth/register/step', payload),
   /** Shared sign-in for both mobile roles — see LoginScreen. */
   login: payload => client.post('/auth/login', payload),
   me: () => client.get('/auth/me'),
@@ -74,9 +89,11 @@ export const authApi = {
   /** Issues (or re-issues) a 6-digit code for a mobile number. */
   sendOtp: mobile => client.post('/auth/otp/send', {mobile}),
   /**
-   * The fork point: `status` in the response is 'login' (token + user), 'register'
-   * (no account yet — carries a verification_token for `register()`), or 'pending' /
-   * 'rejected' (an account exists but the approval gate hasn't opened yet).
+   * The fork point: `status` in the response is 'login' (token + user), 'draft'
+   * (a registration already in progress — token + the profile so far, so the wizard
+   * can resume where it left off), 'register' (no account yet — carries a
+   * verification_token, currently unused since this path isn't wired into any
+   * client build), or 'pending' / 'rejected'.
    */
   verifyOtp: ({mobile, code}) =>
     client.post('/auth/otp/verify', {mobile, code, device_name: 'mobile'}),
@@ -85,12 +102,59 @@ export const authApi = {
   /** Issues (or re-issues) a 4-digit code for an email address. */
   sendEmailOtp: email => client.post('/auth/email-otp/send', {email}),
   /**
-   * Same fork shape as `verifyOtp`: `status` is 'login' (token + user), 'register'
-   * (no account yet — the app carries the verified email into RegisterScreen), or
-   * 'pending' / 'rejected'.
+   * Same fork shape as `verifyOtp`: `status` is 'login' (token + user), 'draft' (an
+   * in-progress registration resumes with a fresh token + the profile so far),
+   * 'register' (no account yet — the app carries the verified email into step 1 of
+   * CompleteProfileScreen), or 'pending' / 'rejected'.
    */
   verifyEmailOtp: ({email, code}) =>
     client.post('/auth/email-otp/verify', {email, code, device_name: 'mobile'}),
+};
+
+// ---------------------------------------------------------------- KYC verification
+export const kycApi = {
+  /**
+   * A photo of the physical Aadhaar card in, its QR code checked against Surepass out.
+   * `photo` is the {uri, name, type} picker result — see filePart() on the calling
+   * screen. Responds 200 either way; `status` in the body is what actually says
+   * whether it verified (see KycController::verifyAadhaar).
+   */
+  verifyAadhaar: photo =>
+    client.post('/kyc/aadhaar/verify', toFormData({aadhaar_photo: photo}), {
+      headers: {'Content-Type': 'multipart/form-data'},
+    }),
+
+  /**
+   * The offline XML a broker downloads themselves from the UIDAI website in,
+   * verified data out — no photo/QR-decode fragility, since there's no decode step
+   * at all. `xml` is the {uri, name, type} document-picker result; `shareCode` is
+   * the 4-digit code UIDAI has the downloader set, sent along only if they typed one.
+   */
+  verifyAadhaarXml: (xml, shareCode) =>
+    client.post(
+      '/kyc/aadhaar/verify-xml',
+      toFormData({aadhaar_xml: xml, share_code: shareCode || null}),
+      {headers: {'Content-Type': 'multipart/form-data'}},
+    ),
+
+  /**
+   * The eAadhaar PDF a broker downloads themselves from the UIDAI website in,
+   * verified data out. `yob`/`fullName` are what a password-protected copy needs
+   * to open — sent along only when the broker has typed them.
+   */
+  verifyAadhaarEaadhaar: (pdf, yob, fullName) =>
+    client.post(
+      '/kyc/aadhaar/verify-eaadhaar',
+      toFormData({aadhaar_eaadhaar: pdf, yob: yob || null, full_name: fullName || null}),
+      {headers: {'Content-Type': 'multipart/form-data'}},
+    ),
+
+  /**
+   * A PAN number in, Surepass's PAN Comprehensive data out — name, DOB, gender,
+   * address, masked Aadhaar, Aadhaar-linkage status. Used to auto-fill the rest
+   * of the form once a broker types a valid PAN.
+   */
+  verifyPan: panNumber => client.post('/kyc/pan/verify', {pan_number: panNumber}),
 };
 
 export const dashboardApi = {

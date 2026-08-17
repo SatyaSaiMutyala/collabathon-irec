@@ -56,6 +56,23 @@ export function greeting(date = new Date()) {
   return hour < 17 ? 'Good afternoon' : 'Good evening';
 }
 
+/**
+ * Splits a stored "<suffix> <name>" back into its parts — the inverse of how
+ * registration joins them (see the module docblock). Unlike `nameParts()`, which
+ * throws the honorific away, this keeps it for screens that want to show it as its
+ * own field (e.g. ProfileScreen's "Suffix" row, which otherwise has nothing to
+ * read — there is no separate `suffix` column, only the combined `name`).
+ */
+export function splitSuffix(name) {
+  const parts = String(name ?? '').trim().split(/\s+/).filter(Boolean);
+
+  if (parts.length > 1 && isHonorific(parts[0])) {
+    return {suffix: parts[0], rest: parts.slice(1).join(' ')};
+  }
+
+  return {suffix: '', rest: parts.join(' ')};
+}
+
 /** Up to two letters for an avatar with no photo. */
 export function initialsOf(name) {
   const parts = nameParts(name);

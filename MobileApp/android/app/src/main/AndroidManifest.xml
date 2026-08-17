@@ -12,6 +12,16 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <!--
+      Attachment fields (photo, PAN/Aadhaar/RERA/cheque scans) need both. READ_MEDIA_IMAGES
+      is the Android 13+ (API 33) replacement for gallery access; READ_EXTERNAL_STORAGE is
+      capped at API 32 since Android ignores it (and would warn) on newer OS versions where
+      the granular permission above is what actually gates access.
+    -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+
+    <!--
       Android 11 (API 30) package visibility. Without this, Linking.canOpenURL() returns
       false for http/https even when a browser is installed, because the app cannot see
       any package that handles the intent. Property brochures, price lists, floor plans

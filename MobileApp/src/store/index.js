@@ -54,6 +54,11 @@ store.subscribe(() => {
     user: auth.user,
     role: auth.role,
     registrationStatus: auth.registrationStatus,
+    // Only meaningful for a 'draft' session, but harmless either way — a plain
+    // relaunch (whether draft or not) has these before fetchMe even resolves, so a
+    // draft resume never briefly renders step 1 before snapping to the real step.
+    registrationStep: auth.registrationStep,
+    draftProfile: auth.draftProfile,
     isLoggedIn: auth.isLoggedIn,
   });
 });

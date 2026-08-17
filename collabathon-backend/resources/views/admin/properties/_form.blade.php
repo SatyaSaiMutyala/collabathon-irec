@@ -32,7 +32,7 @@
      * step 1 under the project type that reveals it, so it was unaffected.
      */
     $steps = [
-        1 => ['label' => 'Project basics',   'icon' => 'building',    'hint' => 'Identity, RERA and the owning developer'],
+        1 => ['label' => 'Project basics',   'icon' => 'building',    'hint' => 'Identity and the owning developer'],
         2 => ['label' => 'Location',         'icon' => 'map-pin',     'hint' => 'Address, zone and connectivity'],
         3 => ['label' => 'Configuration',    'icon' => 'list',        'hint' => 'Unit types, areas and pricing'],
         4 => ['label' => 'Specifications',   'icon' => 'sparkles',    'hint' => 'Land, build quality and amenities'],
@@ -48,7 +48,7 @@
         // project_type, and a conditional field the type control cannot show is invisible.
         1 => ['name', 'developer_id', 'project_type', 'possession_date', 'project_status',
               'tagline', 'description',
-              'logo', 'rera_number', 'listing_status'],
+              'logo', 'listing_status'],
         2 => ['country', 'state', 'city', 'locality', 'full_address', 'landmark', 'pincode', 'zone',
               'latitude', 'longitude', 'maps_link', 'connectivity_highlights', 'nearby_infrastructure'],
         3 => ['price_min', 'price_max', 'extent_metric', 'currency', 'total_units', 'towers',
@@ -270,7 +270,7 @@
                     {{-- 1 · Project Basic Info ------------------------------------------ --}}
                     <section x-show="step === 1" data-step="1" x-cloak class="space-y-4">
                         <x-wizard-heading :step="1" :of="count($steps)" title="Project basic info"
-                                          subtitle="Who owns the project, what it is, and its RERA registration." />
+                                          subtitle="Who owns the project and what it is." />
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <x-field label="Project name" name="name" placeholder="e.g. Azure Bay Residences" required />
@@ -314,14 +314,8 @@
 
                         <x-field label="Title" name="tagline" placeholder="Short marketing line" />
 
-                        {{-- Paired on one row: both are short, single-value identity fields, and
-                             stacking them left a full-width text input above a full-width
-                             dashed dropzone with the description wedged between them. --}}
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <x-field label="RERA registration number" name="rera_number" placeholder="e.g. RERA-DXB-24817" />
-                            <x-file-field label="Project logo / branding" name="logo" accept="image/*" :current="$property?->logo_path"
-                                          hint="PNG or JPG, up to 2 MB." />
-                        </div>
+                        <x-file-field label="Project logo / branding" name="logo" accept="image/*" :current="$property?->logo_path"
+                                      hint="PNG or JPG, up to 2 MB." />
 
                         <x-field label="Project description" name="description" type="textarea" rows="4"
                                  placeholder="Detailed overview of the project" />

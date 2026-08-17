@@ -14,6 +14,9 @@ $paths = [
     'check' => '<path d="M5 12.5l4.5 4.5L19 7"/>',
     'x' => '<path d="M6 6l12 12M18 6L6 18"/>',
     'eye' => '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.6"/>',
+    // Same eye, struck through — reveal-toggle buttons swap to this rather than
+    // recolouring the plain eye, which reads as barely-there feedback at icon size.
+    'eye-off' => '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.6"/><path d="M4 4l16 16"/>',
     'clock' => '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
     'chevron-down' => '<path d="M6 9l6 6 6-6"/>',
     'chevron-right' => '<path d="M9 6l6 6-6 6"/>',
@@ -44,10 +47,28 @@ $paths = [
     'sparkles' => '<path d="M12 4l1.6 4.4L18 10l-4.4 1.6L12 16l-1.6-4.4L6 10l4.4-1.6L12 4Z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7.7-1.8Z"/>',
     'trending-up' => '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
     'user-check' => '<circle cx="9" cy="8" r="3.2"/><path d="M3.5 19.5c0-3.1 2.5-5.5 5.5-5.5s5.5 2.4 5.5 5.5"/><path d="M16 13.5l1.8 1.8 3.7-3.7"/>',
+    // Social platform marks, kept in the same minimal 1-2 element stroke style as
+    // every other icon here rather than the brands' own filled logos — used wherever
+    // a developer or channel partner's social links are listed (see SocialPlatforms).
+    'instagram' => '<rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17" cy="7" r="0.6" fill="currentColor" stroke="none"/>',
+    // fill, not stroke: the same path traced as an outline turned into a bulky, oversized
+    // blob at icon size — a lowercase "f" has no interior to leave hollow.
+    'facebook' => '<path d="M13.7 20.5v-7.3h2.4l.4-2.8h-2.8V8.5c0-.8.2-1.3 1.4-1.3h1.5V4.7c-.3 0-1.1-.1-2.1-.1-2.1 0-3.5 1.3-3.5 3.6v2.2H8.5v2.8H11v7.3Z" fill="currentColor" stroke="none"/>',
+    'youtube' => '<rect x="2.5" y="5.5" width="19" height="13" rx="3.5"/><path d="M10 9.3v5.4l5-2.7Z" fill="currentColor" stroke="none"/>',
+    'twitter' => '<path d="M6 6l12 12M18 6L6 18"/>',
+    'linkedin' => '<rect x="3.5" y="3.5" width="17" height="17" rx="3"/><circle cx="8" cy="8.3" r="1" fill="currentColor" stroke="none"/><path d="M8 11v6M12 11v6M12 13.7c0-1.5 1-2.7 2.3-2.7S17 12.2 17 13.7V17"/>',
 ];
 $path = $paths[$name] ?? '';
 @endphp
 
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="{{ $class }}" aria-hidden="true">
+{{--
+    $attributes must be spread here, not just $class read off @props: anything a
+    caller passes beyond name/class — x-show, x-cloak, title, aria-* — silently
+    never reached the DOM before this, because nothing echoed the bag onto the
+    <svg>. That's what let two x-show'd icons (e.g. the login page's eye/eye-off
+    toggle) both stay visible forever — Alpine had no attribute to act on.
+--}}
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+     {{ $attributes->merge(['class' => $class]) }}>
     {!! $path !!}
 </svg>

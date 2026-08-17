@@ -4,6 +4,7 @@ import {NavigationContainer, createNavigationContainerRef} from '@react-navigati
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {useAppDispatch, useAppSelector} from '../store/hooks';
 import {attachPushHandlers, registerDevice} from '../services/push';
+import {usePrimePermissions} from '../hooks/usePrimePermissions';
 import {loadAuthState} from '../store/authPersistence';
 import {fetchMe, hydrateAuth, sessionExpired} from '../store/slices/authSlice';
 import {useAppTheme} from '../theme';
@@ -116,7 +117,13 @@ const RootNavigator = () => {
   const {colors} = useAppTheme();
   const isLoggedIn = useAppSelector(state => state.auth.isLoggedIn);
   const role = useAppSelector(state => state.auth.role);
+  const registrationStatus = useAppSelector(state => state.auth.registrationStatus);
   const [isSessionRestored, setIsSessionRestored] = useState(false);
+
+  // Fires on every launch — whether or not the device is already signed in, and
+  // regardless of login state, so it's asked once up front rather than the first time
+  // a form happens to need one deep in registration.
+  usePrimePermissions();
 
   useEffect(() => {
     loadAuthState().then(persisted => {
@@ -190,6 +197,10 @@ const RootNavigator = () => {
   let content;
   if (isLoggedIn && role === 'developer') {
     content = <DeveloperRootStack />;
+  } else if (isLoggedIn && role === 'broker' && registrationStatus === 'draft') {
+    // Mid-registration — this is what makes reopening the app land directly on
+    // whichever wizard step was last saved, instead of restarting from Welcome.
+    content = <AuthNavigator initialRouteName="CompleteProfile" />;
   } else if (isLoggedIn && role === 'broker') {
     content = <BrokerRootStack />;
   } else {

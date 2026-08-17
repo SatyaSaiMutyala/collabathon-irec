@@ -37,12 +37,7 @@
     {{-- ============================== Header ============================== --}}
     <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div class="flex items-start gap-3.5 min-w-0">
-            @if($developer->logo_path)
-                <img src="{{ asset('storage/' . $developer->logo_path) }}" alt=""
-                     class="w-14 h-14 rounded-xl object-cover border border-line-soft shrink-0">
-            @else
-                <x-avatar :name="$developer->company_name" :src="$developer->logo_path" size="lg" class="w-14 h-14 shrink-0" />
-            @endif
+            <x-avatar :name="$developer->company_name" :src="$developer->logo_path" shape="square" size="lg" class="shrink-0" />
 
             <div class="min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
@@ -159,8 +154,11 @@
                 $socialCell = new \Illuminate\Support\HtmlString(
                     count($socialLinks)
                         ? collect($socialLinks)->map(fn ($link) => sprintf(
-                            '<a href="%s" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-primary-dark hover:underline">%s <svg class="w-3 h-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 13L13 7M13 7H8M13 7V12" stroke-linecap="round" stroke-linejoin="round"/></svg></a>',
+                            '<a href="%s" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-primary-dark hover:underline"><span class="inline-flex shrink-0">%s</span><span>%s</span> <svg class="w-3 h-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 13L13 7M13 7H8M13 7V12" stroke-linecap="round" stroke-linejoin="round"/></svg></a>',
                             e(\Illuminate\Support\Str::startsWith($link['value'], ['http://', 'https://']) ? $link['value'] : 'https://' . ltrim($link['value'], '@')),
+                            // $link['key'] is one of SocialPlatforms::ALL's keys, which is
+                            // also exactly the matching icon's name in icon.blade.php.
+                            view('components.icon', ['name' => $link['key'], 'class' => 'w-3.5 h-3.5 shrink-0'])->render(),
                             e($link['label'])
                         ))->join('<span class="text-ink-3 mx-0.5">·</span>')
                         : '—'
@@ -168,12 +166,12 @@
             @endphp
 
             <x-panel title="Company" flush>
-                {{-- Ten short fields = five exact pairs. Designation rides with the contact
-                     name rather than taking a field of its own, which would make the count
-                     odd and strand the last value in a half-empty row. --}}
+                {{-- Eight short fields = four exact pairs, then Pincode and Address each take
+                     a full-width row of their own — an odd field out left half a row empty
+                     when just appended to the paired set instead. Designation rides with the
+                     contact name rather than taking a field of its own, for the same reason. --}}
                 <x-detail-grid :fields="[
                     ['label' => 'Company name', 'value' => $developer->company_name],
-                    ['label' => 'RERA / licence', 'value' => $developer->rera_number],
                     ['label' => 'Website', 'value' => $developer->website],
                     ['label' => 'Social media', 'value' => $socialCell],
                     ['label' => 'Contact person', 'value' => collect([$developer->contact_person, $developer->contact_designation])->filter()->join(' · ')],
@@ -181,7 +179,7 @@
                     ['label' => 'Country', 'value' => $developer->country],
                     ['label' => 'State / Emirate', 'value' => $developer->state],
                     ['label' => 'City', 'value' => $developer->city],
-                    ['label' => 'Pincode', 'value' => $developer->pincode],
+                    ['label' => 'Pincode', 'value' => $developer->pincode, 'wide' => true],
                     ['label' => 'Address', 'value' => $addressCell, 'wide' => true],
                 ]" />
             </x-panel>
@@ -462,12 +460,8 @@
                 </div>
 
                 <div class="border-t border-line-soft space-y-3 pt-4">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <x-field label="RERA / licence number" name="rera_number" :value="$developer->rera_number"
-                                 hint="Shown to channel partners as a trust signal." />
-                        <x-file-field label="Replace logo" name="logo" accept="image/*"
-                                      hint="Leave empty to keep the current logo." />
-                    </div>
+                    <x-logo-field label="Replace logo" name="logo"
+                                  hint="Leave empty to keep the current logo. Crop to fit — most logos are wide wordmarks, not square." />
 
                     <x-field label="About the company" name="about" type="textarea" rows="3" :value="$developer->about" />
                 </div>

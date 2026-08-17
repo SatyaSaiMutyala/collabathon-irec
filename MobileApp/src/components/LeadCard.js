@@ -27,19 +27,19 @@ const formatDate = iso => {
     : date.toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric'});
 };
 
-/** "AED 480,000 – 9,00,000", or a single figure, or nothing. */
+/**
+ * "AED 480,000 Onwards", or nothing. Starting price only, same as PropertyCard and
+ * the detail page — intake only ever collects `price_min` now, and a legacy record's
+ * stored `price_max` is not shown here either, so every card in the app reads the
+ * same regardless of how old the listing is.
+ */
 const formatPrice = price => {
-  if (!price) {
+  if (!price?.min) {
     return null;
   }
   const currency = price.currency || 'AED';
   const money = value => new Intl.NumberFormat('en-IN').format(value);
-
-  if (price.min && price.max && price.min !== price.max) {
-    return `${currency} ${money(price.min)} – ${money(price.max)}`;
-  }
-  const single = price.min ?? price.max;
-  return single ? `${currency} ${money(single)}` : null;
+  return `${currency} ${money(price.min)} Onwards`;
 };
 
 /**
@@ -159,7 +159,7 @@ const LeadCard = ({lead, onPress, footer}) => {
             ]}>
             {!!developer && (
               <View style={styles.identityRow}>
-                <Avatar uri={developer.logo_url} name={developer.company_name} size="sm" />
+                <Avatar uri={developer.logo_url} name={developer.company_name} size="sm" shape="square" />
                 <View style={{flex: 1, marginLeft: moderateScale(10)}}>
                   <AppText variant="bodyMedium" numberOfLines={1}>
                     {developer.company_name}

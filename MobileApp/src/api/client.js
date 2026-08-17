@@ -60,6 +60,31 @@ client.interceptors.response.use(
 );
 
 /**
+ * Statuses where `data.message` is something this backend deliberately wrote for a
+ * user to read — validation errors, "already submitted", "account pending", etc.
+ * Every other status (404, 429, 500, 502, 503, ...) is Laravel's or the proxy's own
+ * framework text ("The route ... could not be found.", stack traces, gateway HTML),
+ * never meant for an end user, so those get a generic, status-appropriate message
+ * instead of whatever the server happened to send back.
+ */
+const TRUSTED_MESSAGE_STATUSES = new Set([401, 403, 422]);
+
+const GENERIC_MESSAGES_BY_STATUS = {
+  404: 'This feature is temporarily unavailable. Please try again later.',
+  429: 'Too many attempts. Please wait a moment and try again.',
+};
+
+function genericMessageForStatus(status) {
+  if (GENERIC_MESSAGES_BY_STATUS[status]) {
+    return GENERIC_MESSAGES_BY_STATUS[status];
+  }
+  if (status >= 500) {
+    return 'Something went wrong on our end. Please try again shortly.';
+  }
+  return 'Something went wrong. Please try again.';
+}
+
+/**
  * Normalises Laravel's error shapes into one message a screen can show:
  *   422 -> {message, errors: {field: [msg]}}
  *   403 -> {message}
@@ -68,7 +93,10 @@ client.interceptors.response.use(
 export function extractError(error) {
   if (!error.response) {
     return {
-      message: 'Cannot reach the server. Check your connection and try again.',
+      message:
+        error.code === 'ECONNABORTED'
+          ? 'The request timed out. Please try again.'
+          : 'Cannot reach the server. Check your connection and try again.',
       errors: {},
       status: 0,
     };
@@ -78,8 +106,11 @@ export function extractError(error) {
 
   return {
     message:
-      data?.message ||
-      (status === 401 ? 'Your session has expired. Please sign in again.' : 'Something went wrong.'),
+      status === 401
+        ? 'Your session has expired. Please sign in again.'
+        : TRUSTED_MESSAGE_STATUSES.has(status) && data?.message
+          ? data.message
+          : genericMessageForStatus(status),
     errors: data?.errors || {},
     status,
   };

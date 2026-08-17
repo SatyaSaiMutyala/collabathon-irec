@@ -7,6 +7,7 @@ import {firstName} from '../../utils/name';
 import {
   AppText,
   Avatar,
+  Card,
   Chip,
   DeveloperCard,
   IconButton,
@@ -15,9 +16,14 @@ import {
   PaginatedList,
   DeveloperCardSkeleton,
   ScreenContainer,
+  StatRow,
 } from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {fetchDevelopers, fetchNextDevelopers} from '../../store/slices/developersSlice';
+// Same /dashboard endpoint the developer side's board reads — DashboardController
+// branches on the signed-in role, so this broker token gets {requests_sent,
+// associations} instead of the developer's listing/lead breakdown.
+import {fetchDashboard} from '../../store/slices/dashboardSlice';
 import {useCurrentLocation} from '../../hooks/useLocation';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 
@@ -31,6 +37,7 @@ const HomeScreen = ({navigation}) => {
 
   const user = useAppSelector(state => state.auth.user);
   const list = useAppSelector(state => state.developers.list);
+  const stats = useAppSelector(state => state.dashboard.data);
 
   const [query, setQuery] = useState('');
   const [isPickerVisible, setIsPickerVisible] = useState(false);
@@ -43,6 +50,7 @@ const HomeScreen = ({navigation}) => {
 
   useEffect(() => {
     location.detectLocation();
+    dispatch(fetchDashboard());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -109,6 +117,23 @@ const HomeScreen = ({navigation}) => {
           onPress={() => navigation.navigate('Notifications')}
         />
       </View>
+
+      <Card style={{paddingVertical: spacing.sm, marginBottom: spacing.lg}}>
+        <StatRow
+          stats={[
+            {
+              value: String(stats?.requests_sent ?? 0),
+              label: 'Requests Sent',
+              onPress: () => navigation.navigate('RequestsTab'),
+            },
+            {
+              value: String(stats?.associations ?? 0),
+              label: 'Associations',
+              onPress: () => navigation.navigate('PartnersTab'),
+            },
+          ]}
+        />
+      </Card>
 
       <Input
         placeholder="Search developer by name..."

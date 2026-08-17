@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect} from 'react';
-import {TouchableOpacity, View} from 'react-native';
+import {StyleSheet, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
@@ -70,6 +70,11 @@ const DeveloperProfileScreen = ({route, navigation}) => {
     );
   }
 
+  // Mirrors BrokerDetailScreen's own gate on the developer side: the API starts
+  // this masked and only serves the real numbers once this developer has accepted
+  // a lead from the signed-in broker — nothing here un-hides anything itself.
+  const visible = developer.contact_visible ?? false;
+
   return (
     <ScreenContainer edges={['top']}>
       <View
@@ -103,14 +108,13 @@ const DeveloperProfileScreen = ({route, navigation}) => {
                   uri={developer.logo_url}
                   name={developer.company_name}
                   size="xl"
+                  shape="square"
                   ringColor={developer.verified ? colors.primary : colors.border}
                   showVerified={developer.verified}
                 />
                 <AppText variant="h2" align="center" style={{marginTop: spacing.md}}>
                   {developer.company_name}
                 </AppText>
-                {/* Where they are, not what they are registered as — RERA has its own
-                    row below now, and printing it twice made the sub-line wrap. */}
                 <AppText
                   variant="caption"
                   color={colors.textMuted}
@@ -158,11 +162,23 @@ const DeveloperProfileScreen = ({route, navigation}) => {
                 panel lists it — a channel partner working a lead needs the contact
                 route and the registration facts, not just the headline.
 
-                The key contact (person, designation, mobile, email) is the one part of
-                the admin record that never appears here: it is the internal relationship
-                owner, and DeveloperResource does not send it. */}
+                Both reachable channels — the public contact and the internal key
+                contact — stay masked (mobile/email only; name/designation are always
+                shown) until this developer has accepted one of this broker's leads.
+                See DeveloperResource::withContact() on the API side. */}
             <Card style={{marginTop: spacing.md, paddingVertical: spacing.xxs}}>
-              <InfoRow icon="shield-checkmark-outline" label="RERA / Licence" value={developer.rera_number} />
+              {!visible && (
+                <View style={styles.lockNote}>
+                  <Icon name="lock-closed" size={moderateScale(15)} color={colors.warning} />
+                  <AppText
+                    variant="caption"
+                    color={colors.textSecondary}
+                    style={{marginLeft: moderateScale(8), flex: 1}}>
+                    The last few digits are hidden until this developer accepts your
+                    request. Accepting releases the full phone and email.
+                  </AppText>
+                </View>
+              )}
               <InfoRow
                 icon="globe-outline"
                 label="Website"
@@ -172,8 +188,40 @@ const DeveloperProfileScreen = ({route, navigation}) => {
               />
               <InfoRow icon="person-outline" label="Contact Person" value={developer.contact_person} />
               <InfoRow icon="briefcase-outline" label="Designation" value={developer.contact_designation} />
-              <InfoRow icon="call-outline" label="Mobile" value={developer.mobile} />
-              <InfoRow icon="mail-outline" label="Email" value={developer.email} />
+              <InfoRow
+                icon="call-outline"
+                label="Mobile"
+                value={developer.mobile}
+                valueColor={visible ? undefined : colors.textMuted}
+              />
+              <InfoRow
+                icon="mail-outline"
+                label="Email"
+                value={developer.email}
+                valueColor={visible ? undefined : colors.textMuted}
+              />
+              {!!developer.key_contact_person && (
+                <>
+                  <InfoRow icon="person-outline" label="Key Contact" value={developer.key_contact_person} />
+                  <InfoRow
+                    icon="briefcase-outline"
+                    label="Key Contact Designation"
+                    value={developer.key_contact_designation}
+                  />
+                  <InfoRow
+                    icon="call-outline"
+                    label="Key Contact Mobile"
+                    value={developer.key_contact_mobile}
+                    valueColor={visible ? undefined : colors.textMuted}
+                  />
+                  <InfoRow
+                    icon="mail-outline"
+                    label="Key Contact Email"
+                    value={developer.key_contact_email}
+                    valueColor={visible ? undefined : colors.textMuted}
+                  />
+                </>
+              )}
               <InfoRow
                 icon="location-outline"
                 label="Location"
@@ -217,5 +265,13 @@ const DeveloperProfileScreen = ({route, navigation}) => {
     </ScreenContainer>
   );
 };
+
+const styles = StyleSheet.create({
+  lockNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingBottom: moderateScale(10),
+  },
+});
 
 export default DeveloperProfileScreen;

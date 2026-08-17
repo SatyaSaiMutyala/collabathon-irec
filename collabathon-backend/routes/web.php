@@ -106,6 +106,7 @@ Route::prefix('admin')
             ->name('cp.bulk-import.template')->middleware("can:view-module,'cp'");
         Route::post('/cp/bulk-import', [ChannelPartnerController::class, 'bulkImport'])
             ->name('cp.bulk-import');
+        Route::post('/cp', [ChannelPartnerController::class, 'store'])->name('cp.store');
 
         // Address lookup behind the developer form's "find on map" control.
         Route::get('/geocode', GeocodeController::class)->name('geocode');
@@ -160,6 +161,8 @@ Route::prefix('admin')
             ->middleware("can:view-module,'settings'");
         Route::patch('/settings/fields/{field}', [SettingsController::class, 'toggleField'])->name('settings.field');
         Route::patch('/settings/theme', [SettingsController::class, 'updateTheme'])->name('settings.theme');
+        Route::patch('/settings/cp-login-method', [SettingsController::class, 'updateCpLoginMethod'])
+            ->name('settings.cp-login-method');
         Route::post('/settings/announce', [AnnouncementController::class, 'store'])->name('settings.announce');
 
         // Uploading a key that can send as the whole Firebase project is a super-admin

@@ -15,12 +15,7 @@
     </a>
 
     <div class="flex items-center gap-3.5 mb-6">
-        @if($developer->logo_path)
-            <img src="{{ asset('storage/' . $developer->logo_path) }}"
-                 alt="" class="w-12 h-12 rounded-xl object-cover border border-line-soft shrink-0">
-        @else
-            <x-avatar :name="$developer->company_name" size="lg" class="w-12 h-12 shrink-0" />
-        @endif
+        <x-avatar :name="$developer->company_name" :src="$developer->logo_path" shape="square" size="lg" class="shrink-0" />
         <div class="min-w-0">
             <h1 class="text-[19px] sm:text-[21px] font-semibold text-ink tracking-[-0.02em] leading-tight truncate">
                 {{ $developer->company_name }}

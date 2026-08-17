@@ -83,6 +83,10 @@ class SettingsController extends Controller
             ],
             'fieldGroups' => FormField::orderBy('sort_order')->get()->groupBy('form'),
             'accentColor' => Setting::get('accent_color', '#C9A227'),
+            // Which screen a channel partner lands on first, before any account exists —
+            // see ConfigController, the public endpoint the mobile app reads this from
+            // pre-login.
+            'cpLoginMethod' => Setting::get('cp_login_method', 'email'),
             'mail' => [
                 'configured' => MailSettings::isConfigured(),
                 // The key identifies the account and is safe to show; the secret is the
@@ -234,6 +238,25 @@ class SettingsController extends Controller
         Setting::put('accent_color', $data['accent_color']);
 
         return back()->with('status', 'Theme saved. It applies on the next app launch.');
+    }
+
+    /**
+     * Which sign-in screen a channel partner sees before any account exists — read by
+     * the mobile app's public /config endpoint on the Welcome screen, before there is
+     * a token to authenticate anything with. Both flows (email OTP, mobile OTP) are
+     * fully built either way; this only decides which one the app opens straight to.
+     */
+    public function updateCpLoginMethod(Request $request): RedirectResponse
+    {
+        $this->authorize('edit-module', 'settings');
+
+        $data = $request->validate([
+            'cp_login_method' => ['required', Rule::in(['email', 'mobile'])],
+        ]);
+
+        Setting::put('cp_login_method', $data['cp_login_method']);
+
+        return back()->with('status', 'Channel partner sign-in method saved.');
     }
 
     /**

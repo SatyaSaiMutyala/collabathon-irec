@@ -139,8 +139,6 @@ export function normalizeProperty(api) {
   const location = api.location ?? {};
   const price = api.price ?? {};
   const currency = price.currency ?? 'INR';
-  // Emitted by PropertyResource on the show route only — absent on list payloads.
-  const rera = api.rera ?? {};
   const scale = api.scale ?? {};
   const compliance = api.compliance ?? {};
 
@@ -228,13 +226,12 @@ export function normalizeProperty(api) {
      * there has one obvious counterpart here.
      *
      * Deliberately absent, because the intake form no longer collects them: the RERA
-     * registered-on / valid-till dates, construction progress, launch date, price per
-     * sq.ft., flats per floor, parking details, construction specifications, clubhouse
-     * size, amenities count, awards, approving authorities and bank approvals.
+     * number, registered-on / valid-till dates, construction progress, launch date,
+     * price per sq.ft., flats per floor, parking details, construction specifications,
+     * clubhouse size, amenities count, awards, approving authorities and bank approvals.
      */
     details: {
       overview: {
-        reraNumber: rera.number,
         projectType: api.project_type,
         projectStatus: api.project_status,
         listingStatus: api.listing_status,

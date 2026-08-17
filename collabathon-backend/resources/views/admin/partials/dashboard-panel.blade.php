@@ -102,7 +102,7 @@
                             x-on:click="window.location = @js(route('admin.developers.show', $dev))">
                             <td class="px-4 py-3">
                                 <div class="flex items-center gap-2.5 min-w-0">
-                                    <x-avatar :name="$dev->company_name" :src="$dev->logo_path" size="sm" />
+                                    <x-avatar :name="$dev->company_name" :src="$dev->logo_path" size="sm" shape="square" />
                                     <a href="{{ route('admin.developers.show', $dev) }}"
                                        class="text-[13px] font-medium text-ink hover:underline truncate">{{ $dev->company_name }}</a>
                                 </div>

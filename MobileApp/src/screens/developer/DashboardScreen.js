@@ -95,7 +95,7 @@ const DashboardScreen = ({navigation}) => {
             marginBottom: spacing.lg,
           }}>
           <View style={{flexDirection: 'row', alignItems: 'center', flex: 1}}>
-            <Avatar uri={developer?.logo_url} name={developer?.company_name} size="sm" />
+            <Avatar uri={developer?.logo_url} name={developer?.company_name} size="sm" shape="square" />
             <View style={{marginLeft: spacing.sm, flex: 1}}>
               <AppText variant="caption" color={colors.textMuted}>
                 {greeting()}, {firstName(user?.name, 'Developer')}
@@ -118,10 +118,26 @@ const DashboardScreen = ({navigation}) => {
           <StatRow
             stats={[
               inventory?.pending
-                ? {value: String(inventory.pending), label: 'Awaiting you'}
-                : {value: String(inventory?.live ?? stats?.properties ?? 0), label: 'Active Listings'},
-              {value: String(stats?.interested ?? 0), label: 'CP Interest'},
-              {value: String(stats?.accepted ?? 0), label: 'Introductions'},
+                ? {
+                    value: String(inventory.pending),
+                    label: 'Awaiting you',
+                    onPress: () => navigation.navigate('PropertiesTab'),
+                  }
+                : {
+                    value: String(inventory?.live ?? stats?.properties ?? 0),
+                    label: 'Active Listings',
+                    onPress: () => navigation.navigate('PropertiesTab'),
+                  },
+              {
+                value: String(stats?.interested ?? 0),
+                label: 'CP Interest',
+                onPress: () => navigation.navigate('RequestBrokersTab'),
+              },
+              {
+                value: String(stats?.accepted ?? 0),
+                label: 'Introductions',
+                onPress: () => navigation.navigate('PartnersTab'),
+              },
             ]}
           />
         </Card>
