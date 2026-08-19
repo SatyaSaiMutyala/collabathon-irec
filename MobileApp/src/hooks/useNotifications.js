@@ -114,6 +114,10 @@ export function useNotifications() {
         title: entry.title,
         message: entry.message(lead),
         date: leadDate(lead),
+        // What every one of these notifications is actually about — the property a
+        // broker interacted with. Kept so the screen can navigate somewhere on tap
+        // instead of just displaying text; not used by the copy above.
+        propertyId: lead.property?.id,
       };
     })
     .filter(Boolean);

@@ -55,3 +55,14 @@ export const API_BASE_URL = 'https://brown-hedgehog-768805.hostingersite.com/api
 export const DEFAULT_PAGE_SIZE = 20;
 
 export const REQUEST_TIMEOUT_MS = 20000;
+
+/**
+ * A multipart request carrying one or more picked files (profile photo, PAN/
+ * Aadhaar/RERA/GST scans) needs longer than a plain JSON call — step 3 of
+ * registration can ship up to four attachments in one request, and the same
+ * 20s cap that suits a JSON body was cutting that upload off mid-flight on a
+ * slow or lossy connection, which surfaced as "Submit for approval" silently
+ * not navigating (the request aborted with ECONNABORTED before the server
+ * ever answered).
+ */
+export const UPLOAD_TIMEOUT_MS = 60000;

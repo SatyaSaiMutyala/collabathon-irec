@@ -18,16 +18,19 @@ const RESEND_COOLDOWN_S = 30;
  *                BrokerRootStack) the instant `isLoggedIn` flips, which really does
  *                unmount/remount and land on the right screen; this screen calls no
  *                navigation itself.
- *   'draft'    — a registration already in progress for this email; the reducer
- *                hydrates the session exactly like 'login' does, but RootNavigator's
- *                `registrationStatus === 'draft'` branch stays on this same
- *                AuthNavigator instance (just a changed `initialRouteName` prop,
- *                which React Navigation only reads on a navigator's first mount) —
- *                so unlike 'login', nothing there actually moves this screen
- *                anywhere. This screen has to navigate itself, same as 'register'.
+ *   'draft'    — a registration already in progress for this email, *or* an earlier
+ *                one an admin just rejected (verifyEmailOtp drops that back into
+ *                `draft` server-side rather than 403ing — see AuthController). The
+ *                reducer hydrates the session exactly like 'login' does, but
+ *                RootNavigator's `registrationStatus === 'draft'` branch stays on
+ *                this same AuthNavigator instance (just a changed `initialRouteName`
+ *                prop, which React Navigation only reads on a navigator's first
+ *                mount) — so unlike 'login', nothing there actually moves this
+ *                screen anywhere. This screen has to navigate itself, same as
+ *                'register'.
  *   'register' — no account for this email yet; on to CompleteProfile, carrying the
  *                verified email so the form can prefill (and lock) that field.
- *   403        — an account exists but isn't approved yet (or was rejected); on to
+ *   403        — an account exists but isn't approved yet (still `pending`); on to
  *                PendingApproval.
  *   otherwise  — wrong code: shown inline, boxes clear, ready to retry.
  *

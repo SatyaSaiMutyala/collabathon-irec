@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\MyPropertyController;
 use App\Http\Controllers\Api\PartnerController;
 use App\Http\Controllers\Api\PropertyController;
+use App\Http\Controllers\Api\UploadController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -50,13 +51,10 @@ Route::prefix('v1')->group(function () {
         ->middleware('throttle:15,1');
 
     // Document verification during registration — see KycController's own docblock
-    // for why this is public rather than behind auth:sanctum.
-    Route::post('kyc/aadhaar/verify', [KycController::class, 'verifyAadhaar'])
-        ->middleware('throttle:10,1');
-    Route::post('kyc/aadhaar/verify-xml', [KycController::class, 'verifyAadhaarXml'])
-        ->middleware('throttle:10,1');
-    Route::post('kyc/aadhaar/verify-eaadhaar', [KycController::class, 'verifyAadhaarEaadhaar'])
-        ->middleware('throttle:10,1');
+    // for why this is public rather than behind auth:sanctum. Aadhaar verification
+    // was removed (Surepass's Aadhaar scope was never actually enabled on this
+    // account, so every attempt failed with "access token is not valid for this
+    // API/Scope") — PAN is the only document left that verifies live.
     Route::post('kyc/pan/verify', [KycController::class, 'verifyPan'])
         ->middleware('throttle:10,1');
 
@@ -74,6 +72,13 @@ Route::prefix('v1')->group(function () {
         // tap across a 3-step form, plausibly several times per session.
         Route::patch('auth/register/step', [AuthController::class, 'saveRegistrationStep'])
             ->middleware('throttle:20,1');
+
+        // One file per request — a step-3 attachment is stored the moment it's
+        // picked, not carried along in the same request as the rest of the form.
+        // See UploadController's own docblock. 30/min covers picking up to four
+        // documents plus a couple of retries without getting in the way.
+        Route::post('uploads', [UploadController::class, 'store'])
+            ->middleware('throttle:30,1');
 
         // Push registration. Sent right after sign-in and cleared on sign-out.
         Route::post('auth/device-token', [AuthController::class, 'registerDevice']);

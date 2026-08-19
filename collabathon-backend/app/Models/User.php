@@ -80,6 +80,11 @@ class User extends Authenticatable
         return $this->hasMany(ApprovalDecision::class);
     }
 
+    public function uploads(): HasMany
+    {
+        return $this->hasMany(Upload::class);
+    }
+
     /**
      * The admin-side staff role (Super Admin / Manager / custom) governing this
      * user's module permissions. Only meaningful when `role === 'admin'`; brokers
@@ -144,6 +149,24 @@ class User extends Authenticatable
     public function isDraft(): bool
     {
         return $this->status === self::STATUS_DRAFT;
+    }
+
+    public function isRejected(): bool
+    {
+        return $this->status === self::STATUS_REJECTED;
+    }
+
+    /**
+     * Why the most recent decision on this account went against them — null if it
+     * was never rejected, or if a later approval superseded that rejection (an old
+     * rejection's row is kept for the audit trail, see ApprovalController::approve,
+     * but the *latest* decision is what a broker resuming their draft should see).
+     */
+    public function latestRejectionReason(): ?string
+    {
+        $decision = $this->approvalDecisions()->latest()->first();
+
+        return $decision?->decision === 'rejected' ? $decision->reason : null;
     }
 
     // ------------------------------------------------------------------ scopes

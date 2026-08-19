@@ -39,6 +39,11 @@ const initialState = {
   // as UserResource::draftProfile() shapes them — CompleteProfileScreen seeds its form
   // from this when resuming rather than starting blank.
   draftProfile: null,
+  // Set only for a draft that exists because an admin rejected it — verifyOtp/
+  // verifyEmailOtp drop a rejected broker straight back into `draft` rather than a
+  // dead end, and this is why: CompleteProfileScreen shows it so the broker knows
+  // what to fix before resubmitting. Null for an ordinary in-progress registration.
+  rejectionReason: null,
   isLoggedIn: false,
   status: 'idle', // idle | loading | succeeded | failed
   error: null,
@@ -337,6 +342,7 @@ const authSlice = createSlice({
         state.registrationStatus = 'draft';
         state.registrationStep = data.registration_step ?? 1;
         state.draftProfile = data.draft_profile ?? null;
+        state.rejectionReason = null;
         state.error = null;
       })
       .addCase(startRegistration.rejected, (state, action) => {
@@ -366,11 +372,13 @@ const authSlice = createSlice({
           state.isLoggedIn = false;
           state.registrationStatus = 'pendingApproval';
           state.draftProfile = null;
+          state.rejectionReason = null;
           return;
         }
 
         state.registrationStep = data.registration_step ?? state.registrationStep;
         state.draftProfile = data.draft_profile ?? state.draftProfile;
+        state.rejectionReason = data.rejection_reason ?? state.rejectionReason;
       })
       .addCase(saveRegistrationStep.rejected, (state, action) => {
         state.status = 'failed';
@@ -446,6 +454,7 @@ const authSlice = createSlice({
           state.registrationStatus = payload.status === 'draft' ? 'draft' : 'approved';
           state.registrationStep = data.registration_step ?? state.registrationStep;
           state.draftProfile = data.draft_profile ?? null;
+          state.rejectionReason = data.rejection_reason ?? null;
         }
       })
       .addCase(verifyOtp.rejected, (state, action) => {
@@ -501,6 +510,7 @@ const authSlice = createSlice({
           state.registrationStatus = payload.status === 'draft' ? 'draft' : 'approved';
           state.registrationStep = data.registration_step ?? state.registrationStep;
           state.draftProfile = data.draft_profile ?? null;
+          state.rejectionReason = data.rejection_reason ?? null;
         }
       })
       .addCase(verifyEmailOtp.rejected, (state, action) => {
@@ -529,6 +539,7 @@ const authSlice = createSlice({
           state.registrationStatus = 'draft';
           state.registrationStep = action.payload.registration_step ?? state.registrationStep;
           state.draftProfile = action.payload.draft_profile ?? state.draftProfile;
+          state.rejectionReason = action.payload.rejection_reason ?? state.rejectionReason;
         }
       })
 

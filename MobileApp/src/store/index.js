@@ -59,6 +59,7 @@ store.subscribe(() => {
     // draft resume never briefly renders step 1 before snapping to the real step.
     registrationStep: auth.registrationStep,
     draftProfile: auth.draftProfile,
+    rejectionReason: auth.rejectionReason,
     isLoggedIn: auth.isLoggedIn,
   });
 });

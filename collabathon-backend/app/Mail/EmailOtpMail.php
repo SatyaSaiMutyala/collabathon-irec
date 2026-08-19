@@ -28,6 +28,15 @@ class EmailOtpMail extends Mailable
 
     public function envelope(): Envelope
     {
+        // Queued (see AuthController::deliverEmailOtp()), so this runs inside the
+        // queue worker's own process — a separate one from the request that
+        // dispatched it, which never inherited the `Config::set()` calls
+        // MailSettings::apply() made there. Calling it again here, right before the
+        // message is actually built, is what keeps the worker sending through
+        // Mailjet instead of quietly falling back to whatever `MAIL_MAILER` is in
+        // .env (the `log` driver, in this app — see it never actually leaving).
+        MailSettings::apply();
+
         return new Envelope(
             from: new Address(MailSettings::fromAddress(), MailSettings::fromName()),
             subject: "Your sign-in code: {$this->code}",

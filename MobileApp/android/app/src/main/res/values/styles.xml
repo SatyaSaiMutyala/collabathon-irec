@@ -16,4 +16,22 @@
         <item name="android:windowBackground">@drawable/splash_screen</item>
     </style>
 
+    <!--
+      react-native-image-crop-picker's UCropActivity (the native "Crop your photo" screen
+      — used by AttachField's `crop: true` fields, e.g. the CP registration photo) ships
+      with `Theme.AppCompat.Light.NoActionBar`, a theme from long before Android's
+      edge-to-edge enforcement. Since the app targets API 35, the OS now forces
+      edge-to-edge layout on every activity regardless of its own theme — UCropActivity's
+      toolbar never asked for top-inset padding, so its Close/Done icons draw underneath
+      the status bar instead of below it, right where a tap can't reach them.
+
+      `windowOptOutEdgeToEdgeEnforcement` is Android 15's own escape hatch for exactly
+      this situation: a third-party activity that hasn't been updated for edge-to-edge.
+      It is ignored (harmlessly) below API 35. See the matching override in
+      AndroidManifest.xml, which points UCropActivity at this theme instead of its own.
+    -->
+    <style name="UCropTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
+    </style>
+
 </resources>

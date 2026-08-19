@@ -7,6 +7,7 @@ import {useAppTheme} from '../../theme';
 import {AppText, AuthHeader, Button, Input, ScreenContainer} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {resetEmailOtp, sendEmailOtp} from '../../store/slices/authSlice';
+import {suggestEmailDomain} from '../../utils/email';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -27,8 +28,18 @@ const EmailOtpLoginScreen = ({navigation}) => {
     dispatch(resetEmailOtp());
   }, [dispatch]);
 
-  const isValid = EMAIL_PATTERN.test(email.trim());
+  const trimmedEmail = email.trim();
+  const isFormatValid = EMAIL_PATTERN.test(trimmedEmail);
+  // Format alone lets "gmail.como" straight through — it's a syntactically valid
+  // domain, just not the one almost anyone actually meant to type. This catches a
+  // typo of a well-known provider before it ever reaches a real request, rather
+  // than "the OTP never arrived" being the first sign anything was wrong.
+  const domainSuggestion = isFormatValid ? suggestEmailDomain(trimmedEmail) : null;
+  const isValid = isFormatValid && !domainSuggestion;
   const isSending = emailOtp.status === 'sending';
+  const domainSuggestionMessage = domainSuggestion
+    ? `Did you mean ${trimmedEmail.slice(0, trimmedEmail.lastIndexOf('@'))}@${domainSuggestion}?`
+    : null;
 
   const handleSubmit = async () => {
     if (!isValid || isSending) {
@@ -79,7 +90,7 @@ const EmailOtpLoginScreen = ({navigation}) => {
           value={email}
           onChangeText={setEmail}
           onSubmitEditing={handleSubmit}
-          error={emailOtp.status === 'error' ? emailOtp.error : undefined}
+          error={domainSuggestionMessage ?? (emailOtp.status === 'error' ? emailOtp.error : undefined)}
         />
 
         <Button

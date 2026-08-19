@@ -15,17 +15,19 @@ const Stack = createNativeStackNavigator();
 /**
  * Developers sign in with email + password (LoginScreen); the role is resolved from
  * the account server-side. Channel partners sign in with email + a 4-digit OTP
- * (EmailOtpLogin -> EmailOtpVerify) instead — see AuthController::sendEmailOtp — and
- * self-register with CompleteProfileScreen when no account exists yet for that email.
- * Developer accounts are admin-provisioned, so there is no self-serve path for that
- * role.
+ * (EmailOtpLogin -> EmailOtpVerify) or mobile + a 6-digit OTP (MobileOtpLogin ->
+ * OtpVerify) — WelcomeScreen picks which pair to route into per the admin's
+ * `cp_login_method` setting (Settings -> Channel Partners), fetched from
+ * `GET /config`. Both self-register with CompleteProfileScreen when no account
+ * exists yet for that email/mobile — registered once, outside either pair, since it
+ * is shared by both. Developer accounts are admin-provisioned, so there is no
+ * self-serve path for that role.
  *
- * The mobile-number + OTP path (MobileOtpLogin -> OtpVerify) is still registered
- * below but nothing currently navigates to it — there is no SMS provider wired up (no
- * SMTP/MSG91/etc), so it was superseded by the email version above once Mailjet
- * delivery was in place. Left in rather than deleted so switching back later is a
- * routing change, not a rebuild of the whole flow. CompleteProfile itself is shared
- * by both paths, which is why it is registered once, outside that "not linked" pair.
+ * There is still no real SMS provider wired up (no SMTP/MSG91/etc — see
+ * AuthController::exposesOtpCode) — the mobile path only actually completes on a
+ * host with OTP_EXPOSE_CODE set, same as it always has. That is a deliverability
+ * gap, not a routing one: an admin can switch every broker onto this path today,
+ * they just cannot receive a real text yet.
  *
  * `initialRouteName` is a prop, not hardcoded, so RootNavigator can drop a returning
  * `draft` (mid-registration) session straight onto CompleteProfile instead of Welcome

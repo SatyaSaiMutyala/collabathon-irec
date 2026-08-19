@@ -64,9 +64,12 @@
             'label' => 'Aadhaar card',
             'number' => $maskAadhaar($profile?->aadhaar_card),
             'path' => $profile?->aadhaar_path,
-            // Checked against Surepass at registration time, not just typed in — see
-            // AadhaarVerificationService. Null/false alike read as unverified: today
-            // that covers both "never attempted" and "attempted, didn't match".
+            // Aadhaar is no longer checked against Surepass at registration time —
+            // AadhaarVerificationService and its endpoints were removed (Surepass's
+            // Aadhaar scope was never enabled on this account, so every attempt just
+            // errored). This stays `false` for every registration from here on; it
+            // only ever reads `true` for an account that registered back when the
+            // check still ran.
             'verified' => (bool) $profile?->aadhaar_verified,
             'verified_name' => $profile?->aadhaar_verified_name,
         ],

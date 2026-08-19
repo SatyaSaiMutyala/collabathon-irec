@@ -35,7 +35,14 @@ class UserResource extends JsonResource
                 'developer',
                 fn () => (new DeveloperResource($this->developer))->withContact(true)
             ),
-            'broker_profile' => $this->whenLoaded('brokerProfile'),
+            // Every attachment column rewritten to a full URL, same as draftProfile()
+            // below does for a mid-registration session — an approved broker's own
+            // Profile screen (and anything else reading this key) reads these as
+            // straight `{uri}`-able URLs, not storage-relative paths.
+            'broker_profile' => $this->whenLoaded(
+                'brokerProfile',
+                fn () => $this->withFileUrls($this->brokerProfile->toArray())
+            ),
             // Only a mid-registration account needs this — it's what CompleteProfileScreen
             // rehydrates its form from when a 'draft' session resumes (either straight from
             // app boot, or by re-verifying OTP). registration_step is what tells the app
@@ -47,6 +54,16 @@ class UserResource extends JsonResource
             'draft_profile' => $this->when(
                 $this->status === \App\Models\User::STATUS_DRAFT && $this->relationLoaded('brokerProfile'),
                 fn () => $this->draftProfile(),
+            ),
+            // Only set the moment a rejected broker's account is flipped back to
+            // `draft` on re-verify (see AuthController::verifyOtp/verifyEmailOtp) —
+            // stays present through every step-1/2 resave of that resumed draft so
+            // CompleteProfileScreen can keep the reason visible, and disappears again
+            // the instant step 3's real submit flips status to `pending`, since
+            // there's nothing left to explain by then.
+            'rejection_reason' => $this->when(
+                $this->status === \App\Models\User::STATUS_DRAFT,
+                fn () => $this->latestRejectionReason(),
             ),
         ];
     }
@@ -63,15 +80,12 @@ class UserResource extends JsonResource
     /**
      * Every broker_profiles column the wizard collects, snake_case as stored — the app's
      * SERVER_FIELD_TO_FORM-style mapping already knows how to translate these names, the
-     * same map it uses to paint 422 errors onto fields. The 7 attachment columns come back
-     * as full URLs instead of storage-relative paths, so they can go straight into
-     * AttachBox/AttachPill's `uri` prop with no second lookup.
+     * same map it uses to paint 422 errors onto fields.
      */
     private function draftProfile(): array
     {
-        $profile = $this->brokerProfile;
-
-        $attributes = $profile?->only([
+        $attributes = $this->brokerProfile?->only([
+            'verified_channel',
             'alternate_mobile', 'residence_address', 'photo_path',
             'is_company', 'company_name', 'office_address', 'company_website',
             'instagram', 'facebook', 'youtube', 'twitter', 'linkedin',
@@ -83,6 +97,12 @@ class UserResource extends JsonResource
             'project_contributions', 'signature_path',
         ]) ?? [];
 
+        return $this->withFileUrls($attributes);
+    }
+
+    /** Rewrites every attachment column present in $attributes into a full URL. */
+    private function withFileUrls(array $attributes): array
+    {
         foreach (self::PROFILE_FILE_COLUMNS as $column) {
             if (! empty($attributes[$column])) {
                 $attributes[$column] = asset('storage/' . $attributes[$column]);

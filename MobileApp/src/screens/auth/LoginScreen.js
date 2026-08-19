@@ -123,17 +123,10 @@ const LoginScreen = ({navigation}) => {
           }}
         />
 
-        <View style={{flexDirection: 'row', justifyContent: 'center', marginTop: spacing.lg}}>
-          <AppText variant="body" color={colors.textSecondary}>
-            New channel partner?{' '}
-          </AppText>
-          <TouchableOpacity onPress={() => navigation.navigate('CompleteProfile')} hitSlop={8}>
-            <AppText variant="bodyMedium" color={colors.primary}>
-              Create an account
-            </AppText>
-          </TouchableOpacity>
-        </View>
-
+        {/* No "New channel partner? Create an account" link here any more — this is
+            the developer-only sign-in screen (email + password); a channel partner's
+            self-serve path starts at Welcome's own "Channel partners" card, which
+            routes into the right OTP flow first (see AuthNavigator's docblock). */}
         {/* Developers are onboarded by an admin, so there's no self-serve path to offer. */}
         <AppText
           variant="caption"

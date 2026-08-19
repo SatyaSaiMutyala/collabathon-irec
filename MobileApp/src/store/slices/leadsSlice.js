@@ -269,10 +269,27 @@ export const selectUnlockedLeads = createSelector(
 
 /**
  * Backs the broker detail screen. There is no GET /leads/{id}, so the screen reads the
- * row the list already loaded and stays live through `respondToLead`, which patches
- * that same row with the unmasked contact the accept response carries back.
+ * row whichever list already loaded and stays live through `respondToLead`, which
+ * patches that same row with the unmasked contact the accept response carries back.
+ *
+ * Checks every bucket, not just `list` — BrokerDetailScreen is opened with a `leadId`
+ * from more than one screen (the inbox, a listing's own CP Interests, Notifications),
+ * and each of those loads into its own separate bucket (see the docblocks on `list`/
+ * `propertyLeads`/`notifications` above) rather than sharing one. Reading only `list`
+ * meant a lead opened from PropertyLeadsScreen showed "This request is no longer
+ * available" any time it hadn't *also* happened to be loaded into the inbox in this
+ * same session — same reasoning `respondToLead.fulfilled` already applies when
+ * patching a response back into every list that might be holding this lead.
  */
-export const selectLeadById = (state, leadId) =>
-  state.leads.list.items.find(lead => lead.id === leadId);
+export const selectLeadById = (state, leadId) => {
+  const {list, propertyLeads, accepted, notifications} = state.leads;
+  for (const bucket of [list, propertyLeads, accepted, notifications]) {
+    const lead = bucket.items.find(item => item.id === leadId);
+    if (lead) {
+      return lead;
+    }
+  }
+  return undefined;
+};
 
 export default leadsSlice.reducer;

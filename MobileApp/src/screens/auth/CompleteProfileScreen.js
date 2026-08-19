@@ -1,7 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Alert, Modal, StyleSheet, TouchableOpacity, View} from 'react-native';
+import {ActivityIndicator, Alert, StyleSheet, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import DocumentPicker, {isCancel as isDocumentPickCancelled} from 'react-native-document-picker';
 import {moderateScale} from '../../theme/scaling';
 import {KeyboardAwareScrollView} from 'react-native-keyboard-aware-scroll-view';
 import {useAppTheme} from '../../theme';
@@ -9,14 +8,16 @@ import {
   AppText,
   AttachBox,
   Button,
+  Card,
   Checkbox,
+  DocumentAttachBox,
   Dropdown,
   Input,
   ScreenContainer,
   SectionHeader,
   SignaturePad,
 } from '../../components';
-import {kycApi} from '../../api/endpoints';
+import {kycApi, uploadApi} from '../../api/endpoints';
 import {extractError} from '../../api/client';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {startRegistration, saveRegistrationStep, logout} from '../../store/slices/authSlice';
@@ -36,6 +37,18 @@ const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 
 /** Picking "All" covers every other option, so the list has nothing left to offer. */
 const TERMINAL_OPTIONS = ['All'];
+
+/**
+ * Which `type` each step-3 document uploads itself as via POST /uploads — see
+ * UploadController. Keyed by the form field so `handleAttachmentPick` stays one
+ * function shared by all four instead of four near-identical copies.
+ */
+const ATTACHMENT_UPLOAD_TYPE = {
+  panCardAttachment: 'pan_card',
+  aadhaarAttachment: 'aadhaar',
+  reraCertificateAttachment: 'rera_certificate',
+  gstAttachment: 'gst',
+};
 
 /**
  * Every field the API can reject, mapped to the form field that shows it.
@@ -91,21 +104,21 @@ const FIELD_ORDER = [
   {key: 'emailId', step: 1},
   {key: 'residenceAddress', step: 1},
   {key: 'photoAttachment', step: 1, focusVia: 'residenceAddress'},
+  {key: 'companyName', step: 2},
+  {key: 'officeAddress', step: 2},
+  {key: 'companyWebsite', step: 2},
+  {key: 'instagram', step: 2},
+  {key: 'facebook', step: 2},
+  {key: 'youtube', step: 2},
+  {key: 'twitter', step: 2},
+  {key: 'linkedin', step: 2},
+  {key: 'yearsOfExperience', step: 2},
+  {key: 'teamSize', step: 2},
   {key: 'state', step: 2},
   {key: 'city', step: 2},
   {key: 'segments', step: 2, focusVia: 'city'},
   {key: 'zones', step: 2, focusVia: 'city'},
   {key: 'projectContributions', step: 2},
-  {key: 'companyName', step: 3},
-  {key: 'officeAddress', step: 3},
-  {key: 'companyWebsite', step: 3},
-  {key: 'instagram', step: 3},
-  {key: 'facebook', step: 3},
-  {key: 'youtube', step: 3},
-  {key: 'twitter', step: 3},
-  {key: 'linkedin', step: 3},
-  {key: 'yearsOfExperience', step: 3},
-  {key: 'teamSize', step: 3},
   {key: 'panCard', step: 3},
   {key: 'panCardAttachment', step: 3, focusVia: 'panCard'},
   {key: 'aadhaarCard', step: 3},
@@ -128,10 +141,12 @@ const FIELD_ORDER = [
  * Step 1 needs no entry — see `stepStatus` below, it has its own rule.
  */
 const STEP_DRAFT_FIELDS = {
-  2: ['state', 'city', 'project_contributions'],
-  3: [
+  2: [
+    'state', 'city', 'project_contributions',
     'company_name', 'office_address', 'company_website', 'instagram', 'facebook',
     'youtube', 'twitter', 'linkedin', 'years_of_experience', 'team_size',
+  ],
+  3: [
     'pan_card', 'pan_card_path', 'aadhaar_card', 'aadhaar_path',
     'rera_number', 'rera_certificate_path', 'gst_number', 'gst_path', 'signature_path',
   ],
@@ -140,6 +155,15 @@ const STEP_DRAFT_ARRAY_FIELDS = {2: ['segments', 'zones']};
 
 /** A previously-saved attachment comes back as a full URL — nothing local to re-upload. */
 const isRemoteUri = uri => typeof uri === 'string' && /^https?:\/\//.test(uri);
+
+/**
+ * Wraps a resumed draft's saved path into the same `{uri, name, type}` shape
+ * `DocumentAttachBox`'s own picker returns — a display-only stand-in, since all a
+ * resumed session has is the URL; `isRemoteUri()` is what stops it from ever being
+ * re-uploaded as if it were a fresh pick.
+ */
+const remoteDocument = path =>
+  path ? {uri: path, name: path.split('/').pop(), type: 'application/octet-stream'} : null;
 
 /**
  * Reverses the suffix+full-name join `toStepPayload(1)` does when submitting `name` —
@@ -186,20 +210,13 @@ const buildInitialForm = ({mobile, email, identity, draft}) => {
     yearsOfExperience: draft?.years_of_experience ? String(draft.years_of_experience) : '',
     teamSize: draft?.team_size ? String(draft.team_size) : '',
     panCard: draft?.pan_card ?? '',
-    panCardAttachment: draft?.pan_card_path ?? '',
+    panCardAttachment: remoteDocument(draft?.pan_card_path),
     aadhaarCard: draft?.aadhaar_card ?? '',
-    // The picker's own {uri, name, type} shape is what the field expects; a resumed
-    // remote path only has a URL, so this is a display-only stand-in — isRemoteUri()
-    // is what stops it from ever being re-uploaded as if it were a fresh pick.
-    aadhaarAttachment: draft?.aadhaar_path
-      ? {uri: draft.aadhaar_path, name: draft.aadhaar_path.split('/').pop(), type: 'application/octet-stream'}
-      : null,
-    aadhaarShareCode: '',
-    aadhaarYob: '',
+    aadhaarAttachment: remoteDocument(draft?.aadhaar_path),
     reraNumber: draft?.rera_number ?? '',
-    reraCertificateAttachment: draft?.rera_certificate_path ?? '',
+    reraCertificateAttachment: remoteDocument(draft?.rera_certificate_path),
     gstNumber: draft?.gst_number ?? '',
-    gstAttachment: draft?.gst_path ?? '',
+    gstAttachment: remoteDocument(draft?.gst_path),
     state: draft?.state ?? '',
     city: draft?.city ?? '',
     segments: draft?.segments ?? [],
@@ -214,11 +231,21 @@ const buildInitialForm = ({mobile, email, identity, draft}) => {
 /**
  * The channel-partner empanelment form — reached after OtpVerifyScreen/
  * EmailOtpVerifyScreen confirm a mobile/email with no *finished* account for it (or a
- * `draft` one already in progress). Split into 3 steps — Personal -> Business ->
- * Professional, deliberately ending on the heaviest step (company details, every
- * KYC attachment, plus the final agreement + signature) so the lighter,
- * text-only fields come first and everything requiring an upload or a decision
- * comes right before the moment of actually submitting. Each step's Next saves to
+ * `draft` one already in progress). Split into 3 steps — Personal -> Professional ->
+ * Business, deliberately ending on the heaviest step (every KYC attachment, plus the
+ * final agreement + signature) so the lighter, text-only fields (plus the company
+ * registration details, which live on step 2 alongside coverage/experience) come
+ * first, and everything requiring an upload comes right before the moment of
+ * actually submitting.
+ *
+ * PAN is the only document verified live against Surepass any more — Aadhaar is
+ * a plain number + attachment now, same shape as RERA/GST, with no verification
+ * call and no verified/verified_name pair sent to the server. Surepass's Aadhaar
+ * scope was never actually enabled on this account ("access token is not valid
+ * for this API/Scope"), so every attempt failed anyway; this removes the dead
+ * attempt rather than leaving a KYC step that always errors.
+ *
+ * Each step's Next saves to
  * the database immediately — see `startRegistration` (step 1 only, creates the
  * account) and `saveRegistrationStep` (every step after, including Save Draft on any
  * step, including step 1's own fields being edited again after Back). A `draft`
@@ -227,7 +254,7 @@ const buildInitialForm = ({mobile, email, identity, draft}) => {
  * that data still filled in.
  */
 const CompleteProfileScreen = ({navigation, route}) => {
-  const {colors, radius, spacing} = useAppTheme();
+  const {colors, spacing} = useAppTheme();
   const dispatch = useAppDispatch();
   const mobileParam = route.params?.mobile;
   const emailParam = route.params?.email;
@@ -235,15 +262,27 @@ const CompleteProfileScreen = ({navigation, route}) => {
   const registrationStatus = useAppSelector(state => state.auth.registrationStatus);
   const registrationStep = useAppSelector(state => state.auth.registrationStep);
   const draftProfile = useAppSelector(state => state.auth.draftProfile);
+  // Only set when this draft exists *because* an admin rejected the earlier
+  // submission — see AuthController::verifyOtp/verifyEmailOtp. Shown as a banner
+  // below so the broker knows what to fix before resubmitting.
+  const rejectionReason = useAppSelector(state => state.auth.rejectionReason);
   const user = useAppSelector(state => state.auth.user);
   const isSubmitting = useAppSelector(state => state.auth.status === 'loading');
   const isResuming = registrationStatus === 'draft';
 
-  // mobileParam only exists on the (currently unlinked) mobile-OTP path, immediately
-  // after verification — resuming a draft session has no route params at all, so the
-  // already-created account's own mobile (in `user`, from the token) is what seeds it
-  // then. Once either is true, the identity fields are locked — see the Input below.
-  const isIdentityLocked = !!mobileParam || isResuming;
+  // Which of mobile/email this broker actually proved with an OTP — only that one
+  // field gets locked below; the other was always just self-typed, draft-saved or
+  // not, so it stays editable throughout. A fresh verification carries it as a route
+  // param (`mobileParam`/`emailParam` — whichever screen sent the broker here); a
+  // resumed draft session has no route params at all (RootNavigator mounts this
+  // screen directly), so it falls back to what startRegistration recorded server-side
+  // — see `verified_channel` on BrokerProfile.
+  const verifiedChannel = mobileParam ? 'mobile' : emailParam ? 'email' : draftProfile?.verified_channel;
+  const isMobileLocked = verifiedChannel === 'mobile';
+  const isEmailLocked = verifiedChannel === 'email';
+  // Some callers only care "is any part of this identity locked" — e.g. what counts
+  // as a fresh vs. resumed session for prefill purposes.
+  const isIdentityLocked = isMobileLocked || isEmailLocked;
 
   const [currentStep, setCurrentStep] = useState(() => (isResuming ? registrationStep || 1 : 1));
   // RootNavigator can mount this screen from the *persisted* registrationStep
@@ -258,16 +297,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
     buildInitialForm({mobile: mobileParam, email: emailParam, identity: user, draft: draftProfile}),
   );
   const [errors, setErrors] = useState({});
-  // Kicked off the moment an Aadhaar document is attached, independent of the rest
-  // of the form's validation/submit cycle — this is a live check of the document
-  // itself, not something that should wait for "Next" to run.
-  const [aadhaarVerification, setAadhaarVerification] = useState({
-    status: 'idle', // idle | verifying | verified | rejected | unavailable | qr_not_found
-    name: null,
-    message: null,
-  });
-  // Same idea as aadhaarVerification, kicked off on blur instead of on attach
-  // (there's no file to pick — just a number). Confirms the PAN is real and
+  // Kicked off on blur (there's no file to pick — just a number). Confirms the PAN is real and
   // shows the name on file for it; does not auto-fill any other field — PAN
   // lives on step 3, after step 1 (name) and step 2 (address/city/state) have
   // already been saved, so silently rewriting those here would look like it
@@ -278,13 +308,11 @@ const CompleteProfileScreen = ({navigation, route}) => {
     message: null,
   });
   const [isScrollEnabled, setIsScrollEnabled] = useState(true);
-  // Shown instead of a snackbar + auto-navigate once step 3's real submit finalizes
-  // the registration — a snackbar is easy to miss, and by the time it would fire
-  // `navigation.replace('PendingApproval')` this screen's own session is already
-  // gone (see saveRegistrationStep.fulfilled: token/isLoggedIn are cleared the
-  // moment status flips to `pending`), so an explicit "Back to Login" tap is a more
-  // reliable way to end up somewhere valid than a screen transition racing that.
-  const [submittedMessage, setSubmittedMessage] = useState(null);
+  // Which of the four step-3 documents is mid-upload right now — keyed by form
+  // field, so each attachment shows its own spinner without the other three
+  // waiting on it. See handleAttachmentPick.
+  const [uploadingFields, setUploadingFields] = useState({});
+  const isUploadingAttachment = Object.values(uploadingFields).some(Boolean);
 
   // One ref per text field, so a failed submit can put the cursor in the offending one.
   // Focusing is also what scrolls it into view — KeyboardAwareScrollView follows focus.
@@ -325,10 +353,14 @@ const CompleteProfileScreen = ({navigation, route}) => {
     const next = {};
 
     if (step === 1) {
-      if (!isIdentityLocked && !form.mobileNumber.trim()) {
+      if (!isMobileLocked && !form.mobileNumber.trim()) {
         next.mobileNumber = 'Enter your mobile number';
-      } else if (form.mobileNumber.trim() && !/^\+?[0-9]{7,15}$/.test(form.mobileNumber.trim())) {
-        next.mobileNumber = 'Enter a valid mobile number';
+      } else if (form.mobileNumber.trim() && !/^[0-9]{10}$/.test(form.mobileNumber.trim())) {
+        // Exactly 10 digits, no country code — matches what sendOtp/verifyOtp
+        // actually accept (`digits:10`) on the mobile-auth path. A mobile-verified
+        // session's own number always already satisfies this; this only ever
+        // catches what an email-verified broker types in by hand here.
+        next.mobileNumber = 'Enter a valid 10-digit mobile number';
       }
       if (
         form.alternateMobile.trim() &&
@@ -343,18 +375,30 @@ const CompleteProfileScreen = ({navigation, route}) => {
         next.residenceAddress = 'Enter your address of communication';
       }
     } else if (step === 2) {
-      // Business info — nothing here is required, same as before this became its
-      // own step: state/city/segments/zones/project contributions are all optional.
-    } else {
-      // step 3 — Professional info, plus the final agreement + signature.
+      // Professional info — state/city/segments/zones/project contributions stay
+      // optional, same as before this became its own step; only the company fields
+      // are conditionally required, and only when registering as a company at all.
       if (form.isCompany && !form.companyName.trim()) {
         next.companyName = 'Enter company name';
       }
       if (form.isCompany && !form.officeAddress.trim()) {
         next.officeAddress = 'Enter office address';
       }
+    } else {
+      // step 3 — Business info, plus the final agreement + signature.
       if (!form.panCard.trim()) {
         next.panCard = 'Enter PAN card number';
+      } else if (!PAN_REGEX.test(form.panCard.trim().toUpperCase())) {
+        // Catches a malformed number even if it never reached verifyPan() at all
+        // (handlePanBlur only calls it once the format already looks right).
+        next.panCard = 'Enter a valid PAN number, e.g. ABCDE1234F';
+      } else if (panVerification.status === 'rejected') {
+        // The one case this screen actually blocks on a verification result —
+        // everywhere else (Aadhaar previously, an unreachable Surepass here)
+        // verification is a confidence signal, not a gate, but a PAN Surepass has
+        // already come back and said is wrong is not something worth letting
+        // through only to have an admin reject the whole application over later.
+        next.panCard = panVerification.message || 'This PAN number could not be verified. Please check it and try again.';
       }
       if (!form.panCardAttachment) {
         next.panCardAttachment = 'Attach a copy of the PAN card';
@@ -363,7 +407,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
         next.aadhaarCard = 'Enter Aadhaar number';
       }
       if (!form.aadhaarAttachment) {
-        next.aadhaarAttachment = 'Attach your Aadhaar (XML, PDF, or a photo of the card)';
+        next.aadhaarAttachment = 'Attach your Aadhaar (PDF or a photo of the card)';
       }
       if (!form.reraNumber.trim()) {
         next.reraNumber = 'Enter RERA number';
@@ -426,93 +470,55 @@ const CompleteProfileScreen = ({navigation, route}) => {
       ? {uri, name: uri.split('/').pop() || fallbackName, type: 'image/jpeg'}
       : null;
 
-  /** Extension (lowercased, no dot) that decides which Surepass endpoint a picked file routes to. */
-  const aadhaarDocumentKind = name => {
-    const ext = (name ?? '').split('.').pop()?.toLowerCase();
-    if (ext === 'xml') return 'xml';
-    if (ext === 'pdf') return 'pdf';
-    if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) return 'image';
-    return null;
-  };
+  /**
+   * Same idea as `filePart()`, for a `DocumentAttachBox` field — already the
+   * {uri, name, type} the picker returned, not a bare uri, so there's no fallback
+   * name to invent and no JPEG type to assume (it might be a PDF).
+   */
+  const documentPart = attachment =>
+    attachment && !isRemoteUri(attachment.uri) ? attachment : null;
 
   /**
-   * Opens the document picker for any of the three documents Surepass can verify
-   * an Aadhaar from — the offline XML, the eAadhaar PDF, or a photo of the card —
-   * then immediately verifies whatever was picked. Filtered to `allFiles` rather
-   * than a specific MIME/UTI list: what a file manager reports varies enough
-   * across devices that a strict type filter risked hiding the broker's own file
-   * from the picker; the extension check below plus each endpoint's own server-side
-   * `mimes:` validation are what actually gate this, not the picker's filter.
+   * A step-3 document's `onPick` — instead of just holding the picked file in form
+   * state for step 3's own submit to carry, this sends it to POST /uploads the
+   * moment it's picked. That's what lets four attachments fail (and retry)
+   * independently on a slow connection instead of riding along in one large
+   * multipart request that either finishes as a whole or times out as a whole — see
+   * UploadController's docblock. On success the field is set to the server's own
+   * https URL (so `isRemoteUri()` treats it as already-uploaded and `documentPart()`
+   * never resends the binary) plus the returned `path`, which is what `toStepPayload`
+   * sends along on the real submit to link it to this registration.
    */
-  const pickAadhaarDocument = async () => {
-    let picked;
-    try {
-      picked = await DocumentPicker.pickSingle({type: [DocumentPicker.types.allFiles]});
-    } catch (error) {
-      if (!isDocumentPickCancelled(error)) {
-        Alert.alert('Could not open file picker', error?.message ?? 'Please try again.');
-      }
-      return;
-    }
-
-    const kind = aadhaarDocumentKind(picked.name);
-    if (!kind) {
-      Alert.alert(
-        'Unsupported file',
-        'Choose your Aadhaar offline XML, eAadhaar PDF, or a photo of the card (.xml, .pdf, .jpg, or .png).',
-      );
-      return;
-    }
-
-    const file = {uri: picked.uri, name: picked.name, type: picked.type || 'application/octet-stream'};
-    update('aadhaarAttachment')(file);
-    verifyAadhaarDocument(file, kind);
-  };
-
-  /**
-   * Best-effort and non-blocking by design — every branch here just updates the
-   * inline status shown under the attach box; nothing here stops the broker from
-   * filling in the rest of the form or submitting regardless of what this call
-   * answers (see KycController's own docblock for why: a bad file or an
-   * unreachable Surepass must not gate registration itself).
-   */
-  const verifyAadhaarDocument = async (file, kind) => {
-    setAadhaarVerification({status: 'verifying', name: null, message: null});
+  const handleAttachmentPick = formKey => async picked => {
+    setUploadingFields(prev => ({...prev, [formKey]: true}));
 
     try {
-      const fullName = [form.suffix, form.fullNameAsRera].filter(Boolean).join(' ').trim();
-      const {data} =
-        kind === 'xml'
-          ? await kycApi.verifyAadhaarXml(file, form.aadhaarShareCode.trim())
-          : kind === 'pdf'
-            ? await kycApi.verifyAadhaarEaadhaar(file, form.aadhaarYob.trim(), fullName)
-            : await kycApi.verifyAadhaar(file);
-
-      if (data.status === 'verified') {
-        const verifiedName = data.data?.name ?? null;
-        setAadhaarVerification({status: 'verified', name: verifiedName, message: null});
-
-        // Only when the name field is still empty — a verified match should never
-        // overwrite something the broker already typed themselves.
-        if (verifiedName) {
-          setForm(prev =>
-            prev.fullNameAsRera.trim() ? prev : {...prev, fullNameAsRera: verifiedName},
-          );
-        }
-        return;
-      }
-
-      setAadhaarVerification({status: data.status, name: null, message: data.message ?? null});
-    } catch (error) {
-      setAadhaarVerification({
-        status: 'unavailable',
-        name: null,
-        message: extractError(error).message ?? 'Could not verify right now.',
+      const {data} = await uploadApi.upload(picked, ATTACHMENT_UPLOAD_TYPE[formKey]);
+      update(formKey)({
+        uri: data.data.url,
+        name: picked.name,
+        type: picked.type,
+        path: data.data.path,
       });
+      setErrors(prev => ({...prev, [formKey]: undefined}));
+    } catch (error) {
+      dispatch(
+        showSnackbar({
+          message: extractError(error).message ?? 'Could not upload this file. Please try again.',
+          tone: 'danger',
+        }),
+      );
+    } finally {
+      setUploadingFields(prev => ({...prev, [formKey]: false}));
     }
   };
 
-  /** Best-effort and non-blocking, same contract as verifyAadhaarDocument. */
+  /**
+   * Best-effort and non-blocking — updates the inline status shown under the PAN
+   * field; nothing here stops the broker from filling in the rest of the form or
+   * submitting regardless of what this call answers. PAN is the only field left
+   * that verifies live — see the class docblock for why Aadhaar no longer does.
+   */
   const verifyPan = async panNumber => {
     setPanVerification({status: 'verifying', name: null, message: null});
 
@@ -547,6 +553,10 @@ const CompleteProfileScreen = ({navigation, route}) => {
         name: [form.suffix, form.fullNameAsRera].filter(Boolean).join(' ').trim(),
         email: form.emailId.trim(),
         mobile: form.mobileNumber.trim(),
+        // Only actually used on the very first save (startRegistration) — ignored
+        // by saveRegistrationStep on any later re-edit of step 1, since which
+        // channel was proven doesn't change after the account exists.
+        verified_channel: verifiedChannel ?? null,
         alternate_mobile: form.alternateMobile.trim() || null,
         residence_address: form.residenceAddress.trim() || null,
         // The picker hands back a local file:// URI. The transport layer turns this
@@ -564,44 +574,43 @@ const CompleteProfileScreen = ({navigation, route}) => {
         zones: form.zones,
         operates_multiple_states: form.operatesMultipleStates,
         project_contributions: form.projectContributions.trim() || null,
+        is_company: form.isCompany,
+        company_name: form.companyName.trim() || null,
+        office_address: form.officeAddress.trim() || null,
+        company_website: form.companyWebsite.trim() || null,
+        instagram: form.instagram.trim() || null,
+        facebook: form.facebook.trim() || null,
+        youtube: form.youtube.trim() || null,
+        twitter: form.twitter.trim() || null,
+        linkedin: form.linkedin.trim() || null,
+        years_of_experience: form.yearsOfExperience ? Number(form.yearsOfExperience) : null,
+        team_size: form.teamSize ? Number(form.teamSize) : null,
       };
     }
 
-    // step 3 — Professional info, plus the final agreement.
+    // step 3 — Business info, plus the final agreement.
     return {
-      is_company: form.isCompany,
-      company_name: form.companyName.trim() || null,
-      office_address: form.officeAddress.trim() || null,
-      company_website: form.companyWebsite.trim() || null,
-      instagram: form.instagram.trim() || null,
-      facebook: form.facebook.trim() || null,
-      youtube: form.youtube.trim() || null,
-      twitter: form.twitter.trim() || null,
-      linkedin: form.linkedin.trim() || null,
-      years_of_experience: form.yearsOfExperience ? Number(form.yearsOfExperience) : null,
-      team_size: form.teamSize ? Number(form.teamSize) : null,
       pan_card: form.panCard.trim() || null,
       // What verifyPan already found out about the typed PAN number, carried into
-      // the same save — same trust boundary as aadhaar_verified below.
+      // the same save — trusted as reported rather than re-checked server-side.
+      // PAN is the only field left that verifies live at all — see the class
+      // docblock for why Aadhaar (below) no longer sends a verified flag of its own.
       pan_verified: panVerification.status === 'verified',
       pan_verified_name: panVerification.status === 'verified' ? panVerification.name : null,
       aadhaar_card: form.aadhaarCard.trim() || null,
-      // What verifyAadhaarDocument already found out about the attached document,
-      // carried into the same save — see AuthController's note on why this is
-      // trusted as reported rather than re-checked server-side.
-      aadhaar_verified: aadhaarVerification.status === 'verified',
-      aadhaar_verified_name: aadhaarVerification.status === 'verified' ? aadhaarVerification.name : null,
       rera_number: form.reraNumber.trim() || null,
       gst_number: form.gstNumber.trim() || null,
-      pan_card_file: filePart(form.panCardAttachment, 'pan-card.jpg'),
-      // Already the {uri, name, type} the document picker returned, not a bare
-      // uri — no filePart() needed (and it might be XML or PDF, not JPEG).
-      aadhaar_file:
-        form.aadhaarAttachment && !isRemoteUri(form.aadhaarAttachment.uri)
-          ? form.aadhaarAttachment
-          : null,
-      rera_certificate_file: filePart(form.reraCertificateAttachment, 'rera-certificate.jpg'),
-      gst_file: filePart(form.gstAttachment, 'gst.jpg'),
+      // Only present for a document picked *this* session — see handleAttachmentPick.
+      // A resumed draft's attachment has no `.path` (it was already linked on an
+      // earlier save), so this stays null and nothing is re-sent for it.
+      pan_card_path: form.panCardAttachment?.path ?? null,
+      aadhaar_path: form.aadhaarAttachment?.path ?? null,
+      rera_certificate_path: form.reraCertificateAttachment?.path ?? null,
+      gst_path: form.gstAttachment?.path ?? null,
+      pan_card_file: documentPart(form.panCardAttachment),
+      aadhaar_file: documentPart(form.aadhaarAttachment),
+      rera_certificate_file: documentPart(form.reraCertificateAttachment),
+      gst_file: documentPart(form.gstAttachment),
       confirm_accuracy: form.confirmAccuracy,
     };
   };
@@ -643,6 +652,14 @@ const CompleteProfileScreen = ({navigation, route}) => {
 
   const handleNext = async () => {
     hasNavigatedRef.current = true;
+
+    if (isUploadingAttachment) {
+      dispatch(
+        showSnackbar({message: 'Please wait for the attachment to finish uploading.', tone: 'danger'}),
+      );
+      return;
+    }
+
     const stepErrors = validateStep(currentStep);
     if (Object.keys(stepErrors).length > 0) {
       reportErrors(stepErrors);
@@ -652,14 +669,19 @@ const CompleteProfileScreen = ({navigation, route}) => {
     const {result, thunk} = await persistStep(currentStep, false);
 
     if (thunk.fulfilled.match(result)) {
-      // Only step 3's real Next flips the account to `pending` server-side — trust
-      // that, not the local step counter, so a save that happened to be step 3 but
-      // was rejected (or was a Save Draft) never navigates away early.
+      // Only step 3's real Next flips the account to `pending` server-side. That same
+      // dispatch also clears the Redux session (see saveRegistrationStep.fulfilled),
+      // but that alone does NOT move this screen anywhere: RootNavigator's `content`
+      // renders <AuthNavigator .../> both before and after (draft -> pendingApproval),
+      // same component type at the same tree position, so React treats it as a prop
+      // update on the already-mounted navigator rather than a remount — and
+      // `initialRouteName` only takes effect on a navigator's first mount (see
+      // RootNavigator's own comment on that branch). So this screen has to navigate
+      // itself, same as every other status fork in this app. `navigation` stays a
+      // valid reference to this same still-mounted stack regardless of what Redux
+      // just cleared — it doesn't read auth state at all.
       if (result.payload?.data?.status === 'pending') {
-        setSubmittedMessage(
-          result.payload?.message ??
-            "Your registration is pending admin approval. We'll notify you the moment your account is verified.",
-        );
+        navigation.replace('PendingApproval');
         return;
       }
 
@@ -817,10 +839,34 @@ const CompleteProfileScreen = ({navigation, route}) => {
           color={colors.textSecondary}
           style={{
             marginTop: spacing.xs,
-            marginBottom: spacing.xl,
+            marginBottom: rejectionReason ? spacing.md : spacing.xl,
           }}>
           Step {currentStep} of 3 — a few more details and you're ready for admin review.
         </AppText>
+
+        {!!rejectionReason && (
+          <Card
+            style={{
+              backgroundColor: colors.dangerSoft,
+              borderColor: colors.danger,
+              marginBottom: spacing.xl,
+            }}>
+            <View style={{flexDirection: 'row', alignItems: 'flex-start'}}>
+              <Icon name="close-circle" size={moderateScale(18)} color={colors.danger} style={{marginTop: moderateScale(1)}} />
+              <View style={{flex: 1, marginLeft: spacing.xs}}>
+                <AppText variant="bodyMedium" color={colors.danger}>
+                  Registration not approved
+                </AppText>
+                <AppText variant="caption" color={colors.textPrimary} style={{marginTop: moderateScale(2)}}>
+                  {rejectionReason}
+                </AppText>
+                <AppText variant="caption" color={colors.textSecondary} style={{marginTop: spacing.xs}}>
+                  Update the details below and submit again for review.
+                </AppText>
+              </View>
+            </View>
+          </Card>
+        )}
 
         {currentStep === 1 && (
           <>
@@ -848,9 +894,9 @@ const CompleteProfileScreen = ({navigation, route}) => {
                 </View>
               </View>
 
-              {/* Locked once this is the number/session OTP verification already
-                  confirmed — editable only for a brand-new email-path registration,
-                  where nothing has verified a mobile number yet at all. */}
+              {/* Locked only when mobile itself was the OTP-verified channel — an
+                  email-path registration leaves this editable, since nothing has
+                  ever proven a mobile number for that session. */}
               <Input
                 ref={registerRef('mobileNumber')}
                 label="Mobile number *"
@@ -859,7 +905,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
                 keyboardType="phone-pad"
                 value={form.mobileNumber}
                 onChangeText={update('mobileNumber')}
-                editable={!isIdentityLocked}
+                editable={!isMobileLocked}
                 error={errors.mobileNumber}
               />
               <Input
@@ -872,6 +918,8 @@ const CompleteProfileScreen = ({navigation, route}) => {
                 onChangeText={update('alternateMobile')}
                 error={errors.alternateMobile}
               />
+              {/* Locked only when email itself was the OTP-verified channel — the
+                  mirror image of mobile above. */}
               <Input
                 ref={registerRef('emailId')}
                 label="Email ID *"
@@ -882,7 +930,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
                 autoCorrect={false}
                 value={form.emailId}
                 onChangeText={update('emailId')}
-                editable={!isIdentityLocked}
+                editable={!isEmailLocked}
                 error={errors.emailId}
               />
               <Input
@@ -922,74 +970,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
 
         {currentStep === 2 && (
           <>
-            <SectionHeader step={2} title="Business info" />
-            <View style={{marginTop: spacing.md}}>
-              <View style={{flexDirection: 'row'}}>
-                <View style={{flex: 1, marginRight: spacing.xs}}>
-                  <Input
-                    ref={registerRef('state')}
-                    label="State"
-                    placeholder="Telangana"
-                    value={form.state}
-                    onChangeText={update('state')}
-                  />
-                </View>
-                <View style={{flex: 1, marginLeft: spacing.xs}}>
-                  <Input
-                    ref={registerRef('city')}
-                    label="City"
-                    placeholder="Hyderabad"
-                    value={form.city}
-                    onChangeText={update('city')}
-                  />
-                </View>
-              </View>
-
-              <Dropdown
-                label="Segment"
-                placeholder="Select segment(s)"
-                displayValue={form.segments.join(', ')}
-                options={SEGMENT_OPTIONS}
-                multiSelect
-                selected={form.segments}
-                terminalOptions={TERMINAL_OPTIONS}
-                onToggleMulti={value => toggleArrayValue('segments', value)}
-              />
-
-              <Dropdown
-                label="Zone"
-                placeholder="Select zone(s)"
-                displayValue={form.zones.join(', ')}
-                options={ZONE_OPTIONS}
-                multiSelect
-                selected={form.zones}
-                terminalOptions={TERMINAL_OPTIONS}
-                onToggleMulti={value => toggleArrayValue('zones', value)}
-              />
-
-              <Input
-                ref={registerRef('projectContributions')}
-                label="Project contributions (if any)"
-                placeholder="Notable projects you've worked on"
-                multiline
-                value={form.projectContributions}
-                onChangeText={update('projectContributions')}
-              />
-
-              <View style={{marginBottom: spacing.md}}>
-                <Checkbox
-                  checked={form.operatesMultipleStates}
-                  onToggle={toggleCheckbox('operatesMultipleStates')}
-                  label="Operate more than 1 state"
-                />
-              </View>
-            </View>
-          </>
-        )}
-
-        {currentStep === 3 && (
-          <>
-            <SectionHeader step={3} title="Professional info" />
+            <SectionHeader step={2} title="Professional info" />
             <View style={{marginTop: spacing.md}}>
               <View style={{marginBottom: spacing.sm}}>
                 <Checkbox
@@ -1127,6 +1108,73 @@ const CompleteProfileScreen = ({navigation, route}) => {
                 </View>
               )}
 
+              <View style={{flexDirection: 'row', marginTop: spacing.md}}>
+                <View style={{flex: 1, marginRight: spacing.xs}}>
+                  <Input
+                    ref={registerRef('state')}
+                    label="State"
+                    placeholder="Telangana"
+                    value={form.state}
+                    onChangeText={update('state')}
+                  />
+                </View>
+                <View style={{flex: 1, marginLeft: spacing.xs}}>
+                  <Input
+                    ref={registerRef('city')}
+                    label="City"
+                    placeholder="Hyderabad"
+                    value={form.city}
+                    onChangeText={update('city')}
+                  />
+                </View>
+              </View>
+
+              <Dropdown
+                label="Segment"
+                placeholder="Select segment(s)"
+                displayValue={form.segments.join(', ')}
+                options={SEGMENT_OPTIONS}
+                multiSelect
+                selected={form.segments}
+                terminalOptions={TERMINAL_OPTIONS}
+                onToggleMulti={value => toggleArrayValue('segments', value)}
+              />
+
+              <Dropdown
+                label="Zone"
+                placeholder="Select zone(s)"
+                displayValue={form.zones.join(', ')}
+                options={ZONE_OPTIONS}
+                multiSelect
+                selected={form.zones}
+                terminalOptions={TERMINAL_OPTIONS}
+                onToggleMulti={value => toggleArrayValue('zones', value)}
+              />
+
+              <Input
+                ref={registerRef('projectContributions')}
+                label="Project contributions (if any)"
+                placeholder="Notable projects you've worked on"
+                multiline
+                value={form.projectContributions}
+                onChangeText={update('projectContributions')}
+              />
+
+              <View style={{marginBottom: spacing.md}}>
+                <Checkbox
+                  checked={form.operatesMultipleStates}
+                  onToggle={toggleCheckbox('operatesMultipleStates')}
+                  label="Operate more than 1 state"
+                />
+              </View>
+            </View>
+          </>
+        )}
+
+        {currentStep === 3 && (
+          <>
+            <SectionHeader step={3} title="More Business info" />
+            <View style={{marginTop: spacing.md}}>
               <Input
                 ref={registerRef('panCard')}
                 label="PAN card *"
@@ -1167,13 +1215,13 @@ const CompleteProfileScreen = ({navigation, route}) => {
                 </AppText>
               )}
               <View style={{marginBottom: spacing.sm}}>
-                <AttachBox
-                  uri={form.panCardAttachment}
-                  onPick={update('panCardAttachment')}
-                  onRemove={() => update('panCardAttachment')('')}
+                <DocumentAttachBox
+                  value={form.panCardAttachment}
+                  onPick={handleAttachmentPick('panCardAttachment')}
+                  onRemove={() => update('panCardAttachment')(null)}
+                  loading={uploadingFields.panCardAttachment}
                   label="PAN card"
-                  placeholder="Attach a photo of your PAN card"
-                  height={120}
+                  placeholder="Attach a PDF or a photo of your PAN card"
                   error={errors.panCardAttachment}
                 />
               </View>
@@ -1187,126 +1235,17 @@ const CompleteProfileScreen = ({navigation, route}) => {
                 onChangeText={update('aadhaarCard')}
                 error={errors.aadhaarCard}
               />
-
-              {/* One picker, three accepted documents — see aadhaarDocumentKind(). The XML
-                  or eAadhaar PDF (both downloaded from UIDAI ahead of time) verify by a
-                  plain upload; a photo of the card still works too, verified by decoding
-                  its QR code, but is the least reliable of the three (a real, dense
-                  Aadhaar "Secure QR" needs more of the frame in sharp focus than a
-                  whole-card photo reliably delivers) — prefer XML or PDF when the broker
-                  has either. */}
-              <AppText variant="caption" color={colors.textSecondary} style={styles.label}>
-                Aadhaar (XML, PDF, or photo) *
-              </AppText>
-              <TouchableOpacity activeOpacity={0.85} onPress={pickAadhaarDocument} style={{marginBottom: spacing.xs}}>
-                {form.aadhaarAttachment ? (
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      borderRadius: radius.md,
-                      paddingVertical: spacing.sm,
-                      paddingHorizontal: spacing.sm,
-                      backgroundColor: colors.background,
-                    }}>
-                    <Icon name="document-text-outline" size={moderateScale(20)} color={colors.primaryDark} />
-                    <AppText
-                      variant="caption"
-                      color={colors.textPrimary}
-                      numberOfLines={1}
-                      style={{flex: 1, marginLeft: spacing.xs}}>
-                      {form.aadhaarAttachment.name}
-                    </AppText>
-                    <TouchableOpacity
-                      onPress={() => {
-                        update('aadhaarAttachment')(null);
-                        setAadhaarVerification({status: 'idle', name: null, message: null});
-                      }}
-                      hitSlop={8}>
-                      <Icon name="close-circle" size={moderateScale(18)} color={colors.textMuted} />
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View
-                    style={{
-                      borderWidth: 1.5,
-                      borderStyle: 'dashed',
-                      borderColor: errors.aadhaarAttachment ? colors.danger : colors.primary,
-                      borderRadius: radius.md,
-                      paddingVertical: spacing.md,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: colors.primarySoft,
-                    }}>
-                    <Icon name="document-attach-outline" size={moderateScale(20)} color={colors.primaryDark} />
-                    <AppText variant="caption" color={colors.primaryDark} style={{marginTop: moderateScale(4)}}>
-                      Tap to attach — XML, PDF, or a photo of the card
-                    </AppText>
-                  </View>
-                )}
-              </TouchableOpacity>
-              {errors.aadhaarAttachment && (
-                <AppText variant="caption" color={colors.danger} style={{marginTop: moderateScale(-2), marginBottom: spacing.xs}}>
-                  {errors.aadhaarAttachment}
-                </AppText>
-              )}
-
-              <View style={{flexDirection: 'row'}}>
-                <View style={{flex: 1, marginRight: spacing.xs}}>
-                  <Input
-                    label="Share code (XML only, if any)"
-                    placeholder="4-digit code"
-                    keyboardType="number-pad"
-                    maxLength={4}
-                    value={form.aadhaarShareCode}
-                    onChangeText={update('aadhaarShareCode')}
-                  />
-                </View>
-                <View style={{flex: 1, marginLeft: spacing.xs}}>
-                  <Input
-                    label="Year of birth (PDF only, if any)"
-                    placeholder="e.g. 1990"
-                    keyboardType="number-pad"
-                    maxLength={4}
-                    value={form.aadhaarYob}
-                    onChangeText={update('aadhaarYob')}
-                  />
-                </View>
+              <View style={{marginBottom: spacing.sm}}>
+                <DocumentAttachBox
+                  value={form.aadhaarAttachment}
+                  onPick={handleAttachmentPick('aadhaarAttachment')}
+                  onRemove={() => update('aadhaarAttachment')(null)}
+                  loading={uploadingFields.aadhaarAttachment}
+                  label="Aadhaar"
+                  placeholder="Attach a PDF or a photo of the card"
+                  error={errors.aadhaarAttachment}
+                />
               </View>
-
-              {aadhaarVerification.status === 'verifying' && (
-                <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm}}>
-                  <ActivityIndicator size="small" color={colors.primary} />
-                  <AppText variant="caption" color={colors.textSecondary} style={{marginLeft: spacing.xs}}>
-                    Verifying Aadhaar…
-                  </AppText>
-                </View>
-              )}
-              {aadhaarVerification.status === 'verified' && (
-                <View style={{flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.sm}}>
-                  <Icon name="checkmark-circle" size={moderateScale(14)} color={colors.success} style={{marginTop: moderateScale(1)}} />
-                  <AppText variant="caption" color={colors.success} style={{marginLeft: spacing.xs, flex: 1}}>
-                    {aadhaarVerification.name ? `Verified — ${aadhaarVerification.name}` : 'Verified'}
-                  </AppText>
-                </View>
-              )}
-              {/* qr_not_found is only reachable via the photo path — see verifyAadhaar's
-                  own status enum — the XML/PDF paths only ever answer 'rejected'. */}
-              {(aadhaarVerification.status === 'rejected' || aadhaarVerification.status === 'qr_not_found') && (
-                <View style={{flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.sm}}>
-                  <Icon name="alert-circle-outline" size={moderateScale(14)} color={colors.warning} style={{marginTop: moderateScale(1)}} />
-                  <AppText variant="caption" color={colors.warning} style={{marginLeft: spacing.xs, flex: 1}}>
-                    {aadhaarVerification.message ?? 'Could not verify this file.'}
-                  </AppText>
-                </View>
-              )}
-              {aadhaarVerification.status === 'unavailable' && (
-                <AppText variant="caption" color={colors.textMuted} style={{marginBottom: spacing.sm}}>
-                  {aadhaarVerification.message ?? 'Could not verify right now.'}
-                </AppText>
-              )}
 
               <Input
                 ref={registerRef('reraNumber')}
@@ -1318,13 +1257,13 @@ const CompleteProfileScreen = ({navigation, route}) => {
                 error={errors.reraNumber}
               />
               <View style={{marginBottom: spacing.sm}}>
-                <AttachBox
-                  uri={form.reraCertificateAttachment}
-                  onPick={update('reraCertificateAttachment')}
-                  onRemove={() => update('reraCertificateAttachment')('')}
+                <DocumentAttachBox
+                  value={form.reraCertificateAttachment}
+                  onPick={handleAttachmentPick('reraCertificateAttachment')}
+                  onRemove={() => update('reraCertificateAttachment')(null)}
+                  loading={uploadingFields.reraCertificateAttachment}
                   label="RERA certificate"
-                  placeholder="Attach your RERA certificate"
-                  height={120}
+                  placeholder="Attach a PDF or a photo of your RERA certificate"
                   error={errors.reraCertificateAttachment}
                 />
               </View>
@@ -1338,13 +1277,13 @@ const CompleteProfileScreen = ({navigation, route}) => {
                 onChangeText={update('gstNumber')}
               />
               <View style={{marginBottom: spacing.sm}}>
-                <AttachBox
-                  uri={form.gstAttachment}
-                  onPick={update('gstAttachment')}
-                  onRemove={() => update('gstAttachment')('')}
+                <DocumentAttachBox
+                  value={form.gstAttachment}
+                  onPick={handleAttachmentPick('gstAttachment')}
+                  onRemove={() => update('gstAttachment')(null)}
+                  loading={uploadingFields.gstAttachment}
                   label="GST certificate"
-                  placeholder="Attach your GST certificate"
-                  height={120}
+                  placeholder="Attach a PDF or a photo of your GST certificate"
                 />
               </View>
 
@@ -1403,6 +1342,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
             iconPosition="right"
             fullWidth={false}
             loading={isSubmitting}
+            disabled={isUploadingAttachment}
             onPress={handleNext}
             style={{flex: 1, marginLeft: currentStep > 1 ? spacing.xs : 0}}
           />
@@ -1411,7 +1351,10 @@ const CompleteProfileScreen = ({navigation, route}) => {
         {currentStep === 1 && (
           <View style={styles.footerRow}>
             <AppText variant="body" color={colors.textSecondary}>
-              Wrong number?{' '}
+              {/* "Wrong number" only makes sense on the mobile-OTP path — an
+                  email-verified broker never proved a number at all, so the thing
+                  they'd actually want to redo is the email. */}
+              {isMobileLocked ? 'Wrong number?' : 'Wrong email?'}{' '}
             </AppText>
             <TouchableOpacity onPress={handleBack} hitSlop={8}>
               <AppText variant="bodyMedium" color={colors.primary}>
@@ -1421,47 +1364,6 @@ const CompleteProfileScreen = ({navigation, route}) => {
           </View>
         )}
       </KeyboardAwareScrollView>
-
-      {/* Terminal state, not a dismissible confirmation — the session behind this
-          screen is already gone the instant this shows (see the note on
-          `submittedMessage`), so there is nothing to "cancel" back to. Both the
-          button and the backdrop/hardware-back close the same way, out to Login. */}
-      <Modal
-        visible={!!submittedMessage}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        navigationBarTranslucent
-        onRequestClose={() => navigation.replace('EmailOtpLogin')}>
-        <View style={[styles.modalBackdrop, {backgroundColor: colors.overlayStrong}]}>
-          <View
-            style={[
-              styles.modalCard,
-              {backgroundColor: colors.card, borderRadius: radius.lg, padding: spacing.lg},
-            ]}>
-            <View style={{alignItems: 'center'}}>
-              <Icon name="checkmark-circle" size={moderateScale(40)} color={colors.success} />
-              <AppText variant="h3" align="center" style={{marginTop: spacing.sm}}>
-                Registration submitted
-              </AppText>
-              <AppText
-                variant="body"
-                color={colors.textSecondary}
-                align="center"
-                style={{marginTop: spacing.xs}}>
-                {submittedMessage}
-              </AppText>
-            </View>
-            <View style={{marginTop: spacing.lg}}>
-              <Button
-                label="Back to Login"
-                icon="arrow-back-outline"
-                onPress={() => navigation.replace('EmailOtpLogin')}
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
     </ScreenContainer>
   );
 };
@@ -1474,16 +1376,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: moderateScale(20),
-  },
-  modalBackdrop: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: moderateScale(24),
-  },
-  modalCard: {
-    width: '100%',
-    maxWidth: moderateScale(360),
   },
 });
 

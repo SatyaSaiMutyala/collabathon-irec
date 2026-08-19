@@ -8,9 +8,10 @@ import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {sendOtp, verifyOtp} from '../../store/slices/authSlice';
 
 const RESEND_COOLDOWN_S = 30;
+const CODE_LENGTH = 4;
 
 /**
- * Channel-partner sign-in, step 2 of 2. No "Verify" button: the 6th digit auto-submits
+ * Channel-partner sign-in, step 2 of 2. No "Verify" button: the 4th digit auto-submits
  * (OtpInput's `onComplete`). What happens next is entirely the server's own fork (see
  * `verifyOtp`'s thunk and `AuthController::verifyOtp`) —
  *
@@ -18,7 +19,9 @@ const RESEND_COOLDOWN_S = 30;
  *                BrokerRootStack) the instant `isLoggedIn` flips, which really does
  *                unmount/remount and land on the right screen; this screen calls no
  *                navigation itself.
- *   'draft'    — a registration already in progress for this number; the reducer
+ *   'draft'    — a registration already in progress for this number, *or* an earlier
+ *                one an admin just rejected (verifyOtp drops that back into `draft`
+ *                server-side rather than 403ing — see AuthController). The reducer
  *                hydrates the session exactly like 'login' does, but RootNavigator's
  *                `registrationStatus === 'draft'` branch stays on this same
  *                AuthNavigator instance (just a changed `initialRouteName` prop,
@@ -30,7 +33,7 @@ const RESEND_COOLDOWN_S = 30;
  *                startRegistration, which re-validates the mobile number's own
  *                uniqueness itself — kept only because this path stays registered but
  *                unlinked, see AuthNavigator).
- *   403        — an account exists but isn't approved yet (or was rejected); on to
+ *   403        — an account exists but isn't approved yet (still `pending`); on to
  *                PendingApproval, which reads the status the thunk already wrote.
  *   otherwise  — wrong code: shown inline, boxes clear, ready to retry immediately.
  *
@@ -137,7 +140,7 @@ const OtpVerifyScreen = ({navigation, route}) => {
           icon="shield-checkmark-outline"
           eyebrow="VERIFY YOUR NUMBER"
           title="Enter the code"
-          subtitle={`We sent a 6-digit code to ${mobile}.`}
+          subtitle={`We sent a 4-digit code to ${mobile}.`}
         />
 
         {/* Visible on purpose rather than a silent auto-submit — a tester should be
@@ -151,6 +154,7 @@ const OtpVerifyScreen = ({navigation, route}) => {
 
         <View style={{alignItems: 'center'}}>
           <OtpInput
+            length={CODE_LENGTH}
             value={code}
             onChangeText={setCode}
             onComplete={handleComplete}

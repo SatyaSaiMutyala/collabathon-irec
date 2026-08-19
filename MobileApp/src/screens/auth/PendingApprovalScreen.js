@@ -5,16 +5,22 @@ import {moderateScale} from '../../theme/scaling';
 import {roundedRadius, useAppTheme} from '../../theme';
 import {AppText, Avatar, Badge, Button, Card, ScreenContainer} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
-import {clearAuthError} from '../../store/slices/authSlice';
+import {resetAuth} from '../../store/slices/authSlice';
 
+/**
+ * Reached only by a broker whose step-3 submit just went through, or one who
+ * reopened the app while still `pending` (see RootNavigator's `pendingApproval`
+ * branch and EmailOtpVerifyScreen/OtpVerifyScreen's own 403 handling). A rejected
+ * broker never lands here any more — verifyOtp/verifyEmailOtp drop them back into
+ * `draft` instead, straight onto CompleteProfileScreen with the reason shown, so
+ * they can fix and resubmit rather than dead-ending on a status page.
+ */
 const PendingApprovalScreen = ({navigation}) => {
   const {colors, spacing} = useAppTheme();
   const dispatch = useAppDispatch();
   // The registered user as the API returned it — approval is an admin action,
   // so this screen can only report status, never grant it.
   const user = useAppSelector(state => state.auth.user);
-  const status = useAppSelector(state => state.auth.registrationStatus);
-  const role = useAppSelector(state => state.auth.role);
 
   return (
     <ScreenContainer edges={['top', 'bottom']} scroll style={{justifyContent: 'center'}}>
@@ -63,10 +69,7 @@ const PendingApprovalScreen = ({navigation}) => {
                 </AppText>
               </View>
             </View>
-            <Badge
-              label={status === 'rejected' ? 'Rejected' : 'Pending'}
-              tone={status === 'rejected' ? 'danger' : 'warning'}
-            />
+            <Badge label="Pending" tone="warning" />
           </View>
           <View style={{marginTop: spacing.md}}>
             <AppText variant="caption" color={colors.textMuted}>
@@ -81,10 +84,19 @@ const PendingApprovalScreen = ({navigation}) => {
         variant="outline"
         icon="arrow-back-outline"
         onPress={() => {
-          dispatch(clearAuthError());
-          // Brokers arrived here via EmailOtpVerify; developers via the shared
-          // Login screen. Send each back the way they came.
-          navigation.replace(role === 'broker' ? 'EmailOtpLogin' : 'Login');
+          // resetAuth, not clearAuthError: this account's user/token stayed in Redux
+          // otherwise, and CompleteProfileScreen's prefill (buildInitialForm) reads
+          // identity.mobile ahead of the freshly-verified route param — so signing in
+          // as a *different* number right after landed back on this stale one instead
+          // of the one just OTP-verified. A full reset is what "back to sign in"
+          // actually means here: this session is done, the next one starts clean.
+          dispatch(resetAuth());
+          // Only a broker ever lands on this screen (see the docblock above) — back
+          // to Welcome, not straight to a specific OTP screen, so this stays correct
+          // regardless of the admin's cp_login_method (email vs mobile) instead of
+          // hardcoding one. Never the old password Login screen — that's the
+          // developer-only flow this account never belonged to.
+          navigation.replace('Welcome');
         }}
       />
     </ScreenContainer>

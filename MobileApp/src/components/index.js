@@ -16,6 +16,7 @@ export {default as StatRow} from './StatRow';
 export {default as SectionHeader} from './SectionHeader';
 export {default as Checkbox} from './Checkbox';
 export {AttachBox} from './AttachField';
+export {default as DocumentAttachBox} from './DocumentAttachBox';
 export {default as SignaturePad} from './SignaturePad';
 export {default as DateField, formatDisplayDate, formatLongDate, toApiDate} from './DateField';
 export {default as Dropdown} from './Dropdown';

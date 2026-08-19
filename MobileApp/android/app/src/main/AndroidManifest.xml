@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <!--
@@ -63,5 +64,16 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
       </activity>
+
+      <!--
+        Overrides the theme react-native-image-crop-picker declares for this activity in
+        its own manifest (merged in automatically) — see the matching note on UCropTheme
+        in res/values/styles.xml for why: its default theme lets the Close/Done icons draw
+        under the status bar on API 35+.
+      -->
+      <activity
+        android:name="com.yalantis.ucrop.UCropActivity"
+        android:theme="@style/UCropTheme"
+        tools:replace="android:theme" />
     </application>
 </manifest>

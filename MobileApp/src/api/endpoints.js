@@ -1,4 +1,5 @@
 import client from './client';
+import {UPLOAD_TIMEOUT_MS} from './config';
 
 /**
  * Thin transport layer — one function per endpoint, no state.
@@ -65,6 +66,7 @@ export const authApi = {
     Object.values(payload).some(isFilePart)
       ? client.post('/auth/register/start', toFormData(payload), {
           headers: {'Content-Type': 'multipart/form-data'},
+          timeout: UPLOAD_TIMEOUT_MS,
         })
       : client.post('/auth/register/start', payload),
   /**
@@ -76,6 +78,7 @@ export const authApi = {
     Object.values(payload).some(isFilePart)
       ? client.patch('/auth/register/step', toFormData(payload), {
           headers: {'Content-Type': 'multipart/form-data'},
+          timeout: UPLOAD_TIMEOUT_MS,
         })
       : client.patch('/auth/register/step', payload),
   /** Shared sign-in for both mobile roles — see LoginScreen. */
@@ -155,6 +158,22 @@ export const kycApi = {
    * of the form once a broker types a valid PAN.
    */
   verifyPan: panNumber => client.post('/kyc/pan/verify', {pan_number: panNumber}),
+};
+
+/**
+ * The generic "upload one file now, get a path back to link later" endpoint — see
+ * UploadController's docblock on the backend. One file per request, so it fails (and
+ * can be retried) independently of whatever else is picked, instead of riding along
+ * in one large multipart request with everything else on the form. `file` is the
+ * {uri, name, type} picker result; `type` is one of 'photo', 'pan_card', 'aadhaar',
+ * 'rera_certificate', 'gst', 'cheque', 'signature' — whatever the caller is attaching.
+ */
+export const uploadApi = {
+  upload: (file, type) =>
+    client.post('/uploads', toFormData({file, type}), {
+      headers: {'Content-Type': 'multipart/form-data'},
+      timeout: UPLOAD_TIMEOUT_MS,
+    }),
 };
 
 export const dashboardApi = {

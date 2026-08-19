@@ -31,11 +31,14 @@ const TONE_ICON_COLOR = {
   neutral: (colors) => colors.textMuted,
 };
 
-const NotificationRow = ({item}) => {
+const NotificationRow = ({item, onPress}) => {
   const {colors, spacing, roundedRadius} = useAppTheme();
+  const Container = onPress ? TouchableOpacity : View;
 
   return (
-    <View
+    <Container
+      activeOpacity={onPress ? 0.7 : undefined}
+      onPress={onPress}
       style={{
         flexDirection: 'row',
         paddingVertical: spacing.md,
@@ -80,18 +83,32 @@ const NotificationRow = ({item}) => {
           {item.message}
         </AppText>
       </View>
-    </View>
+    </Container>
   );
 };
 
 const NotificationsScreen = ({navigation}) => {
   const {colors, spacing} = useAppTheme();
   const dispatch = useAppDispatch();
+  const role = useAppSelector(state => state.auth.role);
   const notifications = useNotifications();
   // Notifications are derived from their own unfiltered lead fetch (leads.notifications),
   // kept apart from the inbox/requests screens' filtered `leads.list` — see leadsSlice.
   const leadsStatus = useAppSelector(state => state.leads.notifications.status);
   const isFirstLoad = leadsStatus === 'idle' || (leadsStatus === 'loading' && notifications.length === 0);
+
+  // Developer-only for now: every one of these notifications is about a broker's
+  // interaction with one of the developer's own listings, and PropertyLeadsScreen
+  // (unlike BrokerDetailScreen) fetches that lead list fresh on its own rather than
+  // depending on whatever's already sitting in Redux — so it can't show a false
+  // "no longer available" for a lead this screen's own unfiltered fetch never loaded
+  // into the same bucket the other screens read from.
+  const handlePress = item => {
+    if (role !== 'developer' || !item.propertyId) {
+      return;
+    }
+    navigation.navigate('PropertyLeads', {projectId: item.propertyId});
+  };
 
   useEffect(() => {
     dispatch(fetchNotificationLeads());
@@ -124,7 +141,9 @@ const NotificationsScreen = ({navigation}) => {
         keyExtractor={item => item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{paddingBottom: spacing.xxl}}
-        renderItem={({item}) => <NotificationRow item={item} />}
+        renderItem={({item}) => (
+          <NotificationRow item={item} onPress={role === 'developer' ? () => handlePress(item) : undefined} />
+        )}
         ListEmptyComponent={
           <EmptyState
             icon="notifications-off-outline"

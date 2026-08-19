@@ -203,6 +203,18 @@ const RootNavigator = () => {
     content = <AuthNavigator initialRouteName="CompleteProfile" />;
   } else if (isLoggedIn && role === 'broker') {
     content = <BrokerRootStack />;
+  } else if (role === 'broker' && registrationStatus === 'pendingApproval') {
+    // Only matters for a *cold* relaunch that lands here directly (submitted, then
+    // force-quit before ever seeing the confirmation) — registrationStatus/role/
+    // isLoggedIn are all persisted (see store/index.js), so this branch can be true
+    // on the very first render, before any navigator exists yet, which is the one
+    // case `initialRouteName` actually takes effect. It does nothing for the live,
+    // in-app transition (draft -> pendingApproval while already mounted): that's
+    // still the same <AuthNavigator/> component at the same tree position, so React
+    // treats it as a prop update rather than a remount, and a prop change to an
+    // already-mounted navigator's initialRouteName is a no-op. CompleteProfileScreen
+    // handles that case itself with a direct `navigation.replace('PendingApproval')`.
+    content = <AuthNavigator initialRouteName="PendingApproval" />;
   } else {
     content = <AuthNavigator />;
   }

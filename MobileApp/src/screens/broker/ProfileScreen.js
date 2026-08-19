@@ -1,5 +1,5 @@
 import React, {useState} from 'react';
-import {ScrollView, View} from 'react-native';
+import {ScrollView, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
@@ -10,7 +10,6 @@ import {
   Button,
   Card,
   ConfirmDialog,
-  formatLongDate,
   ScreenContainer,
   SectionHeader,
 } from '../../components';
@@ -18,27 +17,86 @@ import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {deleteAccount, logout} from '../../store/slices/authSlice';
 import {showSnackbar} from '../../store/slices/uiSlice';
 import {splitSuffix} from '../../utils/name';
+import {openLink} from '../../utils/openLink';
 
 const fallback = value => (value && String(value).trim() ? value : '—');
 const yesNo = value => (value ? 'Yes' : 'No');
-const attachmentLabel = uri => (uri ? 'Attached' : 'Not attached');
 
-const InfoRow = ({icon, label, value, valueColor}) => {
+/**
+ * `half` pairs two of these side by side (Suffix/Mobile, State/City, and so on) —
+ * most values here are a word or two, so stacking every field at full width was
+ * mostly empty margin either side of a short answer. Reserved for fields whose
+ * value is reliably short; anything that can run long (addresses, URLs, the
+ * comma-joined segment/zone lists) stays full width so it has room to wrap.
+ */
+const InfoRow = ({icon, label, value, valueColor, half}) => {
   const {colors, spacing} = useAppTheme();
   return (
-    <View style={{flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm}}>
-      <Icon name={icon} size={moderateScale(18)} color={colors.primary} />
-      <View style={{marginLeft: spacing.sm, flex: 1}}>
+    <View
+      style={{
+        width: half ? '50%' : '100%',
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        paddingVertical: spacing.xs,
+        paddingRight: half ? spacing.sm : 0,
+      }}>
+      <Icon name={icon} size={moderateScale(15)} color={colors.primary} style={{marginTop: moderateScale(2)}} />
+      <View style={{marginLeft: spacing.xs, flex: 1}}>
         <AppText variant="caption" color={colors.textMuted}>
           {label}
         </AppText>
-        <AppText variant="bodyMedium" color={valueColor}>
+        <AppText variant="bodyMedium" color={valueColor} numberOfLines={half ? 2 : undefined}>
           {value}
         </AppText>
       </View>
     </View>
   );
 };
+
+/**
+ * A KYC number plus whether its scan was attached, as one row instead of two — the
+ * status reads as a quiet trailing glyph rather than a second "Attached"/"Not
+ * attached" text row (or a colour-pill, which reads as routine-metadata clutter for
+ * something this incidental — a pill is reserved for a real state like an
+ * application's Pending/Approved/Rejected).
+ *
+ * Tapping opens the actual scan (image or PDF) via `openLink` — same "hand off to
+ * whatever the device already has" approach `AttachmentList` uses for property
+ * documents, rather than shipping an in-app viewer per file type. Only tappable when
+ * there's really a file behind it; an unattached document has nothing to open.
+ */
+const DocumentRow = ({icon, label, value, uri}) => {
+  const {colors, spacing} = useAppTheme();
+  const attached = !!uri;
+
+  return (
+    <TouchableOpacity
+      activeOpacity={attached ? 0.7 : 1}
+      disabled={!attached}
+      onPress={() => openLink(uri)}
+      style={{width: '100%', flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.xs}}>
+      <Icon name={icon} size={moderateScale(15)} color={colors.primary} />
+      <View style={{marginLeft: spacing.xs, flex: 1}}>
+        <AppText variant="caption" color={colors.textMuted}>
+          {label}
+        </AppText>
+        <AppText variant="bodyMedium">{fallback(value)}</AppText>
+      </View>
+      <Icon
+        name={attached ? 'open-outline' : 'ellipse-outline'}
+        size={moderateScale(17)}
+        color={attached ? colors.primary : colors.textMuted}
+      />
+    </TouchableOpacity>
+  );
+};
+
+/** Lays its InfoRow/DocumentRow children out left-to-right, wrapping onto new lines
+ *  as `half`/full-width children fill each row — a plain `flexWrap` grid rather than
+ *  hand-pairing every field into its own `<View style={{flexDirection:'row'}}>`. */
+const FieldGrid = ({children}) => (
+  <View style={{flexDirection: 'row', flexWrap: 'wrap'}}>{children}</View>
+);
 
 const ProfileScreen = () => {
   const {colors, spacing} = useAppTheme();
@@ -73,10 +131,13 @@ const ProfileScreen = () => {
     yearsOfExperience: profile.years_of_experience,
     teamSize: profile.team_size,
     panCard: profile.pan_card,
+    panCardAttachment: profile.pan_card_path,
     aadhaarCard: profile.aadhaar_card,
+    aadhaarAttachment: profile.aadhaar_path,
     reraNumber: profile.rera_number,
-    reraCertificateExpiry: profile.rera_certificate_expiry,
+    reraCertificateAttachment: profile.rera_certificate_path,
     gstNumber: profile.gst_number,
+    gstAttachment: profile.gst_path,
     state: profile.state,
     city: profile.city,
     segments: profile.segments,
@@ -117,83 +178,62 @@ const ProfileScreen = () => {
           <SectionHeader step={1} title="Personal info" />
         </View>
         <Card>
-          <InfoRow icon="person-outline" label="Suffix" value={fallback(broker.suffix)} />
-          <InfoRow icon="call-outline" label="Mobile Number" value={fallback(broker.mobileNumber)} />
-          <InfoRow icon="call-outline" label="Alternate Mobile" value={fallback(broker.alternateMobile)} />
-          <InfoRow icon="mail-outline" label="Email ID" value={fallback(broker.emailId)} />
-          <InfoRow icon="home-outline" label="Residence Address" value={fallback(broker.residenceAddress)} />
+          <FieldGrid>
+            <InfoRow half icon="person-outline" label="Suffix" value={fallback(broker.suffix)} />
+            <InfoRow half icon="call-outline" label="Mobile Number" value={fallback(broker.mobileNumber)} />
+            <InfoRow half icon="call-outline" label="Alternate Mobile" value={fallback(broker.alternateMobile)} />
+            <InfoRow half icon="mail-outline" label="Email ID" value={fallback(broker.emailId)} />
+            <InfoRow icon="home-outline" label="Residence Address" value={fallback(broker.residenceAddress)} />
+          </FieldGrid>
         </Card>
 
         <View style={{marginTop: spacing.xl, marginBottom: spacing.sm}}>
           <SectionHeader step={2} title="Professional info" />
         </View>
         <Card>
-          <InfoRow icon="business-outline" label="Registered as Company" value={yesNo(broker.isCompany)} />
-          {broker.isCompany && (
-            <>
-              <InfoRow icon="business-outline" label="Company Name" value={fallback(broker.companyName)} />
-              <InfoRow icon="location-outline" label="Office Address" value={fallback(broker.officeAddress)} />
-              <InfoRow icon="globe-outline" label="Company Website" value={fallback(broker.companyWebsite)} />
-              <InfoRow icon="logo-instagram" label="Instagram" value={fallback(broker.instagram)} />
-              <InfoRow icon="logo-facebook" label="Facebook" value={fallback(broker.facebook)} />
-              <InfoRow icon="logo-youtube" label="YouTube" value={fallback(broker.youtube)} />
-              <InfoRow icon="logo-twitter" label="Twitter / X" value={fallback(broker.twitter)} />
-              <InfoRow icon="logo-linkedin" label="LinkedIn" value={fallback(broker.linkedin)} />
-              <InfoRow icon="briefcase-outline" label="Years of Experience" value={fallback(broker.yearsOfExperience)} />
-              <InfoRow icon="people-outline" label="Team Size" value={fallback(broker.teamSize)} />
-            </>
-          )}
-          <InfoRow icon="card-outline" label="PAN Card" value={fallback(broker.panCard)} />
-          <InfoRow
-            icon="document-attach-outline"
-            label="PAN Card Attachment"
-            value={attachmentLabel(broker.panCardAttachment)}
-            valueColor={broker.panCardAttachment ? colors.success : colors.textMuted}
-          />
-          <InfoRow icon="card-outline" label="Aadhaar Card" value={fallback(broker.aadhaarCard)} />
-          <InfoRow
-            icon="document-attach-outline"
-            label="Aadhaar Attachment"
-            value={attachmentLabel(broker.aadhaarAttachment)}
-            valueColor={broker.aadhaarAttachment ? colors.success : colors.textMuted}
-          />
-          <InfoRow icon="shield-checkmark-outline" label="RERA Number" value={fallback(broker.reraNumber)} />
-          <InfoRow icon="calendar-outline" label="RERA Certificate Expiry" value={fallback(formatLongDate(broker.reraCertificateExpiry))} />
-          <InfoRow
-            icon="document-attach-outline"
-            label="RERA Certificate Attachment"
-            value={attachmentLabel(broker.reraCertificateAttachment)}
-            valueColor={broker.reraCertificateAttachment ? colors.success : colors.textMuted}
-          />
-          {/* No cancelled-cheque rows: registration stopped collecting the number and the
-              scan, so both could only ever render the "—" placeholder. */}
-          <InfoRow icon="receipt-outline" label="GST Number" value={fallback(broker.gstNumber)} />
-          <InfoRow
-            icon="document-attach-outline"
-            label="GST Attachment"
-            value={attachmentLabel(broker.gstAttachment)}
-            valueColor={broker.gstAttachment ? colors.success : colors.textMuted}
-          />
+          <FieldGrid>
+            <InfoRow half icon="business-outline" label="Registered as Company" value={yesNo(broker.isCompany)} />
+            {broker.isCompany && (
+              <>
+                <InfoRow half icon="business-outline" label="Company Name" value={fallback(broker.companyName)} />
+                <InfoRow icon="location-outline" label="Office Address" value={fallback(broker.officeAddress)} />
+                <InfoRow icon="globe-outline" label="Company Website" value={fallback(broker.companyWebsite)} />
+                <InfoRow half icon="logo-instagram" label="Instagram" value={fallback(broker.instagram)} />
+                <InfoRow half icon="logo-facebook" label="Facebook" value={fallback(broker.facebook)} />
+                <InfoRow half icon="logo-youtube" label="YouTube" value={fallback(broker.youtube)} />
+                <InfoRow half icon="logo-twitter" label="Twitter / X" value={fallback(broker.twitter)} />
+                <InfoRow icon="logo-linkedin" label="LinkedIn" value={fallback(broker.linkedin)} />
+                <InfoRow half icon="briefcase-outline" label="Years of Experience" value={fallback(broker.yearsOfExperience)} />
+                <InfoRow half icon="people-outline" label="Team Size" value={fallback(broker.teamSize)} />
+              </>
+            )}
+            <InfoRow half icon="location-outline" label="State" value={fallback(broker.state)} />
+            <InfoRow half icon="location-outline" label="City" value={fallback(broker.city)} />
+            <InfoRow
+              icon="pricetags-outline"
+              label="Segment"
+              value={broker.segments?.length ? broker.segments.join(', ') : '—'}
+            />
+            <InfoRow
+              icon="compass-outline"
+              label="Zone"
+              value={broker.zones?.length ? broker.zones.join(', ') : '—'}
+            />
+            <InfoRow icon="albums-outline" label="Project Contributions" value={fallback(broker.projectContributions)} />
+            <InfoRow half icon="earth-outline" label="Operates in Multiple States" value={yesNo(broker.operatesMultipleStates)} />
+          </FieldGrid>
         </Card>
 
         <View style={{marginTop: spacing.xl, marginBottom: spacing.sm}}>
-          <SectionHeader step={3} title="Business info" />
+          <SectionHeader step={3} title="More Business info" />
         </View>
         <Card>
-          <InfoRow icon="location-outline" label="State" value={fallback(broker.state)} />
-          <InfoRow icon="location-outline" label="City" value={fallback(broker.city)} />
-          <InfoRow
-            icon="pricetags-outline"
-            label="Segment"
-            value={broker.segments?.length ? broker.segments.join(', ') : '—'}
-          />
-          <InfoRow
-            icon="compass-outline"
-            label="Zone"
-            value={broker.zones?.length ? broker.zones.join(', ') : '—'}
-          />
-          <InfoRow icon="albums-outline" label="Project Contributions" value={fallback(broker.projectContributions)} />
-          <InfoRow icon="earth-outline" label="Operates in Multiple States" value={yesNo(broker.operatesMultipleStates)} />
+          <DocumentRow icon="card-outline" label="PAN Card" value={broker.panCard} uri={broker.panCardAttachment} />
+          <DocumentRow icon="card-outline" label="Aadhaar Card" value={broker.aadhaarCard} uri={broker.aadhaarAttachment} />
+          <DocumentRow icon="shield-checkmark-outline" label="RERA Number" value={broker.reraNumber} uri={broker.reraCertificateAttachment} />
+          {/* No cancelled-cheque row: registration stopped collecting the number and
+              the scan, so it could only ever render the "—" placeholder. */}
+          <DocumentRow icon="receipt-outline" label="GST Number" value={broker.gstNumber} uri={broker.gstAttachment} />
           {/* No signature row: the register form's pad only sets a local `hasSignature`
               flag and never uploads the image, so nothing about it survives submission
               and this always read "Not signed" — including for people who had signed. */}

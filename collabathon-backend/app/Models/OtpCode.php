@@ -21,6 +21,15 @@ class OtpCode extends Model
     /** A code stops being guessable after this many wrong tries, not just after it expires. */
     public const MAX_ATTEMPTS = 5;
 
+    /**
+     * Every challenge gets this same code rather than a random one — same reasoning as
+     * {@see EmailOtpCode::FIXED_CODE}, and the same value, so a tester switching the
+     * admin's cp_login_method between email and mobile doesn't have to remember two
+     * different codes. There is no real SMS provider wired up (see OtpSender) to
+     * deliver a random one to anyway.
+     */
+    private const FIXED_CODE = '8200';
+
     protected function casts(): array
     {
         return [
@@ -38,7 +47,7 @@ class OtpCode extends Model
     {
         static::where('mobile', $mobile)->whereNull('consumed_at')->delete();
 
-        $code = (string) random_int(100000, 999999);
+        $code = self::FIXED_CODE;
 
         return static::create([
             'mobile' => $mobile,

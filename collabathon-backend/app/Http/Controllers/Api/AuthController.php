@@ -9,6 +9,7 @@ use App\Models\BrokerProfile;
 use App\Models\DeviceToken;
 use App\Models\EmailOtpCode;
 use App\Models\OtpCode;
+use App\Models\Upload;
 use App\Models\User;
 use App\Services\OtpSender;
 use App\Services\PushNotifier;
@@ -18,7 +19,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -40,9 +40,13 @@ use Illuminate\Validation\ValidationException;
  * `User::STATUS_DRAFT` first, so the mobile app's 3-step wizard can save each step to
  * the database as it's completed and resume a half-finished registration later. Only
  * step 3's real submit (not a Save Draft) flips the account to `pending` — which is
- * the approval gate this class enforces regardless of which door was used: no token is
- * issued until an admin approves. Returning a token first and checking status later
- * would let a rejected broker keep a valid credential.
+ * the approval gate this class enforces regardless of which door was used: no *active*
+ * token is issued until an admin approves. A rejected broker is the one exception —
+ * `verifyOtp`/`verifyEmailOtp` drop them straight back into `draft` with a fresh token,
+ * same shape as any other resumed registration, so they can fix what an admin rejected
+ * and resubmit rather than being stuck with a dead account. That token only ever grants
+ * a `draft` session (CompleteProfileScreen and nothing else) until a real step-3 submit
+ * earns `pending` again — it is not the credential that unlocks the broker app itself.
  */
 class AuthController extends Controller
 {
@@ -74,20 +78,6 @@ class AuthController extends Controller
     }
 
     /**
-     * A fixed code that always verifies, in place of the real one — same gate as
-     * `exposesOtpCode()`, since it is the same underlying question ("is this a build
-     * someone should be able to test without a real SMS?"). Real random codes are
-     * still generated and still work too (see `debug_code` above); this is an
-     * additional always-on shortcut, not a replacement for them.
-     */
-    private const MASTER_CODE = '123456';
-
-    private function isMasterCode(string $code): bool
-    {
-        return $this->exposesOtpCode() && $code === self::MASTER_CODE;
-    }
-
-    /**
      * POST /api/v1/auth/register/start — step 1 (Personal info) of the 3-step wizard.
      * Creates the User + BrokerProfile as `draft` and issues a Sanctum token, so every
      * step after this one (including a Save Draft on step 1 itself) is just an
@@ -111,6 +101,12 @@ class AuthController extends Controller
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'mobile' => ['required', 'string', 'max:32', 'unique:users,mobile'],
             'save_draft' => ['required', 'boolean'],
+            // Which of email/mobile this broker actually proved with an OTP just now —
+            // the other one is only ever self-typed. Nullable rather than required: an
+            // older app build that hasn't been updated to send it yet should still be
+            // able to register, just without CompleteProfileScreen being able to lock
+            // the right field on a later resume (see the migration's own docblock).
+            'verified_channel' => ['nullable', 'in:email,mobile'],
             'alternate_mobile' => ['nullable', 'string', 'max:32'],
             'residence_address' => ['nullable', 'string'],
             // Optional even on a real "Next", same reasoning as before this became
@@ -143,6 +139,7 @@ class AuthController extends Controller
                 // A completed step 1 ("Next") resumes on step 2, the next thing left
                 // to fill in; an incomplete one (Save Draft) resumes right back here.
                 'registration_step' => $data['save_draft'] ? 1 : 2,
+                'verified_channel' => $data['verified_channel'] ?? null,
                 'alternate_mobile' => $data['alternate_mobile'] ?? null,
                 'residence_address' => $data['residence_address'] ?? null,
                 'photo_path' => $data['photo_path'],
@@ -193,6 +190,10 @@ class AuthController extends Controller
             'alternate_mobile' => ['nullable', 'string', 'max:32'],
             'residence_address' => ['nullable', 'string'],
             'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            // The path UploadController handed back for a photo already sent ahead of
+            // this request — an alternative to the inline `photo` file above, not
+            // both at once (see resolveUploadedPath()'s hasFile()-first precedence).
+            'photo_path' => ['nullable', 'string'],
 
             'is_company' => ['boolean'],
             'company_name' => ['nullable', 'string', 'max:255'],
@@ -203,20 +204,14 @@ class AuthController extends Controller
             'team_size' => ['nullable', 'integer', 'min:0', 'max:10000'],
             'pan_card' => ['nullable', 'string', 'max:32'],
             // Set by the app after KycController::verifyPan succeeded on the typed PAN
-            // number — not re-checked here. Same trust boundary as aadhaar_verified
-            // below: read-only informational for the admin, not a permission.
+            // number — not re-checked here. Read-only informational for the admin,
+            // not a permission. PAN is the only field left with a verified flag —
+            // Aadhaar's own (aadhaar_verified/aadhaar_verified_name) was removed
+            // along with KycController's Aadhaar endpoints; aadhaar_card/aadhaar_file
+            // below are a plain number + attachment now, same as rera_number/gst_number.
             'pan_verified' => ['nullable', 'boolean'],
             'pan_verified_name' => ['nullable', 'string', 'max:255'],
             'aadhaar_card' => ['nullable', 'string', 'max:32'],
-            // Set by the app after KycController::verifyAadhaar succeeded on the photo
-            // attached to this same request — not re-checked here. Trusting the
-            // client's report of an already-completed Surepass call is the same trust
-            // boundary pan_card/aadhaar_card above already sit on (both are typed by
-            // hand and unverified server-side); this is a strictly better signal than
-            // that, not a new one, and it's read-only informational for the admin, not
-            // a permission.
-            'aadhaar_verified' => ['nullable', 'boolean'],
-            'aadhaar_verified_name' => ['nullable', 'string', 'max:255'],
             'rera_number' => ['nullable', 'string', 'max:64'],
             'gst_number' => ['nullable', 'string', 'max:32'],
 
@@ -235,19 +230,24 @@ class AuthController extends Controller
             'confirm_accuracy' => ['sometimes', 'boolean'],
 
             // KYC scans. PDFs are allowed because a RERA certificate is usually issued
-            // as one; `aadhaar_file` alone also allows xml — the app offers the UIDAI
-            // offline XML as the primary way to attach this one (see KycController's
-            // verifyAadhaarXml), alongside the older photo-of-the-card path the other
-            // documents still use.
+            // as one, and `aadhaar_file` is either an eAadhaar PDF or a photo of the
+            // card — no xml any more (the offline-XML upload path was removed
+            // alongside KycController's Aadhaar verification endpoints).
             ...collect(self::DOCUMENTS)
                 ->keys()
                 ->mapWithKeys(fn ($field) => [
-                    $field => [
-                        'nullable', 'file',
-                        'mimes:' . ($field === 'aadhaar_file' ? 'jpg,jpeg,png,webp,pdf,xml' : 'jpg,jpeg,png,webp,pdf'),
-                        'max:8192',
-                    ],
+                    $field => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:8192'],
                 ])
+                ->all(),
+            // The `path` UploadController handed back for a document already sent
+            // ahead of this request via POST /uploads — the whole point of that
+            // endpoint: a KYC scan reaches the server as its own small request the
+            // moment it's picked, so this one carries text only and stays fast and
+            // reliable even on a slow connection. Same hasFile()-first precedence as
+            // `photo_path` above; see resolveUploadedPath().
+            ...collect(self::DOCUMENTS)
+                ->values()
+                ->mapWithKeys(fn ($column) => [$column => ['nullable', 'string']])
                 ->all(),
         ]);
 
@@ -257,23 +257,22 @@ class AuthController extends Controller
             $this->validateStepIsComplete($data['step'], $data);
         }
 
-        $aadhaarFileUploaded = $request->hasFile('aadhaar_file');
-
         if ($request->hasFile('photo')) {
             $data['photo_path'] = $request->file('photo')->store('broker-photos', 'public');
+        } elseif (filled($data['photo_path'] ?? null)) {
+            $data['photo_path'] = $this->resolveUploadedPath($user, $data['photo_path']);
         }
 
         foreach (self::DOCUMENTS as $field => $column) {
             if ($request->hasFile($field)) {
                 $data[$column] = $request->file($field)->store('broker-documents', 'public');
+            } elseif (filled($data[$column] ?? null)) {
+                $data[$column] = $this->resolveUploadedPath($user, $data[$column]);
             }
         }
 
-        DB::transaction(function () use ($user, $data, $aadhaarFileUploaded) {
+        DB::transaction(function () use ($user, $data) {
             $profile = $user->brokerProfile;
-            $aadhaarVerified = array_key_exists('aadhaar_verified', $data)
-                ? (bool) $data['aadhaar_verified']
-                : (bool) $profile->aadhaar_verified;
 
             $profile->fill(collect($data)->only([
                 'alternate_mobile', 'residence_address', 'photo_path',
@@ -286,18 +285,10 @@ class AuthController extends Controller
                 ...array_values(self::DOCUMENTS),
             ])->all());
 
-            if (array_key_exists('aadhaar_verified', $data) || $aadhaarFileUploaded) {
-                $profile->aadhaar_verified = $aadhaarVerified;
-                // Only meaningful alongside a true verification — an unverified row
-                // carries no name, so a later once-verified check can't find a stale
-                // name left over from a rejected or never-attempted one.
-                $profile->aadhaar_verified_name = $aadhaarVerified ? ($data['aadhaar_verified_name'] ?? null) : null;
-                $profile->aadhaar_verified_at = $aadhaarVerified ? now() : null;
-            }
-
-            // No file-upload trigger like Aadhaar's above — PAN verification runs off
-            // the typed number alone, not an attachment, so the app reporting a fresh
-            // result is the only thing that ever changes this.
+            // PAN verification runs off the typed number alone, not an attachment,
+            // so the app reporting a fresh result is the only thing that ever
+            // changes this. Aadhaar has no equivalent any more — see
+            // KycController's own docblock for why its verified flag was removed.
             if (array_key_exists('pan_verified', $data)) {
                 $panVerified = (bool) $data['pan_verified'];
                 $profile->pan_verified = $panVerified;
@@ -342,16 +333,36 @@ class AuthController extends Controller
     }
 
     /**
+     * Confirms a `*_path` this request is trying to link (from POST /uploads) was
+     * actually uploaded by this same user, rather than trusting the string as-is —
+     * a guessed or copied path from someone else's upload must not be linkable here.
+     * The path itself needs no rewriting: UploadController already stored the file
+     * under the same disk/folder convention this endpoint's own inline uploads use.
+     */
+    private function resolveUploadedPath(User $user, string $path): string
+    {
+        $owned = Upload::where('user_id', $user->id)->where('path', $path)->exists();
+
+        if (! $owned) {
+            throw ValidationException::withMessages([
+                'attachment' => ['One of the attached files could not be found. Please re-attach it and try again.'],
+            ]);
+        }
+
+        return $path;
+    }
+
+    /**
      * The required-field gate for a real "Next"/final submit — one branch per step,
      * matching what CompleteProfileScreen's own `validateStep()` already checks
      * client-side. Kept as real required-ness here too rather than trusting the
      * client: a step's data is written to the database the moment this passes, not
      * just at the very end, so this is the only gate that actually protects it.
      *
-     * Step order is Personal -> Business -> Professional, deliberately ending on the
-     * heaviest step (company details, PAN/Aadhaar/RERA/GST attachments) — the
-     * confirm-accuracy agreement and the signature belong there too, right before the
-     * moment of actually submitting, rather than sitting on an earlier, lighter step.
+     * Step order is Personal -> Professional -> Business, deliberately ending on the
+     * heaviest step (PAN/Aadhaar/RERA/GST attachments) — the confirm-accuracy
+     * agreement and the signature belong there too, right before the moment of
+     * actually submitting, rather than sitting on an earlier, lighter step.
      */
     private function validateStepIsComplete(int $step, array $data): void
     {
@@ -368,26 +379,41 @@ class AuthController extends Controller
             return;
         }
 
-        // step === 2 — Business info. Nothing here is required: state/city/segments/
-        // zones/project_contributions/operates_multiple_states are all optional, same
-        // as before this became its own step.
+        // step === 2 — Professional info. state/city/segments/zones/
+        // project_contributions/operates_multiple_states are all optional, same as
+        // before this became its own step; only the company fields are required,
+        // and only when registering as a company at all.
         if ($step === 2) {
+            $errors = [];
+
+            if ($data['is_company'] ?? false) {
+                if (blank($data['company_name'] ?? null)) {
+                    $errors['company_name'] = ['Enter company name.'];
+                }
+                if (blank($data['office_address'] ?? null)) {
+                    $errors['office_address'] = ['Enter office address.'];
+                }
+            }
+
+            if ($errors) {
+                throw ValidationException::withMessages($errors);
+            }
+
             return;
         }
 
-        // step === 3 — Professional info, plus the final agreement + signature.
+        // step === 3 — Business info, plus the final agreement + signature.
         $errors = [];
 
-        if ($data['is_company'] ?? false) {
-            if (blank($data['company_name'] ?? null)) {
-                $errors['company_name'] = ['Enter company name.'];
-            }
-            if (blank($data['office_address'] ?? null)) {
-                $errors['office_address'] = ['Enter office address.'];
-            }
-        }
         if (blank($data['pan_card'] ?? null)) {
             $errors['pan_card'] = ['Enter PAN card number.'];
+        } elseif (! preg_match('/^[A-Z]{5}[0-9]{4}[A-Z]$/', strtoupper((string) $data['pan_card']))) {
+            // Format only, not `pan_verified` — that stays the app's own signal
+            // (see the note on it above, in the validate() rules) rather than a
+            // hard gate here. Surepass being unreachable, or a real PAN it
+            // genuinely doesn't recognise, must not block registration outright;
+            // a string that was never a PAN to begin with is a different case.
+            $errors['pan_card'] = ['Enter a valid PAN number, e.g. ABCDE1234F.'];
         }
         if (blank($data['aadhaar_card'] ?? null)) {
             $errors['aadhaar_card'] = ['Enter Aadhaar number.'];
@@ -446,7 +472,7 @@ class AuthController extends Controller
     {
         $data = $request->validate([
             'mobile' => ['required', 'digits:10'],
-            'code' => ['required', 'digits:6'],
+            'code' => ['required', 'digits:4'],
             'device_name' => ['nullable', 'string', 'max:120'],
         ]);
 
@@ -458,7 +484,7 @@ class AuthController extends Controller
             ]);
         }
 
-        if (! $otp->matches($data['code']) && ! $this->isMasterCode($data['code'])) {
+        if (! $otp->matches($data['code'])) {
             $otp->registerFailedAttempt();
 
             throw ValidationException::withMessages([
@@ -492,12 +518,30 @@ class AuthController extends Controller
             ]);
         }
 
+        // A rejected broker gets to fix and resubmit rather than being told a plain
+        // "no" with nowhere to go — same resume mechanism as a mid-registration draft
+        // (a fresh token, right back onto CompleteProfileScreen), since that's exactly
+        // what this now is: registration_step is already 3 from the earlier submit
+        // that got rejected, so they land straight back where the rejected data is,
+        // with UserResource's rejection_reason telling them why. Step 3's own "Submit
+        // for approval" (saveRegistrationStep) already flips draft -> pending on a
+        // real resubmit, so nothing else about that path needs to change for this.
+        if ($user->isRejected()) {
+            $user->forceFill(['status' => User::STATUS_DRAFT])->save();
+            $this->loadProfile($user);
+
+            return response()->json([
+                'status' => 'draft',
+                'token' => $user->createToken($data['device_name'] ?? 'mobile')->plainTextToken,
+                'data' => new UserResource($user),
+            ]);
+        }
+
         if (! $user->isActive()) {
             return response()->json([
-                'status' => $user->status === User::STATUS_REJECTED ? 'rejected' : 'pending',
+                'status' => 'pending',
                 'message' => match ($user->status) {
                     User::STATUS_PENDING => 'Your registration is awaiting admin approval.',
-                    User::STATUS_REJECTED => 'Your registration was not approved.',
                     default => 'This account is not active.',
                 },
             ], 403);
@@ -536,25 +580,27 @@ class AuthController extends Controller
     }
 
     /**
-     * Same swallow-and-log shape as `ApprovalController::notifyApproved()`: the code has
-     * already been issued and the caller gets the same response either way (see
-     * `sendEmailOtp`), so an unreachable mailer must not surface as a 500 here — it
-     * should just be visible in the logs instead of silently vanishing.
+     * Queued rather than sent inline: `Mail::send()` blocks on the full round trip to
+     * Mailjet (real SMTP, ~5s in practice), which is what made "Continue" on the
+     * login screen sit for several seconds before the app could move to the OTP
+     * screen — the code is already in the database and valid the instant
+     * `issueFor()` returns, so nothing about correctness depends on the email having
+     * gone out yet. `queue()` returns as soon as the job row is written, not once
+     * Mailjet answers.
+     *
+     * This needs `php artisan queue:work` running against the `database` connection
+     * (already the configured QUEUE_CONNECTION) — a job that never gets picked up
+     * just sits in `jobs` forever instead of ever reaching Mailjet. A failed send
+     * lands in `failed_jobs` instead of this method's own try/catch, same as any
+     * other queued job in this app.
      */
     private function deliverEmailOtp(string $email, string $code): void
     {
-        if (! MailSettings::apply()) {
+        if (! MailSettings::isConfigured()) {
             return;
         }
 
-        try {
-            Mail::to($email)->send(new EmailOtpMail($code));
-        } catch (\Throwable $e) {
-            Log::error('Email OTP send failed', [
-                'email' => $email,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        Mail::to($email)->queue(new EmailOtpMail($code));
     }
 
     /**
@@ -567,10 +613,6 @@ class AuthController extends Controller
      *
      * No `verification_token` here unlike `verifyOtp` — this path never needed one:
      * `startRegistration()` re-validates the email's own uniqueness itself.
-     *
-     * There's no environment-gated master code here the way `verifyOtp` has one —
-     * {@see EmailOtpCode} issues the same fixed code to everyone, so it doesn't need
-     * a separate always-on bypass to keep working for a store reviewer.
      */
     public function verifyEmailOtp(Request $request): JsonResponse
     {
@@ -618,12 +660,23 @@ class AuthController extends Controller
             ]);
         }
 
+        // Same resume-not-dead-end path as verifyOtp's — see its docblock.
+        if ($user->isRejected()) {
+            $user->forceFill(['status' => User::STATUS_DRAFT])->save();
+            $this->loadProfile($user);
+
+            return response()->json([
+                'status' => 'draft',
+                'token' => $user->createToken($data['device_name'] ?? 'mobile')->plainTextToken,
+                'data' => new UserResource($user),
+            ]);
+        }
+
         if (! $user->isActive()) {
             return response()->json([
-                'status' => $user->status === User::STATUS_REJECTED ? 'rejected' : 'pending',
+                'status' => 'pending',
                 'message' => match ($user->status) {
                     User::STATUS_PENDING => 'Your registration is awaiting admin approval.',
-                    User::STATUS_REJECTED => 'Your registration was not approved.',
                     default => 'This account is not active.',
                 },
             ], 403);
