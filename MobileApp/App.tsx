@@ -23,6 +23,6 @@ function App(): React.JSX.Element {
       </StoreProvider>
     </GestureHandlerRootView>
   );
-}
+}  
 
 export default App;
