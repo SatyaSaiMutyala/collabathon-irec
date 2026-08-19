@@ -26,6 +26,7 @@ import {fetchDevelopers, fetchNextDevelopers} from '../../store/slices/developer
 import {fetchDashboard} from '../../store/slices/dashboardSlice';
 import {useCurrentLocation} from '../../hooks/useLocation';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
+import {setMapPickerCallback} from '../../utils/mapPickerCallback';
 
 /**
  * Developer directory. Search and city filtering are sent to the API — this screen
@@ -180,17 +181,19 @@ const HomeScreen = ({navigation}) => {
       <LocationPickerSheet
         visible={isPickerVisible}
         onClose={() => setIsPickerVisible(false)}
-        cities={['Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman']}
-        selectedCity={activeCity}
         isDetecting={location.isLoading}
         onUseCurrentLocation={() => {
           setManualCity(null);
           location.detectLocation();
           setIsPickerVisible(false);
         }}
-        onSelectCity={city => {
-          setManualCity(city);
+        onChooseFromMap={() => {
           setIsPickerVisible(false);
+          setMapPickerCallback(result => {
+            setManualCity(result.city);
+            location.setManualLocation(result.city);
+          });
+          navigation.navigate('MapPicker');
         }}
       />
     </ScreenContainer>

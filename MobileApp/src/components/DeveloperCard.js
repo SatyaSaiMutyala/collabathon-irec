@@ -16,8 +16,8 @@ const LOGO_HEIGHT = moderateScale(150);
  *
  * The card is the logo, full-bleed — no name row, no chevron underneath it. `cover`,
  * not `contain`: a letterboxed logo left bars of empty surface down both sides, which
- * read as broken layout rather than intentional whitespace. Location, project count,
- * and the verified badge are the only things that ever sit on top of it.
+ * read as broken layout rather than intentional whitespace. Location and project
+ * count are the only things that ever sit on top of it.
  */
 const DeveloperCard = ({developer, onPress}) => {
   const {colors, roundedRadius, spacing} = useAppTheme();
@@ -41,12 +41,6 @@ const DeveloperCard = ({developer, onPress}) => {
               <AppText variant="h1" color={colors.primaryDark}>
                 {initialsOf(developer.company_name)}
               </AppText>
-            </View>
-          )}
-
-          {developer.verified && (
-            <View style={[styles.verifiedBadge, {backgroundColor: colors.success, borderColor: colors.card}]}>
-              <Icon name="checkmark" size={moderateScale(10)} color={colors.white} />
             </View>
           )}
 
@@ -81,17 +75,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logoFallback: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  verifiedBadge: {
-    position: 'absolute',
-    top: moderateScale(8),
-    left: moderateScale(8),
-    width: moderateScale(18),
-    height: moderateScale(18),
-    borderRadius: moderateScale(9),
-    borderWidth: moderateScale(1.5),
     alignItems: 'center',
     justifyContent: 'center',
   },

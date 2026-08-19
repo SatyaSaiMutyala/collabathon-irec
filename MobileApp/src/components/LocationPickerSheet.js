@@ -5,15 +5,50 @@ import {moderateScale} from '../theme/scaling';
 import {useAppTheme} from '../theme';
 import AppText from './AppText';
 
-const LocationPickerSheet = ({
-  visible,
-  onClose,
-  cities,
-  selectedCity,
-  onSelectCity,
-  onUseCurrentLocation,
-  isDetecting,
-}) => {
+const OptionRow = ({icon, label, onPress, isBusy, isLast}) => {
+  const {colors, spacing} = useAppTheme();
+  return (
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onPress={onPress}
+      disabled={isBusy}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: spacing.md,
+        borderBottomWidth: isLast ? 0 : 1,
+        borderBottomColor: colors.border,
+      }}>
+      <View
+        style={{
+          width: moderateScale(36),
+          height: moderateScale(36),
+          borderRadius: moderateScale(999),
+          backgroundColor: colors.primarySoft,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+        <Icon name={icon} size={moderateScale(17)} color={colors.primaryDark} />
+      </View>
+      <AppText variant="bodyMedium" style={{marginLeft: spacing.sm, flex: 1}}>
+        {label}
+      </AppText>
+      {isBusy ? (
+        <ActivityIndicator size="small" color={colors.primary} />
+      ) : (
+        <Icon name="chevron-forward" size={moderateScale(16)} color={colors.textMuted} />
+      )}
+    </TouchableOpacity>
+  );
+};
+
+/**
+ * Two ways to set the home screen's location — GPS (current position, reverse-
+ * geocoded) or a full map screen with a search box (see MapPickerScreen). Replaced a
+ * fixed list of hardcoded cities: that list could only ever offer the handful of
+ * places someone thought to type in ahead of time, not wherever a broker actually is.
+ */
+const LocationPickerSheet = ({visible, onClose, onUseCurrentLocation, onChooseFromMap, isDetecting}) => {
   const {colors, roundedRadius, spacing} = useAppTheme();
 
   return (
@@ -47,55 +82,17 @@ const LocationPickerSheet = ({
             }}
           />
 
-          <AppText variant="h3" style={{marginBottom: spacing.md}}>
-            Choose Location
+          <AppText variant="h3" style={{marginBottom: spacing.xs}}>
+            Set your location
           </AppText>
 
-          <TouchableOpacity
-            activeOpacity={0.8}
+          <OptionRow
+            icon="locate"
+            label="Current location"
+            isBusy={isDetecting}
             onPress={onUseCurrentLocation}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              paddingVertical: spacing.sm,
-              borderBottomWidth: 1,
-              borderBottomColor: colors.border,
-              marginBottom: spacing.xs,
-            }}>
-            <Icon name="locate-outline" size={moderateScale(17)} color={colors.primary} />
-            <AppText variant="bodyMedium" color={colors.primary} style={{marginLeft: spacing.sm}}>
-              Use Current Location
-            </AppText>
-            {isDetecting && (
-              <ActivityIndicator size="small" color={colors.primary} style={{marginLeft: spacing.sm}} />
-            )}
-          </TouchableOpacity>
-
-          {cities.map(city => {
-            const isSelected = city === selectedCity;
-            return (
-              <TouchableOpacity
-                key={city}
-                activeOpacity={0.8}
-                onPress={() => onSelectCity(city)}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  paddingVertical: spacing.sm,
-                }}>
-                <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                  <Icon name="location-outline" size={moderateScale(17)} color={colors.textSecondary} />
-                  <AppText variant="body" style={{marginLeft: spacing.sm}}>
-                    {city}
-                  </AppText>
-                </View>
-                {isSelected && (
-                  <Icon name="checkmark-circle" size={moderateScale(18)} color={colors.primary} />
-                )}
-              </TouchableOpacity>
-            );
-          })}
+          />
+          <OptionRow icon="map-outline" label="Choose from map" onPress={onChooseFromMap} isLast />
         </Pressable>
       </Pressable>
     </Modal>

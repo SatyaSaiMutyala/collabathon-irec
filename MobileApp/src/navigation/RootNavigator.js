@@ -13,6 +13,7 @@ import BrokerTabNavigator from './BrokerTabNavigator';
 import DeveloperTabNavigator from './DeveloperTabNavigator';
 import DeveloperProfileScreen from '../screens/broker/DeveloperProfileScreen';
 import ProjectDetailScreen from '../screens/broker/ProjectDetailScreen';
+import MapPickerScreen from '../screens/broker/MapPickerScreen';
 import PropertyLeadsScreen from '../screens/developer/PropertyLeadsScreen';
 import BrokerDetailScreen from '../screens/developer/BrokerDetailScreen';
 import NotificationsScreen from '../screens/shared/NotificationsScreen';
@@ -38,6 +39,11 @@ const BrokerRootStack = () => (
       name="Notifications"
       component={NotificationsScreen}
       options={{animation: 'slide_from_right'}}
+    />
+    <BrokerStack.Screen
+      name="MapPicker"
+      component={MapPickerScreen}
+      options={{animation: 'slide_from_bottom'}}
     />
     {/* Registered on both stacks: PropertyDetailBody is shared, so the terms button
         has to resolve whichever role opened the project. */}

@@ -15,6 +15,7 @@ use App\Models\State;
 use App\Models\Setting;
 use App\Models\User;
 use App\Support\MailSettings;
+use App\Support\GoogleMapsSettings;
 use App\Support\SurepassSettings;
 use Illuminate\Http\RedirectResponse;
 use App\Services\Fcm;
@@ -104,6 +105,10 @@ class SettingsController extends Controller
                 'has_production_token' => filled(SurepassSettings::productionToken()),
                 'masked_sandbox_token' => SurepassSettings::masked(SurepassSettings::sandboxToken()),
                 'masked_production_token' => SurepassSettings::masked(SurepassSettings::productionToken()),
+            ],
+            'googleMaps' => [
+                'configured' => GoogleMapsSettings::isConfigured(),
+                'masked' => GoogleMapsSettings::masked(),
             ],
         ]);
     }
@@ -206,6 +211,31 @@ class SettingsController extends Controller
         SurepassSettings::setEnvironment($data['surepass_environment']);
 
         return back()->with('status', 'KYC verification settings saved.');
+    }
+
+    /**
+     * Save the Google Maps API key the mobile app's location-picker map screen uses —
+     * read by the mobile app's public /config endpoint. Saving it here does not alone
+     * make Android's map view work: the native Google Maps SDK reads its key from the
+     * compiled app, so this key still needs copying into the mobile project's Android
+     * build config and a rebuild before it takes effect there. iOS needs no key.
+     */
+    public function updateGoogleMaps(Request $request): RedirectResponse
+    {
+        $this->authorize('edit-module', 'settings');
+
+        $data = $request->validate([
+            'google_maps_api_key' => [
+                GoogleMapsSettings::isConfigured() ? 'nullable' : 'required',
+                'string', 'max:512',
+            ],
+        ]);
+
+        if (filled($data['google_maps_api_key'] ?? null)) {
+            GoogleMapsSettings::put(trim($data['google_maps_api_key']));
+        }
+
+        return back()->with('status', 'Google Maps API key saved. Copy it into the mobile app\'s Android build config and rebuild for it to take effect there.');
     }
 
     /** Toggle a single form field on/off. */

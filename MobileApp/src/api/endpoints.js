@@ -72,11 +72,20 @@ export const authApi = {
   /**
    * Steps 2-3, and Save Draft on any step — `payload.save_draft` decides whether the
    * server enforces that step's required fields (`false`, "Next"/final submit) or
-   * accepts whatever's present as-is (`true`). Same file-detection fork as above.
+   * accepts whatever's present as-is (`true`). Same file-detection fork as above,
+   * except the multipart branch is sent as `POST` with `_method: 'PATCH'` rather than
+   * a real PATCH — PHP's SAPI only ever parses a multipart body on POST, regardless
+   * of how correct the boundary is; a genuine multipart PATCH arrives with an empty
+   * request body, which is why re-saving step 1 (its `photo` field stays a local
+   * file — never swapped for a remote URL the way step 3's KYC docs are — so it's
+   * multipart again on every later save, not just the first) failed validation on
+   * *every* field, `step` included, rather than just the photo. Laravel's own
+   * `Request::capture()` enables `_method` override by default, so this still
+   * reaches the same `Route::patch(...)` handler.
    */
   saveRegistrationStep: payload =>
     Object.values(payload).some(isFilePart)
-      ? client.patch('/auth/register/step', toFormData(payload), {
+      ? client.post('/auth/register/step', toFormData({...payload, _method: 'PATCH'}), {
           headers: {'Content-Type': 'multipart/form-data'},
           timeout: UPLOAD_TIMEOUT_MS,
         })

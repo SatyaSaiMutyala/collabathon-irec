@@ -88,6 +88,18 @@ if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
 }
 
+// The Google Maps API key an admin saves at /admin/settings — copied here rather than
+// committed, since local.properties is gitignored (same file Android already uses for
+// sdk.dir). Blank/missing is fine at build time; it just means the map screen won't
+// render on this build until a real key is added. See AndroidManifest.xml's own note
+// on why this can't be supplied at JS runtime instead.
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withInputStream { localProperties.load(it) }
+}
+def googleMapsApiKey = localProperties.getProperty('GOOGLE_MAPS_API_KEY', '')
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
@@ -100,6 +112,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 6
         versionName "1.0.6"
+        manifestPlaceholders = [GOOGLE_MAPS_API_KEY: googleMapsApiKey]
     }
     signingConfigs {
         debug {

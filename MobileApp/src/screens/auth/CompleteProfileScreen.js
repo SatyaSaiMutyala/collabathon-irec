@@ -321,6 +321,11 @@ const CompleteProfileScreen = ({navigation, route}) => {
     inputRefs.current[key] = node;
   };
 
+  // Unlike every other step-3 attachment, a signature has no file to pick — it's
+  // captured from the pad itself, and only when actually needed (persistStep), not
+  // on every stroke. See SignaturePad.capture().
+  const signaturePadRef = useRef(null);
+
   useEffect(() => {
     if (isResuming && !hasNavigatedRef.current && registrationStep && registrationStep !== currentStep) {
       setCurrentStep(registrationStep);
@@ -546,8 +551,13 @@ const CompleteProfileScreen = ({navigation, route}) => {
     }
   };
 
-  /** Maps the current step's form fields onto that step's slice of the API contract. */
-  const toStepPayload = step => {
+  /**
+   * Maps the current step's form fields onto that step's slice of the API contract.
+   * `signaturePath` is step 3 only — the storage path POST /uploads already handed
+   * back for a signature captured and uploaded this session, or null when nothing
+   * was (re)drawn — see persistStep, which is the only caller that ever passes it.
+   */
+  const toStepPayload = (step, signaturePath) => {
     if (step === 1) {
       return {
         name: [form.suffix, form.fullNameAsRera].filter(Boolean).join(' ').trim(),
@@ -611,6 +621,12 @@ const CompleteProfileScreen = ({navigation, route}) => {
       aadhaar_file: documentPart(form.aadhaarAttachment),
       rera_certificate_file: documentPart(form.reraCertificateAttachment),
       gst_file: documentPart(form.gstAttachment),
+      // A path, not a file: uploaded ahead of this request via POST /uploads (see
+      // persistStep), same as every other KYC document — this request itself carries
+      // text only, which is what actually keeps a slow-connection submit reliable.
+      // null on a resumed draft that wasn't redrawn, which correctly sends nothing
+      // and leaves whatever signature is already on file untouched.
+      signature_path: signaturePath,
       confirm_accuracy: form.confirmAccuracy,
     };
   };
@@ -625,11 +641,50 @@ const CompleteProfileScreen = ({navigation, route}) => {
   const persistStep = async (step, saveDraft) => {
     const isFirstSave = step === 1 && !isResuming;
     const thunk = isFirstSave ? startRegistration : saveRegistrationStep;
+    // Captured and uploaded here, once, right before it's actually needed — not on
+    // every stroke, and not at all for any step but 3. Goes out via the same
+    // small, independent POST /uploads request every other KYC document already
+    // uses (see handleAttachmentPick) rather than riding along as raw binary in
+    // this step's own submit — that's what actually keeps the submit itself fast
+    // and reliable on a slow connection, per AuthController's own note on why
+    // pan_card_path/aadhaar_path/etc. are sent as paths, not files. Best-effort:
+    // an upload failure here costs the signature image, not the whole step.
+    let signaturePath = null;
+    if (step === 3) {
+      const signatureUri = await signaturePadRef.current?.capture?.();
+      if (signatureUri) {
+        try {
+          const {data} = await uploadApi.upload(
+            {uri: signatureUri, name: 'signature.jpg', type: 'image/jpeg'},
+            'signature',
+          );
+          signaturePath = data.data.path;
+        } catch (error) {
+          console.error('Signature upload failed; submitting without it.', error);
+        }
+      }
+    }
     const payload = isFirstSave
       ? {save_draft: saveDraft, ...toStepPayload(1)}
-      : {step, save_draft: saveDraft, ...toStepPayload(step)};
+      : {step, save_draft: saveDraft, ...toStepPayload(step, signaturePath)};
 
     const result = await dispatch(thunk(payload));
+
+    // A successful step-1 save hands the photo back as a full URL (see
+    // UserResource::draftProfile) — swap the local file reference for it so a later
+    // resave of this same step (Back, then Next again with nothing changed; another
+    // Save Draft) sends that URL instead of re-attaching the same local file a
+    // second time. PAN/Aadhaar/RERA/GST don't need the same treatment: they upload
+    // the instant they're picked (see handleAttachmentPick) and are already remote
+    // URLs by the time any step submits, never local file parts here — the photo is
+    // the one attachment in this screen still deferred to its step's own save.
+    if (thunk.fulfilled.match(result) && step === 1) {
+      const photoPath = result.payload?.data?.draft_profile?.photo_path;
+      if (photoPath) {
+        update('photoAttachment')(photoPath);
+      }
+    }
+
     return {result, thunk};
   };
 
@@ -1306,6 +1361,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
               </AppText>
               <View style={{marginBottom: spacing.lg}}>
                 <SignaturePad
+                  ref={signaturePadRef}
                   onChange={value => update('hasSignature')(value)}
                   onDrawStart={() => setIsScrollEnabled(false)}
                   onDrawEnd={() => setIsScrollEnabled(true)}

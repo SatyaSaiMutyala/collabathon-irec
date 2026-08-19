@@ -23,6 +23,7 @@ $tabs = [
     ['key' => 'brand',     'label' => 'Branding'],
     ['key' => 'email',     'label' => 'Email'],
     ['key' => 'kyc',       'label' => 'KYC Verification'],
+    ['key' => 'maps',      'label' => 'Maps'],
     ['key' => 'access',    'label' => 'Access'],
 ];
 
@@ -1035,6 +1036,82 @@ $openTab = in_array(request()->query('tab'), array_column($tabs, 'key'), true)
                 <p class="text-[12px] text-ink-3 mt-4 pt-3 border-t border-line-soft leading-relaxed">
                     This panel only stores the credential. The GST/Aadhaar/PAN verification calls
                     themselves are the next step, once the exact Surepass endpoint contracts are on hand.
+                </p>
+            </x-panel>
+        </div>
+
+        {{-- ---------------------------- Maps ---------------------------- --}}
+        <div x-show="tab === 'maps'" x-cloak class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            <x-panel title="Google Maps"
+                     subtitle="Powers the mobile app's &quot;Choose from Map&quot; location picker"
+                     padded class="xl:col-span-2">
+
+                <div @class([
+                    'flex items-start gap-2.5 px-3.5 py-3 mb-5 border',
+                    'bg-success-soft border-success-ring' => $googleMaps['configured'],
+                    'bg-warning-soft border-warning-ring' => ! $googleMaps['configured'],
+                ])>
+                    <x-icon :name="$googleMaps['configured'] ? 'check' : 'clock'"
+                            class="w-4 h-4 shrink-0 mt-px {{ $googleMaps['configured'] ? 'text-success' : 'text-warning' }}" />
+                    <div class="min-w-0">
+                        <p class="text-[13px] font-medium {{ $googleMaps['configured'] ? 'text-success' : 'text-warning' }}">
+                            {{ $googleMaps['configured'] ? 'Key saved' : 'Not configured' }}
+                        </p>
+                        <p class="text-[12.5px] text-ink-2 mt-0.5 leading-relaxed">
+                            @if($googleMaps['configured'])
+                                Saved here for the app to read, and encrypted the same way the KYC tokens
+                                above are. Android's map view still needs this copied into the mobile
+                                project's Android build config and the app rebuilt — saving it here alone
+                                does not update an already-installed app.
+                            @else
+                                Until a key is saved, the map screen won't render on Android (iOS uses
+                                Apple Maps and needs no key at all).
+                            @endif
+                        </p>
+                    </div>
+                </div>
+
+                <form method="POST" action="{{ route('admin.settings.google-maps') }}" class="space-y-4">
+                    @csrf
+                    @method('PATCH')
+
+                    {{-- Blank means keep — same reasoning as the KYC tokens: the stored
+                         key is encrypted and never rendered back. --}}
+                    <x-field label="Maps API key" name="google_maps_api_key" type="password"
+                             :required="! $googleMaps['configured']"
+                             :placeholder="$googleMaps['configured'] ? 'Saved — leave blank to keep' : 'AIza…'"
+                             :hint="$googleMaps['configured'] ? 'Stored encrypted (' . $googleMaps['masked'] . '). Enter a new one only to replace it.' : 'Google Cloud Console → APIs &amp; Services → Credentials — create a key restricted to Maps SDK for Android.'" />
+
+                    <div class="flex flex-wrap items-center gap-2.5 pt-1">
+                        <x-button type="submit" icon="check">Save</x-button>
+                    </div>
+                </form>
+            </x-panel>
+
+            <x-panel title="Why a rebuild is needed" padded class="self-start">
+                <ul class="space-y-2.5 text-[12.5px] text-ink-2 leading-relaxed">
+                    <li class="flex gap-2">
+                        <span class="text-primary">&bull;</span>
+                        <span>Android's native Google Maps SDK reads its API key from the compiled app,
+                            before any of the app's own code runs — there's no way for it to fetch a
+                            fresh value at that point.</span>
+                    </li>
+                    <li class="flex gap-2">
+                        <span class="text-primary">&bull;</span>
+                        <span>Saving a key here still needs someone to copy it into the mobile project
+                            and rebuild the Android app before it takes effect — this page is where the
+                            key lives, not a way around that step.</span>
+                    </li>
+                    <li class="flex gap-2">
+                        <span class="text-primary">&bull;</span>
+                        <span>iOS needs nothing here at all — the map screen uses Apple's own maps on
+                            iOS, which ships with no API key.</span>
+                    </li>
+                </ul>
+                <p class="text-[12px] text-ink-3 mt-4 pt-3 border-t border-line-soft leading-relaxed">
+                    Restrict the key in Google Cloud Console to the Maps SDK for Android, scoped to this
+                    app's package name and signing certificate (SHA-1) — an unrestricted key billed to
+                    this project is usable by anyone who finds it.
                 </p>
             </x-panel>
         </div>

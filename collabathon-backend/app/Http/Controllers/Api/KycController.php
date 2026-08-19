@@ -7,6 +7,7 @@ use App\Services\PanVerificationService;
 use App\Support\SurepassSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Document verification for the Complete Profile screen — PAN, via Surepass. Public,
@@ -40,6 +41,15 @@ class KycController extends Controller
         ]);
 
         if (! SurepassSettings::isConfigured()) {
+            // This branch returns before ever reaching PanVerificationService, so
+            // without this it leaves zero trace of having fired at all — logged
+            // here specifically because it was seen happening intermittently with
+            // no way to tell whether that meant a real misconfiguration or a
+            // transient DB/decrypt blip reading the stored token.
+            Log::warning('PAN verification skipped — Surepass not configured', [
+                'environment' => SurepassSettings::environment(),
+            ]);
+
             return response()->json([
                 'status' => 'unavailable',
                 'message' => 'PAN verification is not configured yet. You can continue — this can be verified later.',

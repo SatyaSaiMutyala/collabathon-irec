@@ -51,6 +51,19 @@
       android:allowBackup="false"
       android:theme="@style/AppTheme"
       android:supportsRtl="true">
+      <!--
+        Read from local.properties (never committed — see build.gradle) rather than a
+        literal value here, so the key an admin saves at /admin/settings never has to
+        be pasted into a file this repo tracks. react-native-maps' Android map view
+        will not render without a real value: the native Google Maps SDK reads this
+        tag at process start, before any JS runs, so there is no way to supply the key
+        at runtime instead — copy the admin-saved key into local.properties and
+        rebuild for it to take effect. iOS needs none of this; it uses Apple Maps.
+      -->
+      <meta-data
+        android:name="com.google.android.geo.API_KEY"
+        android:value="${GOOGLE_MAPS_API_KEY}" />
+
       <activity
         android:name=".MainActivity"
         android:label="@string/app_name"

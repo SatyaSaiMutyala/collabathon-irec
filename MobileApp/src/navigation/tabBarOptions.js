@@ -14,22 +14,19 @@ import {useAppTheme} from '../theme';
  */
 const TAB_BAR_CONTENT_HEIGHT = 56;
 
-/**
- * Ceiling on the bottom inset we add on top of the content height. Covers gesture-nav
- * devices, the large majority in circulation; without a cap, the odd OEM skin (or
- * 3-button nav, taller still) that reports a bigger inset would inflate the whole bar.
- */
-const MAX_BOTTOM_INSET = 16;
-
 export function useTabBarScreenOptions(tabIcons) {
   const {colors, fontFamily, fontWeight} = useAppTheme();
   // targetSdk 35+ (Android 15/16) enforces edge-to-edge, so the tab bar now draws
   // under the system navigation bar instead of the OS reserving space above it —
   // with no inset accounted for, icons and labels were squeezed into whatever room
-  // was left. Adding the (capped) inset as bottom padding reserves real space for
-  // the system bar without ballooning the whole tab bar, on Android and iOS alike.
-  const {bottom} = useSafeAreaInsets();
-  const bottomInset = Math.min(bottom, MAX_BOTTOM_INSET);
+  // was left. Adding the inset as bottom padding reserves real space for the system
+  // bar on Android and iOS alike. Not capped: a 3-button nav bar reports a taller
+  // inset than gesture nav does, and that's the real height that needs reserving —
+  // capping this to a small fixed value (as this used to do) left the actual system
+  // nav bar overlapping the bottom of the tab bar on every 3-button-nav device,
+  // which only ever looked fine on gesture nav because gesture nav's own inset
+  // already happens to be small.
+  const {bottom: bottomInset} = useSafeAreaInsets();
 
   return ({route}) => ({
     headerShown: false,

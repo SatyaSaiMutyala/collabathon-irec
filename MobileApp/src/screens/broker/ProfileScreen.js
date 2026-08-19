@@ -66,7 +66,7 @@ const InfoRow = ({icon, label, value, valueColor, half}) => {
  * there's really a file behind it; an unattached document has nothing to open.
  */
 const DocumentRow = ({icon, label, value, uri}) => {
-  const {colors, spacing} = useAppTheme();
+  const {colors, radius, spacing} = useAppTheme();
   const attached = !!uri;
 
   return (
@@ -75,18 +75,24 @@ const DocumentRow = ({icon, label, value, uri}) => {
       disabled={!attached}
       onPress={() => openLink(uri)}
       style={{width: '100%', flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.xs}}>
-      <Icon name={icon} size={moderateScale(15)} color={colors.primary} />
-      <View style={{marginLeft: spacing.xs, flex: 1}}>
+      <View
+        style={{
+          width: moderateScale(32),
+          height: moderateScale(32),
+          borderRadius: radius.sm,
+          backgroundColor: colors.primarySoft,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+        <Icon name={icon} size={moderateScale(16)} color={colors.primaryDark} />
+      </View>
+      <View style={{marginLeft: spacing.sm, flex: 1}}>
         <AppText variant="caption" color={colors.textMuted}>
           {label}
         </AppText>
         <AppText variant="bodyMedium">{fallback(value)}</AppText>
       </View>
-      <Icon
-        name={attached ? 'open-outline' : 'ellipse-outline'}
-        size={moderateScale(17)}
-        color={attached ? colors.primary : colors.textMuted}
-      />
+      {attached && <Icon name="open-outline" size={moderateScale(17)} color={colors.textMuted} />}
     </TouchableOpacity>
   );
 };

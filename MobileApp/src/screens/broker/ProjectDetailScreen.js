@@ -1,5 +1,6 @@
 import React, {useEffect} from 'react';
 import {ScrollView, StatusBar, StyleSheet, View} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale, useContentColumn} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
@@ -25,6 +26,14 @@ import {
 const ProjectDetailScreen = ({route, navigation}) => {
   const {colors, spacing, radius} = useAppTheme();
   const column = useContentColumn();
+  // This screen lays out its own root instead of ScreenContainer (the hero is
+  // full-bleed under the status bar, so the top inset must stay unreserved) — but
+  // the sticky "Mark as Interested" footer at the bottom is exactly the same shape
+  // of problem ScreenContainer's SafeAreaView and the tab bar both already solve:
+  // a fixed paddingBottom leaves the real system navigation bar (taller on 3-button
+  // nav than on gesture nav) overlapping the footer. Reserving the real inset here
+  // fixes it the same way tabBarOptions.js does for the tab bar itself.
+  const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const {projectId} = route.params;
 
@@ -91,7 +100,7 @@ const ProjectDetailScreen = ({route, navigation}) => {
             {
               backgroundColor: colors.card,
               borderTopColor: colors.border,
-              paddingBottom: spacing.lg,
+              paddingBottom: spacing.lg + insets.bottom,
             },
           ]}>
           {hasInterest ? (

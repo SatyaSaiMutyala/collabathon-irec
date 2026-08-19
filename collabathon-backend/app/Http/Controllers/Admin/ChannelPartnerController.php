@@ -15,8 +15,10 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
@@ -317,6 +319,132 @@ class ChannelPartnerController extends Controller
         return redirect()
             ->route('admin.cp')
             ->with('success', "{$user->name} added.");
+    }
+
+    /**
+     * Edits an existing channel partner — every field {@see store()} collects, applied
+     * on top of the current record rather than replacing it wholesale. Lives here
+     * rather than on ApprovalController: this is CP profile data, the same domain
+     * store()/bulkImport() already own, not an approval decision — Approve/Reject/
+     * Reset password stay exactly where they are, untouched by this.
+     *
+     * Deliberately excludes status and the pan_verified/aadhaar_verified flags:
+     * `users.status` is owned by Approve/Reject, and a verification flag is something
+     * Surepass sets at registration time, not something an admin can just assert here.
+     */
+    public function update(Request $request, User $user): RedirectResponse
+    {
+        $this->authorize('edit-module', 'cp');
+
+        $data = $request->all();
+        $data['mobile'] = self::normaliseMobile($data['mobile'] ?? '');
+        $data['alternate_mobile'] = self::normaliseMobile($data['alternate_mobile'] ?? '') ?: null;
+
+        $clean = Validator::make($data, [
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'mobile' => ['required', 'digits:10', Rule::unique('users', 'mobile')->ignore($user->id)],
+            'alternate_mobile' => ['nullable', 'digits:10'],
+            'residence_address' => ['nullable', 'string', 'max:1000'],
+            'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'is_company' => ['nullable', 'boolean'],
+            'company_name' => ['nullable', 'string', 'max:255'],
+            'office_address' => ['nullable', 'string', 'max:1000'],
+            'company_website' => ['nullable', 'string', 'max:255'],
+            ...SocialPlatforms::rules(),
+            'city' => ['nullable', 'string', 'max:96'],
+            'state' => ['nullable', 'string', 'max:96'],
+            'segments' => ['nullable', 'array'],
+            'segments.*' => ['string', 'max:64'],
+            'zones' => ['nullable', 'array'],
+            'zones.*' => ['string', 'max:96'],
+            'project_contributions' => ['nullable', 'string', 'max:5000'],
+            'years_of_experience' => ['nullable', 'integer', 'min:0', 'max:80'],
+            'team_size' => ['nullable', 'integer', 'min:0', 'max:10000'],
+            'rera_number' => ['nullable', 'string', 'max:64'],
+            'pan_card' => ['nullable', 'string', 'max:32'],
+            'aadhaar_card' => ['nullable', 'string', 'max:32'],
+            'gst_number' => ['nullable', 'string', 'max:32'],
+            'rera_certificate_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:8192'],
+            'pan_card_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:8192'],
+            'aadhaar_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf,xml', 'max:8192'],
+            'gst_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:8192'],
+        ], [
+            'mobile.digits' => 'Enter a 10-digit mobile number.',
+            'mobile.unique' => 'Another account already uses this mobile number.',
+            'alternate_mobile.digits' => 'The alternate mobile must be 10 digits, or left blank.',
+        ])->validate();
+
+        $clean['is_company'] = (bool) ($clean['is_company'] ?? false);
+        // Unlike store(), there's an existing value here that an emptied checkbox
+        // group must be able to actually clear — a checkbox posts nothing at all
+        // when none are ticked, and collect()->only() below would otherwise just
+        // silently leave whatever was already saved in place.
+        $clean['segments'] = $clean['segments'] ?? [];
+        $clean['zones'] = $clean['zones'] ?? [];
+
+        $profile = $user->brokerProfile;
+
+        // Replace-and-delete-the-old-one, same as DeveloperController::update()'s
+        // logo — a file input can never show what's already on record, so a blank
+        // one means "keep the current file", never "clear it".
+        if ($request->hasFile('photo')) {
+            $previous = $profile?->photo_path;
+            $clean['photo_path'] = $request->file('photo')->store('broker-photos', 'public');
+            if ($previous) {
+                Storage::disk('public')->delete($previous);
+            }
+        }
+
+        foreach ([
+            'pan_card_file' => 'pan_card_path',
+            'aadhaar_file' => 'aadhaar_path',
+            'rera_certificate_file' => 'rera_certificate_path',
+            'gst_file' => 'gst_path',
+        ] as $field => $column) {
+            if ($request->hasFile($field)) {
+                $previous = $profile?->{$column};
+                $clean[$column] = $request->file($field)->store('broker-documents', 'public');
+                if ($previous) {
+                    Storage::disk('public')->delete($previous);
+                }
+            }
+        }
+
+        DB::transaction(function () use ($clean, $user, $profile) {
+            $user->update([
+                'name' => $clean['name'],
+                'email' => $clean['email'],
+                'mobile' => $clean['mobile'],
+            ]);
+
+            $attributes = collect($clean)->only([
+                'alternate_mobile', 'residence_address', 'photo_path', 'is_company', 'company_name',
+                'office_address', 'company_website',
+                ...array_keys(SocialPlatforms::ALL),
+                'years_of_experience', 'team_size',
+                'pan_card', 'pan_card_path', 'aadhaar_card', 'aadhaar_path',
+                'rera_number', 'rera_certificate_path',
+                'gst_number', 'gst_path',
+                'state', 'city', 'segments', 'zones', 'project_contributions',
+            ])->all();
+
+            // A registration that never reached a real BrokerProfile row (an account
+            // created some other way, with no profile at all) still gets one here
+            // rather than failing outright — same "this shouldn't happen, but don't
+            // 500 if it does" posture as everywhere else profile is optional-chained.
+            if ($profile) {
+                $profile->update($attributes);
+            } else {
+                BrokerProfile::create($attributes + [
+                    'user_id' => $user->id,
+                    'confirm_accuracy' => false,
+                    'submitted_at' => now(),
+                ]);
+            }
+        });
+
+        return back()->with('success', "{$clean['name']} updated.");
     }
 
     /**

@@ -107,6 +107,7 @@ Route::prefix('admin')
         Route::post('/cp/bulk-import', [ChannelPartnerController::class, 'bulkImport'])
             ->name('cp.bulk-import');
         Route::post('/cp', [ChannelPartnerController::class, 'store'])->name('cp.store');
+        Route::patch('/cp/{user}', [ChannelPartnerController::class, 'update'])->name('cp.update');
 
         // Address lookup behind the developer form's "find on map" control.
         Route::get('/geocode', GeocodeController::class)->name('geocode');
@@ -175,6 +176,7 @@ Route::prefix('admin')
         Route::patch('/settings/mail', [SettingsController::class, 'updateMail'])->name('settings.mail');
         Route::post('/settings/mail/test', [SettingsController::class, 'testMail'])->name('settings.mail.test');
         Route::patch('/settings/surepass', [SettingsController::class, 'updateSurepass'])->name('settings.surepass');
+        Route::patch('/settings/google-maps', [SettingsController::class, 'updateGoogleMaps'])->name('settings.google-maps');
 
         // Measurement units — the "Project extent metric" options.
         Route::prefix('settings/measurement-units')->name('settings.measurement-units.')->group(function () {

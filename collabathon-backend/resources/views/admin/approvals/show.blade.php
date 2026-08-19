@@ -12,6 +12,10 @@
         'action' => route('admin.approvals.password', $broker),
     ]);
 
+    // A failed edit redirects back here, so the dialog reopens with what was typed
+    // rather than silently discarding it — same convention as developers/show.blade.php.
+    $editReopen = $errors->any() && old('_form') === 'cp-edit';
+
     /**
      * Aadhaar is the one document number sensitive enough to keep off-screen even
      * from an admin reviewing the registration — the document itself (viewable via
@@ -38,17 +42,17 @@
      * frequently null — a registration can reach the queue with none attached — so each
      * row renders either a link or a plain "Not provided".
      *
-     * Deliberately excluded, because the registration form no longer produces them and a
-     * row that can never be filled reads as a missing document rather than an absent one:
+     * Cancelled cheque is the one deliberate exclusion: the registration form no longer
+     * produces it — neither `cheque_details` nor `cheque_file` is in the app's payload any
+     * more — and a row that can never be filled reads as a missing document rather than an
+     * absent one. The column is left on `broker_profiles`; existing registrations still
+     * hold data.
      *
-     *   - Cancelled cheque — dropped from the form; neither `cheque_details` nor
-     *     `cheque_file` is in the app's payload any more.
-     *   - Signature — the form still asks for one, but its SignaturePad only sets a
-     *     `hasSignature` boolean for validation and never uploads the image, so
-     *     `signature_path` is always null. The API accepts `signature_file`; only the
-     *     app side is missing. Restore this row once it actually sends it.
-     *
-     * Both columns are left on `broker_profiles` — existing registrations still hold data.
+     * Signature IS listed below even though it is `null` for every registration today —
+     * the form still asks for one and the API already accepts `signature_file`, but the
+     * SignaturePad only tracks a `hasSignature` boolean and never actually uploads the
+     * drawn image (a real mobile-app gap, not an admin display one). Showing it as "Not
+     * provided" here is the honest state, same as any other document nobody attached.
      */
     $documents = [
         [
@@ -75,6 +79,7 @@
         ],
         ['label' => 'RERA certificate', 'number' => $profile?->rera_number, 'path' => $profile?->rera_certificate_path],
         ['label' => 'GST certificate', 'number' => $profile?->gst_number, 'path' => $profile?->gst_path],
+        ['label' => 'Authorized signature', 'number' => null, 'path' => $profile?->signature_path],
     ];
 
     $attached = collect($documents)->filter(fn ($d) => filled($d['path']))->count();
@@ -173,6 +178,10 @@
              being revoked, or a rejected one reinstated, rather than decided for the
              first time. --}}
         <div class="flex flex-wrap items-center gap-2.5 shrink-0">
+            <x-button variant="gold" icon="cog" tag="button" type="button" x-on:click="$dispatch('open-cp-edit')">
+                Edit
+            </x-button>
+
             {{-- Offered at every status: a broker who cannot sign in to be approved is
                  as stuck as one who forgot their password after approval. --}}
             <x-button variant="subtle" icon="lock" tag="button" type="button"
@@ -392,6 +401,169 @@
                     <p class="px-5 py-4 text-[12.5px] text-ink-3">No decision recorded yet.</p>
                 @endforelse
             </x-panel>
+        </div>
+    </div>
+
+    {{-- ============================== Edit dialog ==============================
+         Every field store()/{@see \App\Http\Controllers\Admin\ChannelPartnerController::update()}
+         collects, pre-filled — the create-form fields from admin/cp.blade.php, mirrored
+         here rather than shared as a component: one lives in a list-page modal building
+         a brand-new record, this one edits an existing one and needs :value/:current on
+         every field, close enough in shape but not close enough to be worth the
+         indirection of a shared partial. Status and verification stay off this form —
+         those are Approve/Reject/Reset password's job, not an edit's. --}}
+    <div x-data="{ open: @js($editReopen) }"
+         x-on:open-cp-edit.window="open = true"
+         x-show="open" x-cloak
+         @keydown.escape.window="open = false"
+         class="fixed inset-0 z-[55] flex items-start justify-center px-4 py-10 overflow-y-auto"
+         role="dialog" aria-modal="true" aria-labelledby="cp-edit-title">
+
+        <div x-show="open" x-transition.opacity @click="open = false" class="fixed inset-0 bg-scrim"></div>
+
+        <div x-show="open"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 translate-y-3 scale-[0.98]"
+             x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+             class="relative bg-panel rounded-2xl w-full max-w-2xl shadow-modal my-auto">
+
+            <header class="px-6 py-4 border-b border-line flex items-start justify-between gap-4">
+                <div class="min-w-0">
+                    <h3 id="cp-edit-title" class="text-[15px] font-semibold text-ink tracking-[-0.01em]">Edit channel partner</h3>
+                    <p class="text-[12.5px] text-ink-3 mt-0.5">Changing the email changes the login this partner signs in with.</p>
+                </div>
+                <button type="button" @click="open = false" aria-label="Close dialog"
+                        class="text-ink-3 hover:text-ink hover:bg-canvas rounded-lg p-1.5 -m-1 transition-colors shrink-0">
+                    <x-icon name="x" class="w-4.5 h-4.5" />
+                </button>
+            </header>
+
+            <form method="POST" action="{{ route('admin.cp.update', $broker) }}" enctype="multipart/form-data"
+                  class="px-6 py-5 space-y-5"
+                  x-data="{ isCompany: {{ old('is_company', (bool) $profile?->is_company) ? 'true' : 'false' }}, busy: false }"
+                  x-on:submit="
+                      $event.preventDefault();
+                      busy = true;
+                      Promise.resolve(window.compressFileInputs?.($el))
+                          .catch((error) => console.error('Attachment compression failed; uploading originals.', error))
+                          .finally(() => {
+                              window.dispatchEvent(new CustomEvent('navigate-start'));
+                              $el.submit();
+                          });
+                  ">
+                @csrf @method('PATCH')
+                <input type="hidden" name="_form" value="cp-edit">
+
+                @if($errors->any() && old('_form') === 'cp-edit')
+                    <div class="flex items-start gap-2.5 rounded-lg bg-warning-soft ring-1 ring-inset ring-warning-ring px-3.5 py-3">
+                        <x-icon name="shield" class="w-4 h-4 text-warning shrink-0 mt-0.5" />
+                        <p class="text-[12.5px] text-ink-2 leading-relaxed">
+                            <span class="font-medium text-ink">Re-select any photo or documents below.</span>
+                            File choices can't survive a failed save — everything else you typed is still here.
+                        </p>
+                    </div>
+                @endif
+
+                {{-- Personal ---------------------------------------------------- --}}
+                <div class="space-y-3">
+                    <x-field label="Full name" name="name" :value="$broker->name" required />
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <x-field label="Mobile number" name="mobile" :value="$broker->mobile" icon="phone" required />
+                        <x-field label="Alternate mobile" name="alternate_mobile" :value="$profile?->alternate_mobile" icon="phone" />
+                    </div>
+
+                    <x-field label="Email" name="email" type="email" :value="$broker->email" icon="mail" required
+                              hint="This is their login." />
+
+                    <x-field label="Residence address" name="residence_address" type="textarea" rows="2"
+                              :value="$profile?->residence_address" />
+
+                    <x-file-field label="Photo" name="photo" accept="image/*" :current="$profile?->photo_path"
+                                  hint="Passport-size photo — shown as their avatar across the app." />
+                </div>
+
+                {{-- Business ------------------------------------------------------ --}}
+                <div class="border-t border-line-soft space-y-3 pt-4">
+                    <x-switch-field label="Registering as a company?" name="is_company"
+                                    :checked="(bool) $profile?->is_company" x-model="isCompany" />
+
+                    <div x-show="isCompany" x-cloak class="space-y-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <x-field label="Company name" name="company_name" :value="$profile?->company_name" />
+                            <x-field label="Company website" name="company_website" :value="$profile?->company_website" />
+                        </div>
+                        <x-field label="Office address" name="office_address" :value="$profile?->office_address" />
+
+                        <div>
+                            <p class="text-[12.5px] font-medium text-ink mb-1.5">Social media</p>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                @foreach(\App\Support\SocialPlatforms::ALL as $key => $label)
+                                    <x-field :label="$label" :name="$key" :value="$profile?->{$key}" placeholder="@handle or profile URL" />
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Location & coverage -------------------------------------------- --}}
+                <div class="border-t border-line-soft space-y-3 pt-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <x-field label="City" name="city" :value="$profile?->city" />
+                        <x-field label="State" name="state" :value="$profile?->state" />
+                    </div>
+
+                    <x-checkbox-group label="Categories" name="segments" columns="3"
+                                       :options="['Residential', 'Commercial', 'Lands', 'Liaisoning', 'All']"
+                                       :selected="$profile?->segments ?? []" />
+                    <x-checkbox-group label="Zones" name="zones" columns="3"
+                                       :options="['East', 'West', 'North', 'South', 'Central', 'All']"
+                                       :selected="$profile?->zones ?? []" />
+
+                    <x-field label="Project contributions" name="project_contributions" type="textarea" rows="2"
+                              :value="$profile?->project_contributions" />
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <x-field label="Years of experience" name="years_of_experience" type="number" :value="$profile?->years_of_experience" />
+                        <x-field label="Team size" name="team_size" type="number" :value="$profile?->team_size" />
+                    </div>
+                </div>
+
+                {{-- KYC ------------------------------------------------------------ --}}
+                <div class="border-t border-line-soft space-y-3 pt-4">
+                    <div class="flex items-center gap-2">
+                        <h4 class="text-[13px] font-semibold text-ink">KYC & compliance</h4>
+                        <x-badge tone="neutral" size="sm">Optional</x-badge>
+                    </div>
+
+                    <x-field label="RERA number" name="rera_number" :value="$profile?->rera_number" />
+                    <x-file-field label="RERA certificate" name="rera_certificate_file" accept=".pdf,image/*"
+                                  :current="$profile?->rera_certificate_path" hint="PDF or a photo of the certificate." />
+
+                    <x-field label="PAN card number" name="pan_card" :value="$profile?->pan_card" />
+                    <x-file-field label="PAN card copy" name="pan_card_file" accept=".pdf,image/*"
+                                  :current="$profile?->pan_card_path" hint="PDF or a photo of the card." />
+
+                    <x-field label="Aadhaar number" name="aadhaar_card" :value="$profile?->aadhaar_card" />
+                    <x-file-field label="Aadhaar copy" name="aadhaar_file" accept=".pdf,.xml,image/*"
+                                  :current="$profile?->aadhaar_path" hint="PDF, UIDAI offline XML, or a photo of the card." />
+
+                    <x-field label="GST number" name="gst_number" :value="$profile?->gst_number" />
+                    <x-file-field label="GST certificate" name="gst_file" accept=".pdf,image/*"
+                                  :current="$profile?->gst_path" hint="Optional." />
+                </div>
+
+                <div class="pt-1 flex items-center justify-end gap-2.5">
+                    <button type="button" @click="open = false"
+                            class="h-9 px-4 rounded-lg text-[13px] font-medium text-ink-2 hover:text-ink hover:bg-line-soft transition-colors">
+                        Cancel
+                    </button>
+                    <x-button variant="gold" tag="button" type="submit" icon="check" x-bind:disabled="busy">
+                        <span x-show="! busy">Save changes</span>
+                        <span x-show="busy" x-cloak>Saving…</span>
+                    </x-button>
+                </div>
+            </form>
         </div>
     </div>
 

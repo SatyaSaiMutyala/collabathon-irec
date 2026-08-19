@@ -1,6 +1,7 @@
 import {useCallback, useState} from 'react';
 import {Platform, PermissionsAndroid} from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
+import {reverseGeocode} from '../utils/geocoding';
 
 async function requestAndroidPermission() {
   if (Platform.OS !== 'android') {
@@ -10,17 +11,6 @@ async function requestAndroidPermission() {
     PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
   );
   return granted === PermissionsAndroid.RESULTS.GRANTED;
-}
-
-async function reverseGeocode(lat, lon) {
-  const response = await fetch(
-    `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`,
-    {headers: {'User-Agent': 'CollabathonApp/1.0'}},
-  );
-  const json = await response.json();
-  const address = json?.address ?? {};
-  const city = address.city || address.town || address.state || 'Unknown';
-  return {city, label: city};
 }
 
 export function useCurrentLocation() {
