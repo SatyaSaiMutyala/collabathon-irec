@@ -5,6 +5,7 @@ import {useAppTheme} from '../../theme';
 import {
   AppText,
   BrokerLeadCard,
+  EmptyState,
   PaginatedList,
   BrokerLeadCardSkeleton,
   PropertyDetailSkeleton,
@@ -16,7 +17,7 @@ import {useAppDispatch, useAppSelector} from '../../store/hooks';
 // Deliberately the developer's own endpoint, not the broker one: /properties/{id}
 // 404s for a project still awaiting this developer's acceptance, which is exactly the
 // project they most need to open.
-import {fetchMyProperty, selectMyPropertyById} from '../../store/slices/myPropertiesSlice';
+import {fetchMyProperty, selectMyPropertyById, selectMyPropertyStatus} from '../../store/slices/myPropertiesSlice';
 import {
   fetchNextPropertyLeads,
   fetchPropertyLeads,
@@ -31,7 +32,7 @@ const PropertyLeadsScreen = ({route, navigation}) => {
   const {projectId} = route.params;
 
   const project = useAppSelector(state => selectMyPropertyById(state, projectId));
-  const detailStatus = useAppSelector(state => state.myProperties.detail.status);
+  const detailStatus = useAppSelector(state => selectMyPropertyStatus(state, projectId));
   const list = useAppSelector(selectPropertyLeads);
 
   const loadFirstPage = useCallback(() => {
@@ -54,8 +55,13 @@ const PropertyLeadsScreen = ({route, navigation}) => {
     return detailStatus === 'loading' || detailStatus === 'idle' ? (
       <PropertyDetailSkeleton />
     ) : (
-      <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
-        <AppText variant="body">Property not found.</AppText>
+      <View style={{flex: 1, justifyContent: 'center'}}>
+        <EmptyState
+          icon="home-outline"
+          title="Property not found"
+          message="This listing may have been removed or is no longer available."
+          style={{marginTop: 0}}
+        />
       </View>
     );
   }
@@ -77,8 +83,8 @@ const PropertyLeadsScreen = ({route, navigation}) => {
           onRefresh={loadFirstPage}
           onEndReached={handleEndReached}
           emptyIcon="people-outline"
-          emptyTitle="No CP interest yet"
-          emptyMessage="Views and interests on this listing will appear here."
+          emptyTitle="No CP requests yet"
+          emptyMessage="Views and requests on this listing will appear here."
           contentContainerStyle={{paddingBottom: spacing.xxxl}}
           ListHeaderComponent={
             <>
@@ -93,7 +99,7 @@ const PropertyLeadsScreen = ({route, navigation}) => {
 
               <View style={{paddingHorizontal: spacing.lg}}>
                 <AppText variant="h3" style={{marginTop: spacing.xl, marginBottom: spacing.sm}}>
-                  CP Interest ({list.total})
+                  CP Requests ({list.total})
                 </AppText>
               </View>
             </>

@@ -7,7 +7,12 @@ const SwipeableImages = ({images, height, dotsPosition = 'bottom', showDots = tr
   const {colors} = useAppTheme();
   const [width, setWidth] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
-  const list = images?.length ? images : [];
+  // Both callers fall back to `[project.coverImage]` when there's no gallery —
+  // and a property with neither a gallery nor a cover image makes that a single
+  // `[null]` entry, not an empty array. Filtering here (once, for every caller)
+  // is what stops `<Image source={{uri: null}}>` from ever mounting and logging
+  // "Image source 'null' doesn't exist".
+  const list = (images ?? []).filter(Boolean);
 
   const handleScroll = e => {
     if (!width) {

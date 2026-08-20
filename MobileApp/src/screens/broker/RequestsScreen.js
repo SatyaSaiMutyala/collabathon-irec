@@ -1,4 +1,5 @@
-import React, {useCallback, useEffect} from 'react';
+import React, {useCallback} from 'react';
+import {useFocusEffect} from '@react-navigation/native';
 import {useAppTheme} from '../../theme';
 import {AppText, LeadCard, PaginatedList, LeadCardSkeleton, ScreenContainer} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
@@ -24,12 +25,16 @@ const RequestsScreen = ({navigation}) => {
     dispatch(fetchLeads({page: 1, status: 'interested'}));
   }, [dispatch]);
 
-  // On mount, not on focus. Nothing else writes to this list any more, so refetching
-  // every time the screen comes back would only throw away the scroll position the user
-  // had when they tapped through to a detail screen. Pull-to-refresh is the way back.
-  useEffect(() => {
-    loadFirstPage();
-  }, [loadFirstPage]);
+  // Refetched on every focus, not just mount — this tab stays mounted for the life of
+  // the session (React Navigation doesn't remount a tab on switch), so a mount-only
+  // fetch never saw a request made from a property's own detail screen ("I'm
+  // Interested") until the whole app restarted. Coming back into focus is exactly the
+  // moment this list might have changed.
+  useFocusEffect(
+    useCallback(() => {
+      loadFirstPage();
+    }, [loadFirstPage]),
+  );
 
   const handleEndReached = useCallback(() => {
     dispatch(fetchNextLeads());
@@ -49,7 +54,7 @@ const RequestsScreen = ({navigation}) => {
         onEndReached={handleEndReached}
         emptyIcon="paper-plane-outline"
         emptyTitle="No requests yet"
-        emptyMessage="Listings you mark as Interested appear here while you wait on the developer."
+        emptyMessage="Listings you request appear here while you wait on the developer."
         renderItem={({item}) => (
           <LeadCard
             lead={item}

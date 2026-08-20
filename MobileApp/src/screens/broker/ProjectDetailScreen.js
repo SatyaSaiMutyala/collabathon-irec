@@ -7,6 +7,7 @@ import {useAppTheme} from '../../theme';
 import {
   AppText,
   Button,
+  EmptyState,
   PropertyDetailBody,
   PropertyDetailSkeleton,
   PropertyHero,
@@ -16,6 +17,7 @@ import {
   fetchProperty,
   markInterested,
   selectPropertyById,
+  selectPropertyStatus,
 } from '../../store/slices/propertiesSlice';
 
 /**
@@ -38,7 +40,7 @@ const ProjectDetailScreen = ({route, navigation}) => {
   const {projectId} = route.params;
 
   const project = useAppSelector(state => selectPropertyById(state, projectId));
-  const detailStatus = useAppSelector(state => state.properties.detail.status);
+  const detailStatus = useAppSelector(state => selectPropertyStatus(state, projectId));
   const interestStatus = useAppSelector(state => state.properties.interestStatus);
   const interestError = useAppSelector(state => state.properties.interestError);
 
@@ -53,8 +55,13 @@ const ProjectDetailScreen = ({route, navigation}) => {
     return detailStatus === 'loading' || detailStatus === 'idle' ? (
       <PropertyDetailSkeleton />
     ) : (
-      <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
-        <AppText variant="body">Project not found.</AppText>
+      <View style={{flex: 1, justifyContent: 'center'}}>
+        <EmptyState
+          icon="home-outline"
+          title="Project not found"
+          message="This listing may have been removed or is no longer available."
+          style={{marginTop: 0}}
+        />
       </View>
     );
   }
@@ -63,9 +70,9 @@ const ProjectDetailScreen = ({route, navigation}) => {
   const hasInterest = !!lead && lead.status !== 'viewed';
 
   const statusCopy = {
-    interested: 'Marked as Interested — awaiting developer',
-    accepted: 'Interest accepted — contact shared',
-    declined: 'The developer declined this interest',
+    interested: 'Request Sent — Awaiting Developer Confirmation',
+    accepted: 'Request accepted — contact shared',
+    declined: 'The developer declined this request',
   };
 
   const toneFor = status =>
@@ -122,7 +129,7 @@ const ProjectDetailScreen = ({route, navigation}) => {
                 variant="bodyMedium"
                 color={toneFor(lead.status)}
                 style={{marginLeft: spacing.xs}}>
-                {statusCopy[lead.status] ?? 'Interest recorded'}
+                {statusCopy[lead.status] ?? 'Request recorded'}
               </AppText>
             </View>
           ) : (
@@ -136,7 +143,7 @@ const ProjectDetailScreen = ({route, navigation}) => {
                 </AppText>
               )}
               <Button
-                label={interestStatus === 'loading' ? 'Sending…' : 'Mark as Interested'}
+                label={interestStatus === 'loading' ? 'Sending…' : "I'm Interested"}
                 icon="bookmark"
                 disabled={interestStatus === 'loading'}
                 onPress={() => dispatch(markInterested(project.id))}
@@ -161,6 +168,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: moderateScale(14),
+    // The footer's own paddingHorizontal insets this box from the *screen* edge,
+    // but says nothing about the box's own tinted background having room to
+    // breathe from the footer's edge — without its own horizontal padding the
+    // colour fill runs flush to both sides of the box, reading as if there were
+    // no gap at all even though the footer padding is there.
+    paddingHorizontal: moderateScale(16),
+    marginHorizontal: moderateScale(4),
   },
 });
 

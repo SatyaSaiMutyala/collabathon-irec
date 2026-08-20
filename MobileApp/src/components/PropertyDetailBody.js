@@ -9,6 +9,7 @@ import AppText from './AppText';
 import AttachmentList from './AttachmentList';
 import Badge from './Badge';
 import Card from './Card';
+import InfoGrid from './InfoGrid';
 import InfoRow from './InfoRow';
 import UnitTypeTable from './UnitTypeTable';
 
@@ -217,10 +218,14 @@ const PropertyDetailBody = ({project, highlightCommission = false}) => {
             Configuration
           </SectionTitle>
           <Card>
-            <InfoRow icon="resize-outline" label="Project Extent Metric" value={configuration.extentMetric} />
-            <InfoRow icon="business-outline" label="Total Units" value={configuration.totalUnits} />
-            <InfoRow icon="layers-outline" label="Towers / Blocks" value={configuration.towers} />
-            <InfoRow icon="git-commit-outline" label="No. of Floors" value={configuration.floors} />
+            <InfoGrid
+              items={[
+                {icon: 'resize-outline', label: 'Project Extent Metric', value: configuration.extentMetric},
+                {icon: 'business-outline', label: 'Total Units', value: configuration.totalUnits},
+                {icon: 'layers-outline', label: 'Towers / Blocks', value: configuration.towers},
+                {icon: 'git-commit-outline', label: 'No. of Floors', value: configuration.floors},
+              ]}
+            />
           </Card>
         </>
       )}
@@ -232,14 +237,18 @@ const PropertyDetailBody = ({project, highlightCommission = false}) => {
             Address &amp; Connectivity
           </SectionTitle>
           <Card>
-            <InfoRow icon="business-outline" label="City" value={location.city} />
-            <InfoRow icon="map-outline" label="State" value={location.state} />
-            <InfoRow icon="location-outline" label="Locality / Area" value={location.locality} />
+            <InfoGrid
+              items={[
+                {icon: 'business-outline', label: 'City', value: location.city},
+                {icon: 'map-outline', label: 'State', value: location.state},
+                {icon: 'location-outline', label: 'Locality / Area', value: location.locality},
+                {icon: 'mail-open-outline', label: 'Pincode', value: location.pincode},
+                {icon: 'compass-outline', label: 'Zone', value: location.zone},
+                {icon: 'pin-outline', label: 'Coordinates', value: location.coordinates},
+              ]}
+            />
             <InfoRow icon="navigate-outline" label="Full Address" value={location.fullAddress} />
             <InfoRow icon="flag-outline" label="Landmark" value={location.landmark} />
-            <InfoRow icon="mail-open-outline" label="Pincode" value={location.pincode} />
-            <InfoRow icon="compass-outline" label="Zone" value={location.zone} />
-            <InfoRow icon="pin-outline" label="Coordinates" value={location.coordinates} />
             {/* Tappable rather than plain text: a maps URL is only useful when it opens. */}
             <InfoRow
               icon="map-outline"
@@ -261,10 +270,14 @@ const PropertyDetailBody = ({project, highlightCommission = false}) => {
             Specifications
           </SectionTitle>
           <Card>
-            <InfoRow icon="square-outline" label="Land Parcel" value={specs.landParcel} />
-            <InfoRow icon="map-outline" label="Total Project Area" value={specs.totalProjectArea} />
-            <InfoRow icon="ribbon-outline" label="Green Certification" value={specs.greenCertification} />
-            <InfoRow icon="compass-outline" label="Vastu Compliant" value={specs.vastuCompliant} />
+            <InfoGrid
+              items={[
+                {icon: 'square-outline', label: 'Land Parcel', value: specs.landParcel},
+                {icon: 'map-outline', label: 'Total Project Area', value: specs.totalProjectArea},
+                {icon: 'ribbon-outline', label: 'Green Certification', value: specs.greenCertification},
+                {icon: 'compass-outline', label: 'Vastu Compliant', value: specs.vastuCompliant},
+              ]}
+            />
           </Card>
         </>
       )}

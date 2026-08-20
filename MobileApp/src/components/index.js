@@ -28,6 +28,7 @@ export {default as LeadCard} from './LeadCard';
 export {default as PartnerCard} from './PartnerCard';
 export {default as ProjectMiniCard} from './ProjectMiniCard';
 export {default as InfoRow} from './InfoRow';
+export {default as InfoGrid} from './InfoGrid';
 export {default as AttachmentList} from './AttachmentList';
 export {default as UnitTypeTable} from './UnitTypeTable';
 export {default as PropertyHero} from './PropertyHero';

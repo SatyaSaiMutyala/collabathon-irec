@@ -59,7 +59,7 @@
                                      and the template fails to parse. --}}
                                 Your registration @if($company)for <strong style="color:#1d1d1f;">{{ $company }}</strong> @endif
                                 has been reviewed and approved. You can now sign in to the {{ $appName }} app,
-                                browse live inventory from our developers, and register your interest in any project.
+                                browse live inventory from our developers, and send a request on any project.
                             </p>
                         </td>
                     </tr>
@@ -121,8 +121,8 @@
                             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                                 @foreach([
                                     'Browse every live project from our developer partners',
-                                    'Register interest and unlock the developer\'s contact details',
-                                    'Track each request from interest through to acceptance',
+                                    'Send a request and unlock the developer\'s contact details',
+                                    'Track each request from submission through to acceptance',
                                     'Read the channel partner terms attached to each project',
                                 ] as $item)
                                     <tr>

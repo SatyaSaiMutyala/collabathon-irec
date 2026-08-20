@@ -17,7 +17,13 @@ import {
 
 const initialState = {
   list: initialListState(),
-  detail: {byId: {}, status: 'idle', error: null},
+  // Keyed by property id, not one shared status/error — a single flag couldn't tell
+  // "still loading *this* property" from "already loaded a *different* one a moment
+  // ago", so opening property B right after property A briefly rendered "Property
+  // not found" every time: on B's first render, `byId[B]` is empty but `status` was
+  // still A's leftover 'succeeded', not 'loading'. Same shape `properties[id]`
+  // already uses below for a developer's own listings.
+  detail: {byId: {}, statusById: {}, errorById: {}},
   interestStatus: 'idle', // idle | loading | succeeded | failed
   interestError: null,
 };
@@ -109,17 +115,17 @@ const propertiesSlice = createSlice({
       })
 
       // ------------------------------------------------ detail
-      .addCase(fetchProperty.pending, state => {
-        state.detail.status = 'loading';
-        state.detail.error = null;
+      .addCase(fetchProperty.pending, (state, action) => {
+        state.detail.statusById[action.meta.arg] = 'loading';
+        state.detail.errorById[action.meta.arg] = null;
       })
       .addCase(fetchProperty.fulfilled, (state, action) => {
-        state.detail.status = 'succeeded';
+        state.detail.statusById[action.payload.id] = 'succeeded';
         state.detail.byId[action.payload.id] = action.payload;
       })
       .addCase(fetchProperty.rejected, (state, action) => {
-        state.detail.status = 'failed';
-        state.detail.error = action.payload?.message ?? 'Could not load this property.';
+        state.detail.statusById[action.meta.arg] = 'failed';
+        state.detail.errorById[action.meta.arg] = action.payload?.message ?? 'Could not load this property.';
       })
 
       // ------------------------------------------------ interest
@@ -148,7 +154,7 @@ const propertiesSlice = createSlice({
       })
       .addCase(markInterested.rejected, (state, action) => {
         state.interestStatus = 'failed';
-        state.interestError = action.payload?.message ?? 'Could not record your interest.';
+        state.interestError = action.payload?.message ?? 'Could not send your request.';
       });
   },
 });
@@ -161,5 +167,6 @@ export const selectPropertiesStatus = state => state.properties.list.status;
 export const selectPropertiesError = state => state.properties.list.error;
 export const selectCanLoadMoreProperties = state => canLoadMore(state.properties.list);
 export const selectPropertyById = (state, id) => state.properties.detail.byId[id];
+export const selectPropertyStatus = (state, id) => state.properties.detail.statusById[id] ?? 'idle';
 
 export default propertiesSlice.reducer;

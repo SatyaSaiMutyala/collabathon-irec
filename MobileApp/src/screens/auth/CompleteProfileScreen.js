@@ -408,11 +408,17 @@ const CompleteProfileScreen = ({navigation, route}) => {
       if (!form.panCardAttachment) {
         next.panCardAttachment = 'Attach a copy of the PAN card';
       }
-      if (!form.aadhaarCard.trim()) {
-        next.aadhaarCard = 'Enter Aadhaar number';
-      }
-      if (!form.aadhaarAttachment) {
-        next.aadhaarAttachment = 'Attach your Aadhaar (PDF or a photo of the card)';
+      // Required for an individual broker — Aadhaar is their own identity proof.
+      // Optional once registering as a company: the company's own documents (PAN,
+      // RERA) carry that weight instead, and a company isn't a person with an
+      // Aadhaar of its own to attach.
+      if (!form.isCompany) {
+        if (!form.aadhaarCard.trim()) {
+          next.aadhaarCard = 'Enter Aadhaar number';
+        }
+        if (!form.aadhaarAttachment) {
+          next.aadhaarAttachment = 'Attach your Aadhaar (PDF or a photo of the card)';
+        }
       }
       if (!form.reraNumber.trim()) {
         next.reraNumber = 'Enter RERA number';
@@ -1283,7 +1289,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
 
               <Input
                 ref={registerRef('aadhaarCard')}
-                label="Aadhaar card *"
+                label={form.isCompany ? 'Aadhaar card (optional for a company)' : 'Aadhaar card *'}
                 placeholder="XXXX XXXX XXXX"
                 keyboardType="number-pad"
                 value={form.aadhaarCard}

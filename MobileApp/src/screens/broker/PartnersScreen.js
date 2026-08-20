@@ -1,5 +1,6 @@
-import React, {useCallback, useEffect} from 'react';
+import React, {useCallback} from 'react';
 import {View} from 'react-native';
+import {useFocusEffect} from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
@@ -37,11 +38,15 @@ const PartnersScreen = ({navigation}) => {
     dispatch(fetchAcceptedLeads({page: 1}));
   }, [dispatch]);
 
-  // On mount, not on focus — `leads.accepted` has one writer, so coming back from a
-  // project would otherwise reload the list and lose where the user was.
-  useEffect(() => {
-    loadFirstPage();
-  }, [loadFirstPage]);
+  // Refetched on every focus, not just mount — this tab stays mounted for the life of
+  // the session, so a mount-only fetch never saw a developer's accept/decline made
+  // elsewhere (e.g. the app reopened after a push, or another tab) until the whole app
+  // restarted. Coming back into focus is exactly the moment this list might have changed.
+  useFocusEffect(
+    useCallback(() => {
+      loadFirstPage();
+    }, [loadFirstPage]),
+  );
 
   const handleEndReached = useCallback(() => {
     dispatch(fetchNextAcceptedLeads());

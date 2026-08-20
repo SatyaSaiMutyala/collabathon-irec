@@ -45,7 +45,7 @@ const STATUSES = [
 
 const SORTS = [
   {key: 'created_at', label: 'Newest', direction: 'desc'},
-  {key: 'interests', label: 'Most interest', direction: 'desc'},
+  {key: 'interests', label: 'Most requested', direction: 'desc'},
   {key: 'price', label: 'Price', direction: 'desc'},
   {key: 'name', label: 'A–Z', direction: 'asc'},
 ];
@@ -307,7 +307,7 @@ const MyPropertiesScreen = ({navigation}) => {
                   variant="caption"
                   color={colors.primaryDark}
                   style={{marginLeft: spacing.xs}}>
-                  {item.interestsCount} interested
+                  {item.interestsCount} requested
                 </AppText>
               )}
             </View>

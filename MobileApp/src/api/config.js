@@ -15,12 +15,12 @@ import {Platform} from 'react-native';
  * `php artisan serve --host=0.0.0.0` so the device can reach it directly. Leave it null
  * to use loopback. It is machine-specific: do not commit a value you did not set.
  */
-// Back to loopback + `adb reverse tcp:8001 tcp:8001`. The LAN address (192.168.29.164)
-// is reachable in principle, but this machine's Wi-Fi is on Windows' Public profile,
-// which blocks inbound 8001 — and opening it needs an elevated firewall rule. The adb
-// tunnel needs no admin and no firewall change, so it is the path of least resistance
-// here. Set this to the Wi-Fi address only if the tunnel is unavailable.
-const LAN_HOST = null;
+// LAN mode: `php artisan serve --host 0.0.0.0 --port 8000`, reached directly over
+// Wi-Fi at this machine's own address — no adb reverse tunnel involved, so this
+// still works even when the tunnel keeps dying. Machine-specific — update this (or
+// set back to null to use the adb-reverse/loopback path) whenever the Mac's Wi-Fi
+// IP changes.
+const LAN_HOST = '192.168.1.4';
 
 const DEV_HOST =
   LAN_HOST ??
@@ -35,21 +35,22 @@ const DEV_HOST =
 // here hands the device working API responses with broken (unreachable-host) media links.
 // Only read by the local-dev line below.
 //
-// 8001, not 8000: this machine already serves `pace-backend` on 8000, which answers every
-// Collabathon request with its own sign-in page. Collabathon's APP_URL is :8001 and that
-// is where it must be served from.
-const DEV_PORT = 8001;
+// Currently 8000 to match the LAN server this is pointed at above — this machine also
+// serves `pace-backend` on 8000 sometimes, which answers every Collabathon request with
+// its own sign-in page instead, so if that's running again switch this back to 8001 (and
+// serve Collabathon with `--port 8001` instead) to avoid the collision.
+const DEV_PORT = 8000;
 
 // Every endpoint in api/endpoints.js is written relative — '/auth/login', '/leads' — so
 // the version prefix belongs here. Without it those resolve to /auth/login on the host
 // root, which Laravel answers with a 404 the client reports as "cannot reach the server".
 // PRODUCTION — the live domain. Uncomment this (and comment the local-dev line below)
 // for any build that ships, App Store submissions included.
-export const API_BASE_URL = 'https://brown-hedgehog-768805.hostingersite.com/api/v1';
+// export const API_BASE_URL = 'https://brown-hedgehog-768805.hostingersite.com/api/v1';
 
 // LOCAL DEV — `php artisan serve --port=8001`, reached through the adb tunnel. Swap
 // this back in (and comment the production line above) to point at this machine instead.
-// export const API_BASE_URL = `http://${DEV_HOST}:${DEV_PORT}/api/v1`;
+export const API_BASE_URL = `http://${DEV_HOST}:${DEV_PORT}/api/v1`;
 
 /** Matches the server-side cap in HandlesListQueries. */
 export const DEFAULT_PAGE_SIZE = 20;

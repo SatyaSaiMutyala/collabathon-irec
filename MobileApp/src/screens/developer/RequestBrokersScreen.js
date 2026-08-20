@@ -50,7 +50,7 @@ const RequestBrokersScreen = ({navigation}) => {
         renderSkeleton={() => <BrokerLeadCardSkeleton />}
         emptyIcon="mail-open-outline"
         emptyTitle="No requests yet"
-        emptyMessage="When a channel partner marks one of your listings as Interested, it appears here."
+        emptyMessage="When a channel partner sends a request on one of your listings, it appears here."
         renderItem={({item}) => (
           <BrokerLeadCard
             lead={item}

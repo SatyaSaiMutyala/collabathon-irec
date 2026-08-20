@@ -6,7 +6,9 @@ import {useAppTheme} from '../../theme';
 import {
   AppText,
   Avatar,
+  Badge,
   Card,
+  EmptyState,
   InfoRow,
   PaginatedList,
   PropertyCard,
@@ -21,6 +23,7 @@ import {
   fetchDeveloperProperties,
   selectDeveloperById,
   selectDeveloperProperties,
+  selectDeveloperStatus,
 } from '../../store/slices/developersSlice';
 import {canLoadMore} from '../../store/paginated';
 import {openLink} from '../../utils/openLink';
@@ -37,7 +40,7 @@ const DeveloperProfileScreen = ({route, navigation}) => {
 
   const developer = useAppSelector(state => selectDeveloperById(state, developerId));
   const properties = useAppSelector(state => selectDeveloperProperties(state, developerId));
-  const detailStatus = useAppSelector(state => state.developers.detail.status);
+  const detailStatus = useAppSelector(state => selectDeveloperStatus(state, developerId));
 
   const loadFirstPage = useCallback(() => {
     dispatch(fetchDeveloperProperties({developerId, page: 1}));
@@ -54,18 +57,27 @@ const DeveloperProfileScreen = ({route, navigation}) => {
     }
   }, [dispatch, developerId, properties]);
 
-  if (!developer && detailStatus === 'loading') {
-    return (
-      <ScreenContainer edges={['top']}>
-        <ProfileDetailSkeleton />
-      </ScreenContainer>
-    );
-  }
-
   if (!developer) {
+    // `idle` counts as loading, same reasoning as ProjectDetailScreen/
+    // PropertyLeadsScreen: this screen renders once before its effect dispatches
+    // (a brand new developerId starts at 'idle', not 'loading'), and that frame
+    // must not read as "not found" either.
+    if (detailStatus === 'loading' || detailStatus === 'idle') {
+      return (
+        <ScreenContainer edges={['top']}>
+          <ProfileDetailSkeleton />
+        </ScreenContainer>
+      );
+    }
+
     return (
-      <ScreenContainer edges={['top']}>
-        <AppText variant="body">Developer not found.</AppText>
+      <ScreenContainer edges={['top']} style={{justifyContent: 'center'}}>
+        <EmptyState
+          icon="alert-circle-outline"
+          title="Developer not found"
+          message="This developer may have been removed or is no longer listed."
+          style={{marginTop: 0}}
+        />
       </ScreenContainer>
     );
   }
@@ -121,6 +133,14 @@ const DeveloperProfileScreen = ({route, navigation}) => {
                   style={{marginTop: moderateScale(2)}}>
                   {[developer.city, developer.state].filter(Boolean).join(', ')}
                 </AppText>
+                {!!developer.status && (
+                  <View style={{marginTop: spacing.sm}}>
+                    <Badge
+                      label={developer.status[0].toUpperCase() + developer.status.slice(1)}
+                      tone={developer.status === 'active' ? 'success' : 'neutral'}
+                    />
+                  </View>
+                )}
               </View>
 
               <View
@@ -136,9 +156,17 @@ const DeveloperProfileScreen = ({route, navigation}) => {
                       value: String(developer.properties_count ?? properties.total),
                       label: 'Properties',
                     },
-                    developer.verified
-                      ? {icon: 'shield-checkmark', iconTone: 'success', label: 'Verified'}
-                      : {icon: 'shield-outline', iconTone: 'muted', label: 'Unverified'},
+                    {
+                      // Commission varies per property, not per developer — it
+                      // belongs on the property card, not here. Join year is
+                      // developer-level and real, unlike Verified/Unverified
+                      // (which used to sit here but has no admin-panel
+                      // equivalent any more).
+                      value: developer.created_at
+                        ? String(new Date(developer.created_at).getFullYear())
+                        : '—',
+                      label: 'Since',
+                    },
                   ]}
                 />
               </View>
@@ -242,12 +270,6 @@ const DeveloperProfileScreen = ({route, navigation}) => {
                   onPress={() => openLink(link.value)}
                 />
               ))}
-              <InfoRow
-                icon="pulse-outline"
-                label="Account Status"
-                value={developer.status ? developer.status[0].toUpperCase() + developer.status.slice(1) : null}
-                valueColor={developer.status === 'active' ? colors.success : colors.textPrimary}
-              />
             </Card>
 
             <AppText variant="h3" style={{marginTop: spacing.xl, marginBottom: spacing.sm}}>

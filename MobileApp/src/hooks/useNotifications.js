@@ -30,18 +30,18 @@ const STATUS_CONFIG = {
     accepted: {
       icon: 'checkmark-circle',
       tone: 'success',
-      title: 'Interest accepted',
+      title: 'Request accepted',
       message: lead =>
-        `${lead.developer?.company_name ?? 'The developer'} accepted your interest in ${
+        `${lead.developer?.company_name ?? 'The developer'} accepted your request for ${
           lead.property?.name ?? 'a property'
         }. Contact details are now unlocked.`,
     },
     declined: {
       icon: 'close-circle',
       tone: 'danger',
-      title: 'Interest declined',
+      title: 'Request declined',
       message: lead =>
-        `${lead.developer?.company_name ?? 'The developer'} declined your interest in ${
+        `${lead.developer?.company_name ?? 'The developer'} declined your request for ${
           lead.property?.name ?? 'a property'
         }.`,
     },
@@ -50,7 +50,7 @@ const STATUS_CONFIG = {
       tone: 'warning',
       title: 'Awaiting response',
       message: lead =>
-        `Your interest in ${lead.property?.name ?? 'a property'} is with ${
+        `Your request for ${lead.property?.name ?? 'a property'} is with ${
           lead.developer?.company_name ?? 'the developer'
         }, awaiting response.`,
     },
@@ -61,25 +61,25 @@ const STATUS_CONFIG = {
       tone: 'success',
       title: 'Introduction Confirmed',
       message: lead =>
-        `You accepted ${lead.broker?.name ?? 'a channel partner'}'s interest in ${
+        `You accepted ${lead.broker?.name ?? 'a channel partner'}'s request for ${
           lead.property?.name ?? 'a property'
         }. Our team has been notified to follow up.`,
     },
     declined: {
       icon: 'close-circle',
       tone: 'neutral',
-      title: 'Interest Declined',
+      title: 'Request Declined',
       message: lead =>
-        `You declined ${lead.broker?.name ?? 'a channel partner'}'s interest in ${
+        `You declined ${lead.broker?.name ?? 'a channel partner'}'s request for ${
           lead.property?.name ?? 'a property'
         }.`,
     },
     interested: {
       icon: 'star',
       tone: 'primary',
-      title: 'New Interest',
+      title: 'New Request',
       message: lead =>
-        `${lead.broker?.name ?? 'A channel partner'} expressed interest in ${lead.property?.name ?? 'a listing'}.`,
+        `${lead.broker?.name ?? 'A channel partner'} sent a request for ${lead.property?.name ?? 'a listing'}.`,
     },
     viewed: {
       icon: 'eye',

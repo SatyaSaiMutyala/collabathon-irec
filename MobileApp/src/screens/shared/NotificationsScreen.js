@@ -97,17 +97,23 @@ const NotificationsScreen = ({navigation}) => {
   const leadsStatus = useAppSelector(state => state.leads.notifications.status);
   const isFirstLoad = leadsStatus === 'idle' || (leadsStatus === 'loading' && notifications.length === 0);
 
-  // Developer-only for now: every one of these notifications is about a broker's
-  // interaction with one of the developer's own listings, and PropertyLeadsScreen
-  // (unlike BrokerDetailScreen) fetches that lead list fresh on its own rather than
-  // depending on whatever's already sitting in Redux — so it can't show a false
-  // "no longer available" for a lead this screen's own unfiltered fetch never loaded
-  // into the same bucket the other screens read from.
+  // A developer's notifications are about a broker's interaction with one of their
+  // own listings, so they land on PropertyLeadsScreen — it (unlike BrokerDetailScreen)
+  // fetches that lead list fresh on its own rather than depending on whatever's
+  // already sitting in Redux, so it can't show a false "no longer available" for a
+  // lead this screen's own unfiltered fetch never loaded into the same bucket the
+  // other screens read from. A broker's notifications are about their own request on
+  // a property, so those land on the property itself — same place RequestsScreen and
+  // PartnersScreen already navigate to for the same lead.
   const handlePress = item => {
-    if (role !== 'developer' || !item.propertyId) {
+    if (!item.propertyId) {
       return;
     }
-    navigation.navigate('PropertyLeads', {projectId: item.propertyId});
+    if (role === 'developer') {
+      navigation.navigate('PropertyLeads', {projectId: item.propertyId});
+      return;
+    }
+    navigation.navigate('ProjectDetail', {projectId: item.propertyId});
   };
 
   useEffect(() => {
@@ -142,13 +148,13 @@ const NotificationsScreen = ({navigation}) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{paddingBottom: spacing.xxl}}
         renderItem={({item}) => (
-          <NotificationRow item={item} onPress={role === 'developer' ? () => handlePress(item) : undefined} />
+          <NotificationRow item={item} onPress={() => handlePress(item)} />
         )}
         ListEmptyComponent={
           <EmptyState
             icon="notifications-off-outline"
             title="No notifications"
-            message="Approvals, new interest and developer decisions land here."
+            message="Approvals, new requests and developer decisions land here."
           />
         }
       />

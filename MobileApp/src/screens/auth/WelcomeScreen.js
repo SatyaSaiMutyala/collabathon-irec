@@ -50,7 +50,7 @@ const buildRoles = brokerScreen => [
     key: 'broker',
     icon: 'briefcase-outline',
     title: 'Channel partners',
-    body: 'Browse live inventory, mark projects of interest, and follow your requests through to close.',
+    body: 'Browse live inventory, send requests on projects, and follow them through to close.',
     accent: '#7B61FF',
     soft: '#EFE9FD',
     screen: brokerScreen,
@@ -59,7 +59,7 @@ const buildRoles = brokerScreen => [
     key: 'developer',
     icon: 'business-outline',
     title: 'Developers',
-    body: 'List your projects and respond to partner interest as it comes in.',
+    body: 'List your projects and respond to partner requests as they come in.',
     accent: '#3E8EF7',
     soft: '#E8F1FE',
     // Email + password — admin-provisioned accounts, no self-serve path.

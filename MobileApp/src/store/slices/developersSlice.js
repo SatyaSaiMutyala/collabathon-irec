@@ -18,7 +18,13 @@ import {
 
 const initialState = {
   list: initialListState(),
-  detail: {byId: {}, status: 'idle', error: null},
+  // Keyed by developer id, not one shared status/error — a single flag couldn't
+  // tell "still loading *this* developer" from "already loaded a *different* one a
+  // moment ago", so opening developer B right after developer A briefly rendered
+  // "Developer not found" every time: on B's first render, `byId[B]` is empty but
+  // `status` was still A's leftover 'succeeded', not 'loading'. Same shape
+  // `properties[id]` below already uses for a developer's own listings.
+  detail: {byId: {}, statusById: {}, errorById: {}},
   // developerId -> paginated list of that developer's properties
   properties: {},
 };
@@ -96,17 +102,17 @@ const developersSlice = createSlice({
         listRejected(state.list, action);
       })
 
-      .addCase(fetchDeveloper.pending, state => {
-        state.detail.status = 'loading';
-        state.detail.error = null;
+      .addCase(fetchDeveloper.pending, (state, action) => {
+        state.detail.statusById[action.meta.arg] = 'loading';
+        state.detail.errorById[action.meta.arg] = null;
       })
       .addCase(fetchDeveloper.fulfilled, (state, action) => {
-        state.detail.status = 'succeeded';
+        state.detail.statusById[action.payload.id] = 'succeeded';
         state.detail.byId[action.payload.id] = action.payload;
       })
       .addCase(fetchDeveloper.rejected, (state, action) => {
-        state.detail.status = 'failed';
-        state.detail.error = action.payload?.message ?? 'Could not load this developer.';
+        state.detail.statusById[action.meta.arg] = 'failed';
+        state.detail.errorById[action.meta.arg] = action.payload?.message ?? 'Could not load this developer.';
       })
 
       // ------------------------------------------------ a developer's listings
@@ -134,6 +140,7 @@ export const selectDevelopers = state => state.developers.list.items;
 export const selectDevelopersStatus = state => state.developers.list.status;
 export const selectCanLoadMoreDevelopers = state => canLoadMore(state.developers.list);
 export const selectDeveloperById = (state, id) => state.developers.detail.byId[id];
+export const selectDeveloperStatus = (state, id) => state.developers.detail.statusById[id] ?? 'idle';
 /**
  * One shared instance for "this developer has no page loaded yet".
  *

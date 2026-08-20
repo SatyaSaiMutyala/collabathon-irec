@@ -1,9 +1,7 @@
 import React from 'react';
 import {ActivityIndicator, FlatList, RefreshControl, View} from 'react-native';
-import {moderateScale} from '../theme/scaling';
 import {useAppTheme} from '../theme';
 import AppText from './AppText';
-import Button from './Button';
 import EmptyState from './EmptyState';
 
 /**
@@ -53,18 +51,15 @@ const PaginatedList = React.forwardRef(({
 
   if (hasFailed) {
     return (
-      <View style={{paddingVertical: moderateScale(40), alignItems: 'center'}}>
-        <AppText variant="body" color={colors.textSecondary} style={{textAlign: 'center'}}>
-          {list.error}
-        </AppText>
-        {onRefresh && (
-          <Button
-            label="Try again"
-            variant="outline"
-            onPress={onRefresh}
-            style={{marginTop: spacing.md}}
-          />
-        )}
+      <View style={{flex: 1, justifyContent: 'center'}}>
+        <EmptyState
+          icon="cloud-offline-outline"
+          title="Connection problem"
+          message={list.error}
+          actionLabel={onRefresh ? 'Try again' : undefined}
+          onAction={onRefresh}
+          style={{marginTop: 0}}
+        />
       </View>
     );
   }
@@ -73,7 +68,7 @@ const PaginatedList = React.forwardRef(({
 
   if (isFirstLoad && !renderSkeleton) {
     return (
-      <View style={{paddingVertical: moderateScale(48), alignItems: 'center'}}>
+      <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
@@ -90,7 +85,16 @@ const PaginatedList = React.forwardRef(({
       renderItem={showSkeleton ? ({index}) => renderSkeleton(index) : renderItem}
       showsVerticalScrollIndicator={false}
       ListHeaderComponent={ListHeaderComponent}
-      contentContainerStyle={[{paddingBottom: spacing.xxl}, contentContainerStyle]}
+      // flexGrow (not just paddingBottom) only while genuinely empty — that's what
+      // lets EmptyState centre itself in the space below the header instead of
+      // sitting docked right under it. Applying this unconditionally would also
+      // centre a short *real* list vertically instead of anchoring it to the top,
+      // which is the wrong look once there's actual content to scroll.
+      contentContainerStyle={[
+        {paddingBottom: spacing.xxl},
+        list.items.length === 0 && !showSkeleton && {flexGrow: 1, justifyContent: 'center'},
+        contentContainerStyle,
+      ]}
       // Refreshing is only true on an explicit page-1 reload, never on load-more,
       // otherwise the spinner flashes every time the user reaches the bottom.
       refreshControl={
@@ -126,6 +130,7 @@ const PaginatedList = React.forwardRef(({
           title={emptyTitle}
           message={emptyMessage}
           filtered={emptyFiltered}
+          style={{marginTop: 0}}
         />
       }
       {...rest}

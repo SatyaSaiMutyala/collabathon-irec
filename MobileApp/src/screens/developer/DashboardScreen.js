@@ -130,7 +130,7 @@ const DashboardScreen = ({navigation}) => {
                   },
               {
                 value: String(stats?.interested ?? 0),
-                label: 'CP Interest',
+                label: 'CP Requests',
                 onPress: () => navigation.navigate('RequestBrokersTab'),
               },
               {

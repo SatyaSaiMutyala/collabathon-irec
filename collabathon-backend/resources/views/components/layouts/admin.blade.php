@@ -68,7 +68,7 @@ foreach (Lead::where('contact_unlocked', true)
     ->get() as $lead) {
     $notifications[] = [
         'icon' => 'trending-up', 'tone' => 'success',
-        'text' => ($lead->broker?->name ?? 'A broker') . ' is interested in ' . ($lead->property?->name ?? 'a listing'),
+        'text' => ($lead->broker?->name ?? 'A broker') . ' sent a request for ' . ($lead->property?->name ?? 'a listing'),
         'time' => $lead->interested_at?->diffForHumans() ?? '',
         'href' => route('admin.leads.show', $lead),
     ];

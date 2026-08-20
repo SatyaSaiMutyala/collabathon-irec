@@ -254,7 +254,7 @@ class AuthController extends Controller
         // A step's own required fields only matter when this is a real "Next"/final
         // submit — Save Draft persists whatever is present, incomplete or not.
         if (! $data['save_draft']) {
-            $this->validateStepIsComplete($data['step'], $data);
+            $this->validateStepIsComplete($data['step'], $data, $user);
         }
 
         if ($request->hasFile('photo')) {
@@ -364,7 +364,7 @@ class AuthController extends Controller
      * agreement and the signature belong there too, right before the moment of
      * actually submitting, rather than sitting on an earlier, lighter step.
      */
-    private function validateStepIsComplete(int $step, array $data): void
+    private function validateStepIsComplete(int $step, array $data, User $user): void
     {
         // Only reachable by going Back to step 1 after startRegistration already
         // created the row — name/email/photo were already required there (photo
@@ -415,7 +415,13 @@ class AuthController extends Controller
             // a string that was never a PAN to begin with is a different case.
             $errors['pan_card'] = ['Enter a valid PAN number, e.g. ABCDE1234F.'];
         }
-        if (blank($data['aadhaar_card'] ?? null)) {
+        // Required for an individual broker; optional once registering as a company
+        // (step 2 saved `is_company` already, and step 3's own request never resends
+        // it, so this reads the persisted value rather than $data). A company isn't
+        // a person with an Aadhaar of its own — its PAN/RERA already carry that
+        // weight — matching the same condition CompleteProfileScreen's validateStep
+        // applies client-side.
+        if (! $user->brokerProfile->is_company && blank($data['aadhaar_card'] ?? null)) {
             $errors['aadhaar_card'] = ['Enter Aadhaar number.'];
         }
         if (blank($data['rera_number'] ?? null)) {

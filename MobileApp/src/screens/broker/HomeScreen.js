@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {StyleSheet, TouchableOpacity, View} from 'react-native';
+import {useFocusEffect} from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
@@ -27,6 +28,7 @@ import {fetchDashboard} from '../../store/slices/dashboardSlice';
 import {useCurrentLocation} from '../../hooks/useLocation';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {setMapPickerCallback} from '../../utils/mapPickerCallback';
+import {version as APP_VERSION} from '../../../package.json';
 
 /**
  * Developer directory. Search and city filtering are sent to the API — this screen
@@ -49,11 +51,40 @@ const HomeScreen = ({navigation}) => {
   const debouncedQuery = useDebouncedValue(query, 400);
   const activeCity = manualCity ?? null;
 
+  // Once only — a GPS fix isn't something to redo every time this tab regains
+  // focus, and nothing here changes it anyway once the broker's on the screen.
   useEffect(() => {
     location.detectLocation();
-    dispatch(fetchDashboard());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Applies the detected city as the active filter the moment it resolves, rather
+  // than leaving it sitting in the header as text the broker still has to open the
+  // picker and tap "Use current location" to actually act on — the whole point of
+  // detecting it automatically on open is that it's already the filter, not just a
+  // label. Guarded on `manualCity === null` so it only ever fills in an *unset*
+  // filter: it must not stomp on a city the broker picked themselves (manually, or
+  // from the map), and must not un-clear one they explicitly cleared via the chip's
+  // ✕ — clearing sets `manualCity` back to null too, but `location.city` itself
+  // hasn't changed, so this effect (keyed on `location.city` only) doesn't refire.
+  useEffect(() => {
+    if (location.city && manualCity === null) {
+      setManualCity(location.city);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.city]);
+
+  // Refetched on every focus, not just mount — this tab stays mounted for the life
+  // of the session (React Navigation doesn't remount a tab on switch), so a
+  // mount-only fetch never saw a request/association made from somewhere else in
+  // the app (mark an interest on a property, come back here) until the whole app
+  // restarted. Coming back into focus is exactly the moment those counts might
+  // have changed.
+  useFocusEffect(
+    useCallback(() => {
+      dispatch(fetchDashboard());
+    }, [dispatch]),
+  );
 
   const loadFirstPage = useCallback(() => {
     dispatch(
@@ -124,12 +155,12 @@ const HomeScreen = ({navigation}) => {
           stats={[
             {
               value: String(stats?.requests_sent ?? 0),
-              label: 'Requests Sent',
+              label: 'Interested Projects',
               onPress: () => navigation.navigate('RequestsTab'),
             },
             {
               value: String(stats?.associations ?? 0),
-              label: 'Associations',
+              label: 'Approved Interests',
               onPress: () => navigation.navigate('PartnersTab'),
             },
           ]}
@@ -177,6 +208,19 @@ const HomeScreen = ({navigation}) => {
           <DeveloperCard developer={item} onPress={() => goToDeveloper(item.id)} />
         )}
       />
+
+      {/* A quiet corner watermark, not a functional control — pointerEvents="none"
+          so it never steals a tap from whatever card happens to scroll underneath
+          it (DeveloperCard's own city/project pill sits in this same corner). Reads
+          package.json's version directly rather than a hand-maintained constant, so
+          it can't drift from what actually gets bumped at release time — kept in
+          sync with the native versionName in android/app/build.gradle by hand,
+          same as any other release-time bump. */}
+      <View pointerEvents="none" style={{position: 'absolute', right: spacing.sm, bottom: spacing.xs}}>
+        <AppText variant="overline" color={colors.textMuted}>
+          v{APP_VERSION}
+        </AppText>
+      </View>
 
       <LocationPickerSheet
         visible={isPickerVisible}

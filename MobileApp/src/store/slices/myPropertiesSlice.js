@@ -19,7 +19,10 @@ import {
  */
 const initialState = {
   list: initialListState(),
-  detail: {byId: {}, status: 'idle', error: null},
+  // Keyed by property id, not one shared status/error — see propertiesSlice.js's
+  // own detail state for why a single flag falsely flashed "Project not found"
+  // whenever a second, different property was opened in the same session.
+  detail: {byId: {}, statusById: {}, errorById: {}},
   summary: null,
   options: {cities: [], types: [], stages: []},
   optionsStatus: 'idle',
@@ -134,17 +137,17 @@ const myPropertiesSlice = createSlice({
         listRejected(state.list, action);
       })
 
-      .addCase(fetchMyProperty.pending, state => {
-        state.detail.status = 'loading';
-        state.detail.error = null;
+      .addCase(fetchMyProperty.pending, (state, action) => {
+        state.detail.statusById[action.meta.arg] = 'loading';
+        state.detail.errorById[action.meta.arg] = null;
       })
       .addCase(fetchMyProperty.fulfilled, (state, action) => {
-        state.detail.status = 'succeeded';
+        state.detail.statusById[action.payload.id] = 'succeeded';
         state.detail.byId[action.payload.id] = action.payload;
       })
       .addCase(fetchMyProperty.rejected, (state, action) => {
-        state.detail.status = 'failed';
-        state.detail.error = action.payload?.message ?? 'Could not load this project.';
+        state.detail.statusById[action.meta.arg] = 'failed';
+        state.detail.errorById[action.meta.arg] = action.payload?.message ?? 'Could not load this project.';
       })
 
       .addCase(fetchMyPropertiesSummary.fulfilled, (state, action) => {
@@ -196,6 +199,7 @@ export const {setFilters, clearRespondState} = myPropertiesSlice.actions;
 
 export const selectMyProperties = state => state.myProperties.list;
 export const selectMyPropertyById = (state, id) => state.myProperties.detail.byId[id];
+export const selectMyPropertyStatus = (state, id) => state.myProperties.detail.statusById[id] ?? 'idle';
 export const selectMyPropertiesSummary = state => state.myProperties.summary;
 export const selectMyPropertyOptions = state => state.myProperties.options;
 

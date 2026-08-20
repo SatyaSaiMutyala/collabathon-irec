@@ -95,7 +95,7 @@ class PushNotifier
             $owner,
             'New broker request',
             sprintf(
-                '%s is interested in %s.',
+                '%s sent a request for %s.',
                 $lead->broker?->name ?? 'A broker',
                 $lead->property?->name ?? 'one of your listings',
             ),

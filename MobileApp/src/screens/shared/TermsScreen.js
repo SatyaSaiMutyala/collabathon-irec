@@ -27,7 +27,7 @@ const SECTIONS = [
   {
     title: '2. What Collabathon Is',
     body:
-      'Collabathon is a private marketplace connecting real estate developers with channel partners (brokers). Developers list projects; channel partners browse listings, express interest, and follow up on introductions through the Platform. Collabathon is not a party to any transaction between a developer and a channel partner, and does not itself buy, sell, or broker property.',
+      'Collabathon is a private marketplace connecting real estate developers with channel partners (brokers). Developers list projects; channel partners browse listings, send requests, and follow up on introductions through the Platform. Collabathon is not a party to any transaction between a developer and a channel partner, and does not itself buy, sell, or broker property.',
   },
   {
     title: '3. Account Registration & Verification',
@@ -47,7 +47,7 @@ const SECTIONS = [
   {
     title: '6. Data We Collect',
     body:
-      'We collect the information you provide during registration (including KYC documents), your activity on listings (views and expressed interest), and device information needed to operate the app (such as push-notification tokens). This data is used to operate the Platform, verify accounts, and connect developers with channel partners. We do not sell your personal data.',
+      'We collect the information you provide during registration (including KYC documents), your activity on listings (views and requests sent), and device information needed to operate the app (such as push-notification tokens). This data is used to operate the Platform, verify accounts, and connect developers with channel partners. We do not sell your personal data.',
   },
   {
     title: '7. Account Deletion',
