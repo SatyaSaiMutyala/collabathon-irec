@@ -27,6 +27,7 @@ $navGroups = [
     ],
     'Configure' => [
         ['key' => 'settings', 'icon' => 'cog', 'label' => 'Settings', 'route' => route('admin.settings')],
+        ['key' => 'push-notifications', 'icon' => 'bell', 'label' => 'Push Notifications', 'route' => route('admin.push-notifications')],
     ],
 ];
 

@@ -8,6 +8,7 @@ use App\Mail\BrokerApprovedMail;
 use App\Models\ApprovalDecision;
 use App\Models\User;
 use App\Services\PushNotifier;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use App\Support\MailSettings;
@@ -49,7 +50,7 @@ class ApprovalController extends Controller
             // page they land on is the one an admin actually watches.
             ->latest();
 
-        return view('admin.approvals', [
+        $data = [
             'pending' => $pending->paginate($this->perPage($request))->withQueryString(),
             'cities' => User::role(User::ROLE_BROKER)
                 ->join('broker_profiles', 'broker_profiles.user_id', '=', 'users.id')
@@ -65,7 +66,15 @@ class ApprovalController extends Controller
                 'rejected' => ApprovalDecision::where('decision', 'rejected')
                     ->where('created_at', '>=', now()->subDays(30))->count(),
             ],
-        ]);
+        ];
+
+        // The table (with its own pagination, search and city filter) refreshes itself
+        // in place instead of a full reload — same `data-ajax-panel` mechanism as Team,
+        // and the same reasoning: this fragment is the exact partial the full page
+        // includes, just rendered without the surrounding layout.
+        return $request->ajax()
+            ? view('admin.approvals.partials.table', $data)
+            : view('admin.approvals', $data);
     }
 
     /**
@@ -112,7 +121,7 @@ class ApprovalController extends Controller
      * Open to any broker, not just pending ones: the Decided tab links here too, and an
      * approved broker's paperwork still needs to be auditable after the fact.
      */
-    public function show(User $user): View
+    public function show(Request $request, User $user): View
     {
         $this->authorize('view-module', 'approvals');
 
@@ -123,10 +132,14 @@ class ApprovalController extends Controller
             'approvalDecisions' => fn ($q) => $q->with('decider:id,name')->latest(),
         ]);
 
-        return view('admin.approvals.show', [
-            'broker' => $user,
-            'profile' => $user->brokerProfile,
-        ]);
+        $data = ['broker' => $user, 'profile' => $user->brokerProfile];
+
+        // Approve/Reject/Edit refresh this whole block in place instead of navigating
+        // away — see the note above index() and the matching `#approval-detail`
+        // mechanism in app.js. Same partial either way, so the two can never drift.
+        return $request->ajax()
+            ? view('admin.approvals.partials.detail', $data)
+            : view('admin.approvals.show', $data);
     }
 
     /**
@@ -137,7 +150,7 @@ class ApprovalController extends Controller
      * new row rather than editing the old one — the earlier rejection and its reason stay
      * on the record, which is exactly what that table exists for.
      */
-    public function approve(Request $request, User $user, PushNotifier $push): RedirectResponse
+    public function approve(Request $request, User $user, PushNotifier $push): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'approvals');
         $this->guardIsBroker($user);
@@ -168,9 +181,12 @@ class ApprovalController extends Controller
 
         $push->brokerApproved($user);
 
-        return back()->with($emailed ? 'success' : 'warning', $emailed
+        $tone = $emailed ? 'success' : 'warning';
+        $full = $emailed
             ? $message . " Sign-in details emailed to {$user->email}."
-            : $message . ' No email was sent — check the Mailjet settings.');
+            : $message . ' No email was sent — check the Mailjet settings.';
+
+        return $this->approvalResponse($request, $full, $tone);
     }
 
     /**
@@ -222,7 +238,7 @@ class ApprovalController extends Controller
             ]);
     }
 
-    public function reject(Request $request, User $user, PushNotifier $push): RedirectResponse
+    public function reject(Request $request, User $user, PushNotifier $push): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'approvals');
         $this->guardIsBroker($user);
@@ -252,9 +268,25 @@ class ApprovalController extends Controller
 
         $wasActive ? $push->brokerAccessRevoked($user) : $push->brokerRejected($user);
 
-        return back()->with('warning', $wasActive
+        $message = $wasActive
             ? "{$user->name}'s access revoked — their sessions were signed out."
-            : "{$user->name} rejected.");
+            : "{$user->name} rejected.";
+
+        return $this->approvalResponse($request, $message, 'warning');
+    }
+
+    /**
+     * Same shape as SettingsController::settingsResponse(): a plain toast message over
+     * JSON for the `#approval-detail` fetch path, a flash + redirect back otherwise —
+     * both branches driven by the exact same decision that already ran above.
+     */
+    private function approvalResponse(Request $request, string $message, string $tone): RedirectResponse|JsonResponse
+    {
+        if ($request->ajax()) {
+            return response()->json(['message' => $message, 'tone' => $tone]);
+        }
+
+        return back()->with($tone, $message);
     }
 
     /**

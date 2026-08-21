@@ -577,10 +577,15 @@
                         <x-wizard-heading :step="4" :of="count($steps)" title="Project specifications"
                                           subtitle="Build quality and the amenity set." />
 
-                        <div class="space-y-3">
-                            <x-checkbox-group label="Amenities" name="amenities" :options="$amenityOptions" :columns="3" />
+                        {{-- Settings > Form fields can turn this off; see
+                             PropertyController::fieldsEnabled(). Missing key reads as
+                             enabled, same fail-open default the mobile side uses. --}}
+                        @if($fieldsEnabled['amenities'] ?? true)
+                            <div class="space-y-3">
+                                <x-checkbox-group label="Amenities" name="amenities" :options="$amenityOptions" :columns="3" />
 
-                        </div>
+                            </div>
+                        @endif
 
                         <div class="border-t border-line-soft pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
                             <x-field label="Green building certification" name="green_certification"
@@ -615,26 +620,23 @@
                                 </p>
                                 <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2.5">
                                     @foreach($mediaByKind['image'] as $image)
-                                        <label class="group relative block cursor-pointer">
+                                        {{-- Clicking Remove hides the tile outright — the checkbox stays in
+                                             the DOM (just visually gone, via x-show) so remove_media[] still
+                                             posts on Save, which is when the file is actually deleted. --}}
+                                        <div x-data="{ marked: false }" x-show="! marked" class="relative">
                                             <input type="checkbox" name="remove_media[]" value="{{ $image->id }}"
-                                                   class="peer sr-only">
+                                                   x-model="marked" class="sr-only">
                                             <img src="{{ $image->url ?: asset('storage/' . $image->path) }}" alt=""
-                                                 class="w-full aspect-[4/3] object-cover rounded-lg border border-line
-                                                        transition-opacity peer-checked:opacity-30">
-                                            <span class="absolute inset-x-1 bottom-1 flex items-center justify-center gap-1
-                                                         rounded-md bg-panel/90 py-1 text-[10.5px] font-medium text-ink-2
-                                                         opacity-0 group-hover:opacity-100 peer-checked:opacity-100
-                                                         peer-checked:text-danger transition-opacity">
-                                                <span class="peer-checked:hidden">Remove</span>
-                                            </span>
-                                            <span class="absolute top-1.5 right-1.5 hidden peer-checked:grid place-items-center
-                                                         w-5 h-5 bg-danger text-white">
-                                                <x-icon name="x" class="w-3 h-3" />
-                                            </span>
-                                        </label>
+                                                 class="w-full aspect-[4/3] object-cover rounded-lg border border-line">
+                                            <button type="button" @click="marked = true"
+                                                    class="absolute inset-x-1 bottom-1.5 text-[11px] font-medium
+                                                           text-danger hover:underline">
+                                                Remove
+                                            </button>
+                                        </div>
                                     @endforeach
                                 </div>
-                                <p class="text-[11.5px] text-ink-3 mt-2">Tick an image to remove it when you save.</p>
+                                <p class="text-[11.5px] text-ink-3 mt-2">Click Remove on an image to delete it when you save.</p>
                             </div>
                         @endif
 
@@ -662,8 +664,11 @@
                                           subtitle="What the channel partner earns, and the terms they work under." />
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <x-field label="CP commission %" name="cp_commission_percent" type="number" step="0.01"
-                                     placeholder="2.50" hint="Overrides the developer default for this project." />
+                            {{-- See the matching note on the Amenities field above. --}}
+                            @if($fieldsEnabled['cp_commission'] ?? true)
+                                <x-field label="CP commission %" name="cp_commission_percent" type="number" step="0.01"
+                                         placeholder="2.50" hint="Overrides the developer default for this project." />
+                            @endif
                             <x-field label="FOS commission %" name="fos_commission_percent" type="number" step="0.01"
                                      placeholder="1.00" hint="Payout for feet-on-street field sales agents." />
                         </div>

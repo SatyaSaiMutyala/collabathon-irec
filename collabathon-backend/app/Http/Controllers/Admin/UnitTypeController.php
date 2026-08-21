@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\PropertyUnitType;
 use App\Models\UnitType;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,9 +20,15 @@ use Illuminate\Validation\Rule;
  */
 class UnitTypeController extends Controller
 {
-    private function backToPanel(): RedirectResponse
+    // See the matching note on SettingsController::settingsResponse() — a real
+    // redirect for a normal submit, JSON for the settings page's own fetch-based one.
+    private function backToPanel(Request $request, string $message, string $flash = 'success'): RedirectResponse|JsonResponse
     {
-        return redirect()->route('admin.settings', ['tab' => 'unit-types']);
+        if ($request->ajax()) {
+            return response()->json(['message' => $message]);
+        }
+
+        return redirect()->route('admin.settings', ['tab' => 'unit-types'])->with($flash, $message);
     }
 
     private function rules(?UnitType $type = null): array
@@ -44,7 +51,7 @@ class UnitTypeController extends Controller
         ];
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
 
@@ -55,10 +62,10 @@ class UnitTypeController extends Controller
 
         $type = UnitType::create($data);
 
-        return $this->backToPanel()->with('success', "Unit type “{$type->name}” added.");
+        return $this->backToPanel($request, "Unit type “{$type->name}” added.");
     }
 
-    public function update(Request $request, UnitType $unitType): RedirectResponse
+    public function update(Request $request, UnitType $unitType): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
 
@@ -76,26 +83,27 @@ class UnitTypeController extends Controller
             }
         });
 
-        return $this->backToPanel()->with('success', "Unit type “{$unitType->name}” updated.");
+        return $this->backToPanel($request, "Unit type “{$unitType->name}” updated.");
     }
 
-    public function destroy(UnitType $unitType): RedirectResponse
+    public function destroy(Request $request, UnitType $unitType): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
 
         // Deleting a type still configured on projects would leave those rows pointing at
         // nothing. Turning it off is the reversible move and keeps them valid.
         if ($count = $unitType->usageCount()) {
-            return $this->backToPanel()->with(
-                'error',
+            return $this->backToPanel(
+                $request,
                 "“{$unitType->name}” is used on {$count} unit row" . ($count === 1 ? '' : 's')
-                . ' — change those first, or turn it off instead of deleting it.'
+                . ' — change those first, or turn it off instead of deleting it.',
+                'error'
             );
         }
 
         $name = $unitType->name;
         $unitType->delete();
 
-        return $this->backToPanel()->with('warning', "Unit type “{$name}” removed.");
+        return $this->backToPanel($request, "Unit type “{$name}” removed.", 'warning');
     }
 }

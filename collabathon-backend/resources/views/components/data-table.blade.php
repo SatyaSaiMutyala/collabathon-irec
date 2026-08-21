@@ -81,8 +81,39 @@
         </div>
 
         @if($paginator)
-            <div class="px-4 py-3 border-t border-line-soft shrink-0">
+            <div class="px-4 py-3 border-t border-line-soft shrink-0 flex flex-wrap items-center justify-between gap-3">
                 <x-pagination :paginator="$paginator" :label="$label" />
+
+                {{--
+                    Per-page submits on change, same auto-submit shape as filter-select.
+                    `page` is dropped so changing this returns to page 1 — otherwise a
+                    smaller page size can land past the new last page and show nothing.
+                    The option list always includes whatever the paginator is *actually*
+                    showing right now (via array_unique), so a controller whose own
+                    default isn't one of the five standard sizes still renders a
+                    correctly-selected value instead of silently matching none of them.
+                --}}
+                <form method="GET" action="{{ url()->current() }}" class="flex items-center gap-2 shrink-0">
+                    @foreach(request()->except(['per_page', 'page']) as $key => $value)
+                        @if(is_scalar($value))
+                            <input type="hidden" name="{{ $key }}" value="{{ $value }}">
+                        @endif
+                    @endforeach
+
+                    <label class="flex items-center gap-1.5">
+                        <span class="text-[12px] text-ink-3 whitespace-nowrap">Rows per page</span>
+                        <span class="relative">
+                            <select name="per_page" onchange="this.form.submit()"
+                                    class="h-8 pl-2.5 pr-7 rounded-lg bg-canvas text-ink-2 text-[12.5px] appearance-none
+                                           cursor-pointer transition-colors hover:bg-line-soft focus:outline-none">
+                                @foreach(collect([5, 10, 20, 50, 100])->push($paginator->perPage())->unique()->sort()->values() as $size)
+                                    <option value="{{ $size }}" @selected($paginator->perPage() === $size)>{{ $size }}</option>
+                                @endforeach
+                            </select>
+                            <x-icon name="chevron-down" class="w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 text-ink-3 pointer-events-none" />
+                        </span>
+                    </label>
+                </form>
             </div>
         @endif
     @endif

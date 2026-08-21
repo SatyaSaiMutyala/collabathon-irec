@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Property;
 use App\Models\ProjectType;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,9 +21,15 @@ use Illuminate\Validation\Rule;
  */
 class ProjectTypeController extends Controller
 {
-    private function backToPanel(): RedirectResponse
+    // See the matching note on SettingsController::settingsResponse() — a real
+    // redirect for a normal submit, JSON for the settings page's own fetch-based one.
+    private function backToPanel(Request $request, string $message, string $flash = 'success'): RedirectResponse|JsonResponse
     {
-        return redirect()->route('admin.settings', ['tab' => 'project-types']);
+        if ($request->ajax()) {
+            return response()->json(['message' => $message]);
+        }
+
+        return redirect()->route('admin.settings', ['tab' => 'project-types'])->with($flash, $message);
     }
 
     private function rules(?ProjectType $type = null): array
@@ -46,7 +53,7 @@ class ProjectTypeController extends Controller
         ];
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
 
@@ -57,10 +64,10 @@ class ProjectTypeController extends Controller
 
         $type = ProjectType::create($data);
 
-        return $this->backToPanel()->with('success', "Project type “{$type->name}” added.");
+        return $this->backToPanel($request, "Project type “{$type->name}” added.");
     }
 
-    public function update(Request $request, ProjectType $projectType): RedirectResponse
+    public function update(Request $request, ProjectType $projectType): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
 
@@ -78,26 +85,27 @@ class ProjectTypeController extends Controller
             }
         });
 
-        return $this->backToPanel()->with('success', "Project type “{$projectType->name}” updated.");
+        return $this->backToPanel($request, "Project type “{$projectType->name}” updated.");
     }
 
-    public function destroy(ProjectType $projectType): RedirectResponse
+    public function destroy(Request $request, ProjectType $projectType): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
 
         // Deleting a type that projects still use would leave them referencing nothing
         // and failing validation on their next edit. Pausing it is the reversible move.
         if ($count = $projectType->projectCount()) {
-            return $this->backToPanel()->with(
-                'error',
+            return $this->backToPanel(
+                $request,
                 "“{$projectType->name}” is used by {$count} project" . ($count === 1 ? '' : 's')
-                . ' — switch those to another type first, or turn it off instead of deleting it.'
+                . ' — switch those to another type first, or turn it off instead of deleting it.',
+                'error'
             );
         }
 
         $name = $projectType->name;
         $projectType->delete();
 
-        return $this->backToPanel()->with('warning', "Project type “{$name}” removed.");
+        return $this->backToPanel($request, "Project type “{$name}” removed.", 'warning');
     }
 }

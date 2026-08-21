@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\PropertyMeasurementUnit;
 use App\Models\MeasurementUnit;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,9 +20,15 @@ use Illuminate\Validation\Rule;
  */
 class MeasurementUnitController extends Controller
 {
-    private function backToPanel(): RedirectResponse
+    // See the matching note on SettingsController::settingsResponse() — a real
+    // redirect for a normal submit, JSON for the settings page's own fetch-based one.
+    private function backToPanel(Request $request, string $message, string $flash = 'success'): RedirectResponse|JsonResponse
     {
-        return redirect()->route('admin.settings', ['tab' => 'measurement-units']);
+        if ($request->ajax()) {
+            return response()->json(['message' => $message]);
+        }
+
+        return redirect()->route('admin.settings', ['tab' => 'measurement-units'])->with($flash, $message);
     }
 
     private function rules(?MeasurementUnit $type = null): array
@@ -44,7 +51,7 @@ class MeasurementUnitController extends Controller
         ];
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
 
@@ -55,10 +62,10 @@ class MeasurementUnitController extends Controller
 
         $type = MeasurementUnit::create($data);
 
-        return $this->backToPanel()->with('success', "Measurement unit “{$type->name}” added.");
+        return $this->backToPanel($request, "Measurement unit “{$type->name}” added.");
     }
 
-    public function update(Request $request, MeasurementUnit $measurementUnit): RedirectResponse
+    public function update(Request $request, MeasurementUnit $measurementUnit): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
 
@@ -76,26 +83,27 @@ class MeasurementUnitController extends Controller
             }
         });
 
-        return $this->backToPanel()->with('success', "Measurement unit “{$measurementUnit->name}” updated.");
+        return $this->backToPanel($request, "Measurement unit “{$measurementUnit->name}” updated.");
     }
 
-    public function destroy(MeasurementUnit $measurementUnit): RedirectResponse
+    public function destroy(Request $request, MeasurementUnit $measurementUnit): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
 
         // Deleting a unit projects still use would leave them pointing at nothing.
         // Turning it off is the reversible move and keeps them valid.
         if ($count = $measurementUnit->usageCount()) {
-            return $this->backToPanel()->with(
-                'error',
+            return $this->backToPanel(
+                $request,
                 "“{$measurementUnit->name}” is used by {$count} project" . ($count === 1 ? '' : 's')
-                . ' — change those first, or turn it off instead of deleting it.'
+                . ' — change those first, or turn it off instead of deleting it.',
+                'error'
             );
         }
 
         $name = $measurementUnit->name;
         $measurementUnit->delete();
 
-        return $this->backToPanel()->with('warning', "Measurement unit “{$name}” removed.");
+        return $this->backToPanel($request, "Measurement unit “{$name}” removed.", 'warning');
     }
 }

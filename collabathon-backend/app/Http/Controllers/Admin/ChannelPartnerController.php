@@ -11,6 +11,7 @@ use App\Models\Lead;
 use App\Models\User;
 use App\Support\CsvReader;
 use App\Support\SocialPlatforms;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -332,7 +333,7 @@ class ChannelPartnerController extends Controller
      * `users.status` is owned by Approve/Reject, and a verification flag is something
      * Surepass sets at registration time, not something an admin can just assert here.
      */
-    public function update(Request $request, User $user): RedirectResponse
+    public function update(Request $request, User $user): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'cp');
 
@@ -444,7 +445,15 @@ class ChannelPartnerController extends Controller
             }
         });
 
-        return back()->with('success', "{$clean['name']} updated.");
+        $message = "{$clean['name']} updated.";
+
+        // Same `#approval-detail` fetch/refresh contract as ApprovalController's own
+        // approve/reject — this is the update() the Approvals edit dialog posts to.
+        if ($request->ajax()) {
+            return response()->json(['message' => $message, 'tone' => 'success']);
+        }
+
+        return back()->with('success', $message);
     }
 
     /**

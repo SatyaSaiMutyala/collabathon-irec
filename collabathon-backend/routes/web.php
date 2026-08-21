@@ -164,7 +164,13 @@ Route::prefix('admin')
         Route::patch('/settings/theme', [SettingsController::class, 'updateTheme'])->name('settings.theme');
         Route::patch('/settings/cp-login-method', [SettingsController::class, 'updateCpLoginMethod'])
             ->name('settings.cp-login-method');
-        Route::post('/settings/announce', [AnnouncementController::class, 'store'])->name('settings.announce');
+
+        // Its own top-level page rather than a Settings tab — see AnnouncementController's
+        // own note on why. 'push-notifications' as both the route prefix and the
+        // Gate module string, so the two never drift apart.
+        Route::get('/push-notifications', [AnnouncementController::class, 'index'])->name('push-notifications')
+            ->middleware("can:view-module,'push-notifications'");
+        Route::post('/push-notifications', [AnnouncementController::class, 'store'])->name('push-notifications.store');
 
         // Uploading a key that can send as the whole Firebase project is a super-admin
         // action; the controller re-checks, this keeps it off the route for everyone else.

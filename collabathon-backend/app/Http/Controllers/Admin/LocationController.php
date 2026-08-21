@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\City;
 use App\Models\Country;
 use App\Models\State;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -25,24 +26,35 @@ use Illuminate\Validation\Rule;
  */
 class LocationController extends Controller
 {
-    /** Keeps the cascade's position across a redirect. */
-    private function backTo(Request $request, array $overrides = []): RedirectResponse
+    /**
+     * Keeps the cascade's position across a save — for a real submit, a redirect back
+     * to the settings page with the same country/state selected; for the settings
+     * page's own fetch-based submit (see app.js), the message plus that same selection
+     * as `params`, which is what tells the client which country/state to refetch with
+     * rather than whatever happened to already be in the address bar (an add always
+     * has to select the thing just added, not the previous selection).
+     */
+    private function backTo(Request $request, array $overrides, string $message): RedirectResponse|JsonResponse
     {
         $params = array_filter([
             'country' => $overrides['country'] ?? $request->input('country_id') ?: $request->query('country'),
             'state' => $overrides['state'] ?? $request->query('state'),
         ]);
 
+        if ($request->ajax()) {
+            return response()->json(['message' => $message, 'params' => $params]);
+        }
+
         // `tab` rather than a #locations fragment: a fragment never reaches the server, so
         // the settings page could not know to reopen this tab and every save bounced the
         // admin back to Form fields. Always set, even when the cascade has no selection
         // left — deleting the last country still has to land back here.
-        return redirect()->route('admin.settings', $params + ['tab' => 'locations']);
+        return redirect()->route('admin.settings', $params + ['tab' => 'locations'])->with('status', $message);
     }
 
     // ------------------------------------------------------------------ countries
 
-    public function storeCountry(Request $request): RedirectResponse
+    public function storeCountry(Request $request): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:96', Rule::unique('countries', 'name')],
@@ -51,11 +63,10 @@ class LocationController extends Controller
 
         $country = Country::create($data);
 
-        return $this->backTo($request, ['country' => $country->id])
-            ->with('status', "Country “{$country->name}” added.");
+        return $this->backTo($request, ['country' => $country->id], "Country “{$country->name}” added.");
     }
 
-    public function updateCountry(Request $request, Country $country): RedirectResponse
+    public function updateCountry(Request $request, Country $country): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:96', Rule::unique('countries', 'name')->ignore($country->id)],
@@ -64,23 +75,21 @@ class LocationController extends Controller
 
         $country->update($data);
 
-        return $this->backTo($request, ['country' => $country->id])
-            ->with('status', 'Country updated.');
+        return $this->backTo($request, ['country' => $country->id], 'Country updated.');
     }
 
-    public function destroyCountry(Request $request, Country $country): RedirectResponse
+    public function destroyCountry(Request $request, Country $country): RedirectResponse|JsonResponse
     {
         $name = $country->name;
         // Cascades to states and their cities — see the migration's docblock.
         $country->delete();
 
-        return $this->backTo($request, ['country' => null, 'state' => null])
-            ->with('status', "Country “{$name}” and everything under it were removed.");
+        return $this->backTo($request, ['country' => null, 'state' => null], "Country “{$name}” and everything under it were removed.");
     }
 
     // ------------------------------------------------------------------ states
 
-    public function storeState(Request $request): RedirectResponse
+    public function storeState(Request $request): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'country_id' => ['required', 'exists:countries,id'],
@@ -93,11 +102,10 @@ class LocationController extends Controller
 
         $state = State::create($data);
 
-        return $this->backTo($request, ['country' => $state->country_id, 'state' => $state->id])
-            ->with('status', "State “{$state->name}” added.");
+        return $this->backTo($request, ['country' => $state->country_id, 'state' => $state->id], "State “{$state->name}” added.");
     }
 
-    public function updateState(Request $request, State $state): RedirectResponse
+    public function updateState(Request $request, State $state): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'name' => [
@@ -108,23 +116,21 @@ class LocationController extends Controller
 
         $state->update($data);
 
-        return $this->backTo($request, ['country' => $state->country_id, 'state' => $state->id])
-            ->with('status', 'State updated.');
+        return $this->backTo($request, ['country' => $state->country_id, 'state' => $state->id], 'State updated.');
     }
 
-    public function destroyState(Request $request, State $state): RedirectResponse
+    public function destroyState(Request $request, State $state): RedirectResponse|JsonResponse
     {
         $name = $state->name;
         $countryId = $state->country_id;
         $state->delete();
 
-        return $this->backTo($request, ['country' => $countryId, 'state' => null])
-            ->with('status', "State “{$name}” and its cities were removed.");
+        return $this->backTo($request, ['country' => $countryId, 'state' => null], "State “{$name}” and its cities were removed.");
     }
 
     // ------------------------------------------------------------------ cities
 
-    public function storeCity(Request $request): RedirectResponse
+    public function storeCity(Request $request): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'state_id' => ['required', 'exists:states,id'],
@@ -139,10 +145,10 @@ class LocationController extends Controller
         return $this->backTo($request, [
             'country' => $city->state->country_id,
             'state' => $city->state_id,
-        ])->with('status', "City “{$city->name}” added.");
+        ], "City “{$city->name}” added.");
     }
 
-    public function updateCity(Request $request, City $city): RedirectResponse
+    public function updateCity(Request $request, City $city): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'name' => [
@@ -156,17 +162,16 @@ class LocationController extends Controller
         return $this->backTo($request, [
             'country' => $city->state->country_id,
             'state' => $city->state_id,
-        ])->with('status', 'City updated.');
+        ], 'City updated.');
     }
 
-    public function destroyCity(Request $request, City $city): RedirectResponse
+    public function destroyCity(Request $request, City $city): RedirectResponse|JsonResponse
     {
         $name = $city->name;
         $stateId = $city->state_id;
         $countryId = $city->state->country_id;
         $city->delete();
 
-        return $this->backTo($request, ['country' => $countryId, 'state' => $stateId])
-            ->with('status', "City “{$name}” was removed.");
+        return $this->backTo($request, ['country' => $countryId, 'state' => $stateId], "City “{$name}” was removed.");
     }
 }

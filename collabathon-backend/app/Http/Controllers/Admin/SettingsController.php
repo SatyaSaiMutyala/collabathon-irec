@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Concerns\HandlesListQueries;
 use App\Http\Controllers\Controller;
 use App\Mail\BrokerApprovedMail;
 use App\Models\Amenity;
@@ -17,6 +18,9 @@ use App\Models\User;
 use App\Support\MailSettings;
 use App\Support\GoogleMapsSettings;
 use App\Support\SurepassSettings;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use App\Services\Fcm;
 use App\Support\FirebaseCredentials;
@@ -27,7 +31,37 @@ use Illuminate\View\View;
 
 class SettingsController extends Controller
 {
-    public function index(Request $request): View
+    use HandlesListQueries;
+
+    // Matches Team's own page size — see TeamController::defaultPerPage().
+    protected function defaultPerPage(): int
+    {
+        return 10;
+    }
+
+    /**
+     * Same shape as HandlesListQueries::paginate(), but for the 4 master-data tables
+     * on this page: they all render at once (every tab's markup exists in the DOM
+     * simultaneously, just hidden behind the inactive ones — see #settings-tabs), so
+     * a shared `page` query param would have all 4 fighting over the same page
+     * number. Each gets its own page name instead.
+     *
+     * `appends($request->query())` then overriding `tab` explicitly, rather than
+     * trusting withQueryString() alone: the very first visit to this page has no
+     * `?tab=` in the URL at all — switching tabs is client-side Alpine state, never
+     * reflected in the address bar — so a pagination link built from that request
+     * would otherwise silently drop onto the default Form fields tab on the first
+     * click, before any AJAX refresh has had a chance to put `tab=` in the query
+     * string itself.
+     */
+    private function paginateTab(Builder $query, Request $request, string $pageName, string $tab): LengthAwarePaginator
+    {
+        return $query->paginate($this->perPage($request), ['*'], $pageName)
+            ->appends($request->query())
+            ->appends(['tab' => $tab]);
+    }
+
+    public function index(Request $request): View|\Illuminate\Http\Response
     {
         /**
          * The location cascade's position, driven by ?country= and ?state=.
@@ -54,26 +88,36 @@ class SettingsController extends Controller
             : collect();
 
         // Project counts drive the delete guard's wording in the panel.
-        $projectTypes = ProjectType::ordered()->get()
-            ->each(fn ($type) => $type->projects_count = $type->projectCount());
+        $projectTypes = $this->paginateTab(ProjectType::ordered(), $request, 'pt_page', 'project-types');
+        $projectTypes->getCollection()->each(fn ($type) => $type->projects_count = $type->projectCount());
 
-        return view('admin.settings', [
+        $unitTypes = $this->paginateTab(UnitType::ordered(), $request, 'ut_page', 'unit-types');
+        // withCount over PropertyUnitType.label — the same name-not-id link the
+        // project types use, so the panel can warn before a rename or a delete.
+        $unitTypes->getCollection()->each(fn (UnitType $t) => $t->setAttribute('usage_count', $t->usageCount()));
+
+        $amenities = $this->paginateTab(Amenity::ordered(), $request, 'am_page', 'amenities');
+        // Project counts, not row counts: an amenity lives inside one JSON array per
+        // project, so the guard's wording is "listed on N projects".
+        $amenities->getCollection()->each(fn (Amenity $a) => $a->setAttribute('usage_count', $a->usageCount()));
+
+        $measurementUnits = $this->paginateTab(MeasurementUnit::ordered(), $request, 'mu_page', 'measurement-units');
+        $measurementUnits->getCollection()->each(fn (MeasurementUnit $u) => $u->setAttribute('usage_count', $u->usageCount()));
+
+        $data = [
             'countries' => $countries,
             'states' => $states,
             'cities' => $cities,
             'selectedCountry' => $selectedCountry,
             'selectedState' => $selectedState,
             'projectTypes' => $projectTypes,
-            // withCount over PropertyUnitType.label — the same name-not-id link the
-            // project types use, so the panel can warn before a rename or a delete.
-            'unitTypes' => UnitType::ordered()->get()
-                ->each(fn (UnitType $t) => $t->setAttribute('usage_count', $t->usageCount())),
-            // Project counts, not row counts: an amenity lives inside one JSON array per
-            // project, so the guard's wording is "listed on N projects".
-            'amenities' => Amenity::ordered()->get()
-                ->each(fn (Amenity $a) => $a->setAttribute('usage_count', $a->usageCount())),
-            'measurementUnits' => MeasurementUnit::ordered()->get()
-                ->each(fn (MeasurementUnit $u) => $u->setAttribute('usage_count', $u->usageCount())),
+            'unitTypes' => $unitTypes,
+            'amenities' => $amenities,
+            // The panel header reads "X of Y offered" — Y is $amenities->total(), but X
+            // (how many of *all* of them are active) needs its own count: the paginated
+            // page in hand only ever holds one page's worth of rows, active or not.
+            'amenitiesActiveCount' => Amenity::where('is_active', true)->count(),
+            'measurementUnits' => $measurementUnits,
             'firebase' => [
                 'configured' => FirebaseCredentials::isConfigured(),
                 // Identify the account without exposing it — neither of these can send.
@@ -110,7 +154,32 @@ class SettingsController extends Controller
                 'configured' => GoogleMapsSettings::isConfigured(),
                 'masked' => GoogleMapsSettings::masked(),
             ],
-        ]);
+        ];
+
+        // Every mutating action on this page saves via fetch and then re-requests this
+        // same URL (tab/selection preserved in the query string) to refresh in place —
+        // see the note on #settings-tabs in admin/settings/tabs.blade.php. The fragment
+        // is the exact same partial the full page includes, just rendered without the
+        // surrounding layout, so the two can never drift out of sync with each other.
+        return $request->ajax()
+            ? response()->view('admin.settings.tabs', $data)
+            : view('admin.settings', $data);
+    }
+
+    /**
+     * Every settings action ends the same way: flash a message and redirect back for a
+     * real submit (a bookmarked link, JS disabled, whatever reaches this path without
+     * the page's own fetch), or hand the message back as JSON for the fetch path the
+     * settings page always takes once loaded — a real redirect there would silently
+     * reset the page back to its default tab, since `tab` is client-side-only state.
+     */
+    protected function settingsResponse(Request $request, string $message, string $flash = 'status'): RedirectResponse|JsonResponse
+    {
+        if ($request->ajax()) {
+            return response()->json(['message' => $message]);
+        }
+
+        return back()->with($flash, $message);
     }
 
     /**
@@ -120,7 +189,7 @@ class SettingsController extends Controller
      * the value is encrypted and deliberately never sent back to the browser, so requiring
      * it on every save would force the admin to re-enter it to change a from-name.
      */
-    public function updateMail(Request $request): RedirectResponse
+    public function updateMail(Request $request): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
 
@@ -142,7 +211,7 @@ class SettingsController extends Controller
             MailSettings::putSecret(trim($data['mailjet_secret_key']));
         }
 
-        return back()->with('status', 'Email settings saved. Send a test to confirm they work.');
+        return $this->settingsResponse($request, 'Email settings saved. Send a test to confirm they work.');
     }
 
     /**
@@ -152,14 +221,14 @@ class SettingsController extends Controller
      * stub: the point is to see what they will see, and to prove the template renders as
      * well as that the credentials authenticate.
      */
-    public function testMail(Request $request): RedirectResponse
+    public function testMail(Request $request): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
 
         $data = $request->validate(['test_email' => ['required', 'email']]);
 
         if (! MailSettings::apply()) {
-            return back()->with('warning', 'Add a Mailjet API key and secret before sending a test.');
+            return $this->settingsResponse($request, 'Add a Mailjet API key and secret before sending a test.', 'warning');
         }
 
         // A stand-in broker so nothing has to exist in the database to run the test.
@@ -173,10 +242,10 @@ class SettingsController extends Controller
         } catch (\Throwable $e) {
             // The SMTP error is the whole value of a test — showing "failed" without it
             // leaves the admin guessing between a wrong key and an unverified sender.
-            return back()->with('warning', 'Mailjet rejected the send: ' . $e->getMessage());
+            return $this->settingsResponse($request, 'Mailjet rejected the send: ' . $e->getMessage(), 'warning');
         }
 
-        return back()->with('status', "Test email sent to {$data['test_email']}.");
+        return $this->settingsResponse($request, "Test email sent to {$data['test_email']}.");
     }
 
     /**
@@ -187,7 +256,7 @@ class SettingsController extends Controller
      * prefilled, and requiring it on every save would force a re-paste just to flip
      * which environment is active.
      */
-    public function updateSurepass(Request $request): RedirectResponse
+    public function updateSurepass(Request $request): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
 
@@ -210,7 +279,7 @@ class SettingsController extends Controller
 
         SurepassSettings::setEnvironment($data['surepass_environment']);
 
-        return back()->with('status', 'KYC verification settings saved.');
+        return $this->settingsResponse($request, 'KYC verification settings saved.');
     }
 
     /**
@@ -220,7 +289,7 @@ class SettingsController extends Controller
      * compiled app, so this key still needs copying into the mobile project's Android
      * build config and a rebuild before it takes effect there. iOS needs no key.
      */
-    public function updateGoogleMaps(Request $request): RedirectResponse
+    public function updateGoogleMaps(Request $request): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
 
@@ -235,11 +304,11 @@ class SettingsController extends Controller
             GoogleMapsSettings::put(trim($data['google_maps_api_key']));
         }
 
-        return back()->with('status', 'Google Maps API key saved. Copy it into the mobile app\'s Android build config and rebuild for it to take effect there.');
+        return $this->settingsResponse($request, 'Google Maps API key saved. Copy it into the mobile app\'s Android build config and rebuild for it to take effect there.');
     }
 
     /** Toggle a single form field on/off. */
-    public function toggleField(Request $request, FormField $field): RedirectResponse
+    public function toggleField(Request $request, FormField $field): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
 
@@ -247,17 +316,21 @@ class SettingsController extends Controller
 
         // A required core field cannot be switched off — the mobile form depends on it.
         if ($field->is_core && ! $data['enabled']) {
-            return back()->withErrors([
-                'field' => "\"{$field->label}\" is a required core field and cannot be disabled.",
-            ]);
+            $message = "\"{$field->label}\" is a required core field and cannot be disabled.";
+
+            if ($request->ajax()) {
+                return response()->json(['message' => $message], 422);
+            }
+
+            return back()->withErrors(['field' => $message]);
         }
 
         $field->update(['enabled' => $data['enabled']]);
 
-        return back()->with('status', "\"{$field->label}\" updated.");
+        return $this->settingsResponse($request, "\"{$field->label}\" updated.");
     }
 
-    public function updateTheme(Request $request): RedirectResponse
+    public function updateTheme(Request $request): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
 
@@ -267,7 +340,7 @@ class SettingsController extends Controller
 
         Setting::put('accent_color', $data['accent_color']);
 
-        return back()->with('status', 'Theme saved. It applies on the next app launch.');
+        return $this->settingsResponse($request, 'Theme saved. It applies on the next app launch.');
     }
 
     /**
@@ -276,7 +349,7 @@ class SettingsController extends Controller
      * a token to authenticate anything with. Both flows (email OTP, mobile OTP) are
      * fully built either way; this only decides which one the app opens straight to.
      */
-    public function updateCpLoginMethod(Request $request): RedirectResponse
+    public function updateCpLoginMethod(Request $request): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
 
@@ -286,7 +359,7 @@ class SettingsController extends Controller
 
         Setting::put('cp_login_method', $data['cp_login_method']);
 
-        return back()->with('status', 'Channel partner sign-in method saved.');
+        return $this->settingsResponse($request, 'Channel partner sign-in method saved.');
     }
 
     /**
@@ -296,7 +369,7 @@ class SettingsController extends Controller
      * Firebase project; that is a super-admin bar, above the one for toggling a form
      * field on the same page.
      */
-    public function updateFirebase(Request $request): RedirectResponse
+    public function updateFirebase(Request $request): RedirectResponse|JsonResponse
     {
         $this->authorize('manage-team');
 
@@ -312,30 +385,30 @@ class SettingsController extends Controller
         $error = FirebaseCredentials::store($request->file('credentials'));
 
         return $error === null
-            ? back()->with('success', 'Firebase service account saved. Push notifications are live.')
-            : back()->with('error', $error);
+            ? $this->settingsResponse($request, 'Firebase service account saved. Push notifications are live.', 'success')
+            : $this->settingsResponse($request, $error, 'error');
     }
 
     /** Removes the key. Push then no-ops and says so in the log, rather than erroring. */
-    public function forgetFirebase(): RedirectResponse
+    public function forgetFirebase(Request $request): RedirectResponse|JsonResponse
     {
         $this->authorize('manage-team');
 
         FirebaseCredentials::forget();
 
-        return back()->with('warning', 'Firebase service account removed — no push notifications will send.');
+        return $this->settingsResponse($request, 'Firebase service account removed — no push notifications will send.', 'warning');
     }
 
     /**
      * Proves this server can actually reach FCM, which is the half the file alone cannot
      * tell you: outbound HTTPS to Google is blocked on plenty of hosts.
      */
-    public function testFirebase(Fcm $fcm): RedirectResponse
+    public function testFirebase(Request $request, Fcm $fcm): RedirectResponse|JsonResponse
     {
         $this->authorize('manage-team');
 
         if (! $fcm->configured()) {
-            return back()->with('error', 'No service account is saved yet.');
+            return $this->settingsResponse($request, 'No service account is saved yet.', 'error');
         }
 
         // A well-formed but non-existent token: reaching FCM at all proves the OAuth2
@@ -343,7 +416,7 @@ class SettingsController extends Controller
         $result = $fcm->send(['admin-panel-probe-token'], 'Probe', 'Connectivity check');
 
         return $result['invalid'] === [] && $result['sent'] === 0
-            ? back()->with('error', 'Could not reach Firebase. Check outbound HTTPS from this server, then see storage/logs.')
-            : back()->with('success', 'Connected to Firebase — push notifications can be sent from this server.');
+            ? $this->settingsResponse($request, 'Could not reach Firebase. Check outbound HTTPS from this server, then see storage/logs.', 'error')
+            : $this->settingsResponse($request, 'Connected to Firebase — push notifications can be sent from this server.', 'success');
     }
 }

@@ -9,6 +9,7 @@ use App\Mail\ProjectAssignedMail;
 use App\Models\Amenity;
 use App\Models\Country;
 use App\Models\Developer;
+use App\Models\FormField;
 use App\Models\MeasurementUnit;
 use App\Models\ProjectType;
 use App\Models\Property;
@@ -194,7 +195,27 @@ class PropertyController extends Controller
             'extentMetricOptions' => MeasurementUnit::optionsFor(),
             'developers' => Developer::orderBy('company_name')->get(['id', 'company_name']),
             'amenityOptions' => Amenity::optionsFor(),
+            'fieldsEnabled' => $this->fieldsEnabled(),
         ] + $this->projectTypeData(old('project_type')));
+    }
+
+    /**
+     * Non-core `property_listing` fields the admin has switched off under
+     * Settings > Form fields — see the matching note on `isFieldEnabled` in
+     * CompleteProfileScreen.js, the mobile-side equivalent of this same toggle.
+     * `amenities`/`cp_commission_percent` are the only two fields on this form that
+     * actually correspond to a seeded, non-core field_key; core ones (name, price_min,
+     * the location section) can't be turned off from the admin panel at all, so this
+     * never needs to gate them.
+     *
+     * @return array<string,bool>
+     */
+    private function fieldsEnabled(): array
+    {
+        return FormField::query()
+            ->where('form', FormField::FORM_PROPERTY)
+            ->pluck('enabled', 'field_key')
+            ->all();
     }
 
     /**
@@ -557,6 +578,7 @@ class PropertyController extends Controller
             'amenityOptions' => Amenity::optionsFor($property->detail?->amenities),
             // Flat map of form-field name => current value; see toFormValues().
             'formRecord' => $this->toFormValues($property),
+            'fieldsEnabled' => $this->fieldsEnabled(),
         ] + $this->projectTypeData(old('project_type', $property->project_type)));
     }
 

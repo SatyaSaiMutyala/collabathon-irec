@@ -901,3 +901,336 @@ window.cropTool = cropTool;
 
     window.addEventListener('popstate', () => window.location.reload());
 })();
+
+/* ------------------------------------------------------------------ generic AJAX list panel */
+
+/**
+ * Any element marked `data-ajax-panel` refreshes its own contents in place instead of
+ * the browser navigating, for the links and GET forms inside it — pagination and a
+ * per-page selector, the two things a plain paginated table needs (see Team's own
+ * `data-ajax-panel` on its table partial, and TeamController::index()'s ajax()/view()
+ * fork, for the first page wired up this way).
+ *
+ * Modelled directly on the dashboard KPI panel above — same capture-phase-on-document
+ * technique, same clearNavigatingSkeleton, same "the href underneath still works, so
+ * fall back to a real navigation on failure" — generalised to any container via a data
+ * attribute instead of one hardcoded to /admin/dashboard, since Team is the first page
+ * that needs this shape but is very unlikely to be the last.
+ *
+ * Deliberately GET-only: a paginated table's row actions (Team's edit/delete/role
+ * change, say) are unrelated to why the screen used to reload — that was pagination
+ * and per-page alone, and each action already redirects back to a correct, working
+ * page today. Bringing those under this same fetch+swap contract would mean every one
+ * of them answering with JSON instead of a redirect (see settingsResponse() below for
+ * what that looks like) for no reason relevant to this problem — left alone here.
+ */
+(() => {
+    const panelOf = (el) => el.closest('[data-ajax-panel]');
+
+    // Same reasoning as the dashboard panel's own copy of this: the layout's
+    // <body x-data="{ navigating: false }"> flags a full-page skeleton on every
+    // click/submit and only clears it once the browser actually navigates. This
+    // never navigates, so the flag has to be put back by hand.
+    const clearNavigatingSkeleton = () => {
+        const data = window.Alpine?.$data?.(document.body);
+        if (data) data.navigating = false;
+    };
+
+    let inFlight = null;
+
+    async function loadInto(panel, href) {
+        clearNavigatingSkeleton();
+
+        inFlight?.abort();
+        inFlight = new AbortController();
+
+        panel.classList.add('opacity-60', 'pointer-events-none', 'transition-opacity', 'duration-150');
+
+        try {
+            const response = await fetch(href, {
+                headers: {'X-Requested-With': 'XMLHttpRequest'},
+                signal: inFlight.signal,
+            });
+            const html = await response.text();
+
+            // outerHTML, not innerHTML: the response is the exact same partial the
+            // full page includes (see TeamController::index()), root element and
+            // all, so it still carries its own `data-ajax-panel` marker after the
+            // swap — nothing here needs to re-bind anything to keep working.
+            panel.outerHTML = html;
+            history.pushState({}, '', href);
+        } catch (error) {
+            if (error.name === 'AbortError') return;
+            window.location.href = href;
+        }
+    }
+
+    // Capture phase, on `document` — same reason as the dashboard panel's own click
+    // listener: this has to run, and call preventDefault(), before admin.blade.php's
+    // own click.capture on <body> checks defaultPrevented and (wrongly) flags a real
+    // navigation.
+    document.addEventListener('click', (event) => {
+        const link = event.target.closest('a[href]');
+        if (!link) return;
+
+        const panel = panelOf(link);
+        if (!panel) return;
+
+        if (link.hasAttribute('download') || link.target === '_blank') return;
+        if (event.defaultPrevented || event.metaKey || event.ctrlKey
+            || event.shiftKey || event.altKey || event.button !== 0) return;
+
+        event.preventDefault();
+        loadInto(panel, link.href);
+    }, true);
+
+    document.addEventListener('submit', (event) => {
+        const form = event.target;
+        const panel = panelOf(form);
+        if (!panel) return;
+        // Only GET — see the docblock above for why mutating forms are out of scope.
+        if ((form.getAttribute('method') || 'GET').toUpperCase() !== 'GET') return;
+
+        event.preventDefault();
+        const url = new URL(form.getAttribute('action') || window.location.href, window.location.origin);
+        url.search = new URLSearchParams(new FormData(form)).toString();
+        loadInto(panel, url.href);
+    }, true);
+
+    window.addEventListener('popstate', () => window.location.reload());
+})();
+
+/* ------------------------------------------------------------------ settings page AJAX forms */
+
+/**
+ * Every mutating form on the Settings page (Form fields, Locations, Project types,
+ * Unit types, Amenities, Measurement units, Branding, Email, KYC, Maps, Access) submits
+ * via fetch instead of a real navigation, then refetches the #settings-tabs fragment
+ * (tab, and on Locations the country/state selection, preserved) and swaps it in
+ * whole. `tab` is client-side-only Alpine state — a real redirect-and-reload always
+ * reset it back to the default, which is what made every single save on this page look
+ * like it "reloaded and lost your place." One mechanism handles every toggle, save,
+ * add and delete here rather than ~25 forms each needing their own bespoke AJAX +
+ * DOM-patch logic — see SettingsController::settingsResponse() and the matching note
+ * on every other settings-adjacent controller for the server side of this contract:
+ * `{message: string, tone?: string, params?: object}`, `params` only from Locations,
+ * telling the client which country/state to refetch with (an add has to select the
+ * thing just added, not whatever was already in the address bar).
+ *
+ * Forms gated behind confirm-dialog.blade.php carry `data-confirm` and are skipped by
+ * the plain `submit` listener below — their own x-on:submit.prevent calling
+ * preventDefault() stops the browser's real navigation but NOT this capture-phase
+ * listener from still seeing the same event, so without that check the request went
+ * out immediately, before the dialog even opened. Once accepted, confirm-dialog calls
+ * `form.submit()`, which bypasses submit listeners entirely (so the handler that
+ * opened the dialog cannot re-fire and loop) after first dispatching a cancelable
+ * `confirmed-submit` event — see confirm-dialog.blade.php's own note — which is what
+ * this listens for instead, so a confirmed action goes through the exact same fetch
+ * path as everything else on this page.
+ */
+(() => {
+    const root = () => document.getElementById('settings-tabs');
+
+    function refreshUrl(extraParams) {
+        const params = new URLSearchParams(window.location.search);
+        const scope = root();
+        const tab = scope ? window.Alpine?.$data?.(scope)?.tab : null;
+        if (tab) params.set('tab', tab);
+
+        Object.entries(extraParams ?? {}).forEach(([key, value]) => {
+            if (value === null || value === undefined || value === '') {
+                params.delete(key);
+            } else {
+                params.set(key, String(value));
+            }
+        });
+
+        return `${window.location.pathname}?${params.toString()}`;
+    }
+
+    async function refreshTabs(extraParams) {
+        const scope = root();
+        if (!scope) return;
+
+        const response = await fetch(refreshUrl(extraParams), {
+            headers: {'X-Requested-With': 'XMLHttpRequest'},
+        });
+        if (!response.ok) return;
+
+        scope.outerHTML = await response.text();
+    }
+
+    /**
+     * Dims and disables pointer events on the *whole* tabs region, not just the
+     * submitting form — most row forms here (project types, unit types, amenities,
+     * measurement units) are practically invisible empty <form> elements whose real
+     * inputs/button live elsewhere in the row via the `form="…"` attribute, so dimming
+     * only the form itself dimmed nothing a person could actually see. More importantly,
+     * this is what stops a second row from being edited while the first row's
+     * save-then-refresh is still in flight — see submitViaFetch's own note on why that
+     * race is the thing this exists to prevent.
+     */
+    function setBusy(busy) {
+        const scope = root();
+        if (!scope) return;
+        scope.classList.toggle('opacity-60', busy);
+        scope.classList.toggle('pointer-events-none', busy);
+    }
+
+    async function submitViaFetch(form) {
+        setBusy(true);
+
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                headers: {'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json'},
+                body: new FormData(form),
+            });
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                window.toast?.(data.message ?? 'Could not save. Please check the form.', 'error');
+                return;
+            }
+
+            // Refresh BEFORE the toast, not after: the toast is the signal that it is
+            // safe to touch the page again, so it firing while the swap is still in
+            // flight left a window where editing a second row landed on content that
+            // was about to be wiped out and replaced with the pre-edit server value —
+            // the edit look like it silently "did not save".
+            await refreshTabs(data.params);
+            window.toast?.(data.message ?? 'Saved.', data.tone ?? 'success');
+        } catch {
+            window.toast?.('Could not reach the server. Please try again.', 'error');
+        } finally {
+            // setBusy(false) on the *current* #settings-tabs — root() re-queries fresh,
+            // so this correctly targets the swapped-in node when refreshTabs() ran, and
+            // the original one otherwise (an error before any swap happened).
+            setBusy(false);
+        }
+    }
+
+    function withinScope(form) {
+        const scope = root();
+        return !!scope && scope.contains(form) && !form.hasAttribute('data-no-ajax');
+    }
+
+    // `data-confirm` forms fire this same 'submit' event too — preventDefault() from
+    // their own x-on:submit.prevent handler does not stop it reaching this capture
+    // listener first, it only stops the browser's default navigation. Without this
+    // check the real request went out immediately, before confirm-dialog even opened,
+    // then went out a second time when the user actually clicked confirm.
+    document.addEventListener('submit', (event) => {
+        if (!withinScope(event.target) || event.target.hasAttribute('data-confirm')) return;
+        event.preventDefault();
+        submitViaFetch(event.target);
+    }, true);
+
+    document.addEventListener('confirmed-submit', (event) => {
+        if (!withinScope(event.target)) return;
+        event.preventDefault();
+        submitViaFetch(event.target);
+    }, true);
+})();
+
+/* ------------------------------------------------------------------ approvals detail AJAX */
+
+/**
+ * Approve, Reject and Edit on an Approvals detail page (`/admin/approvals/{id}`) submit
+ * via fetch and refetch `#approval-detail` in place, instead of a full page reload — same
+ * fetch-then-refresh contract as the settings-tabs block above, just scoped to this one
+ * element. See ApprovalController::approve()/reject()/show() and
+ * ChannelPartnerController::update() for the matching `$request->ajax()` fork on the
+ * server side; `admin.approvals.partials.detail` is the exact partial both the full page
+ * and this fetch render, so the two can never drift.
+ *
+ * Reset password is deliberately excluded — its dialog lives outside this element
+ * entirely (mounted once at the layout level, shared with Team/Developers) and its
+ * success flow reveals a generated password via a session-flashed value a fetch response
+ * has no page load to hydrate from.
+ *
+ * The Edit form carries `data-manual-submit` because it already awaits file compression
+ * before submitting — see the note on that form in the partial for why a capture-phase
+ * listener has to explicitly skip it rather than trying to double-handle its submit.
+ */
+(() => {
+    const root = () => document.getElementById('approval-detail');
+
+    function withinScope(form) {
+        const scope = root();
+        return !!scope && scope.contains(form) && !form.hasAttribute('data-no-ajax');
+    }
+
+    function setBusy(busy) {
+        const scope = root();
+        if (!scope) return;
+        scope.classList.toggle('opacity-60', busy);
+        scope.classList.toggle('pointer-events-none', busy);
+    }
+
+    async function refresh() {
+        const scope = root();
+        if (!scope) return;
+
+        const response = await fetch(window.location.href, {
+            headers: {'X-Requested-With': 'XMLHttpRequest'},
+        });
+        if (!response.ok) return;
+
+        scope.outerHTML = await response.text();
+    }
+
+    // Laravel's default 422 body is {message, errors: {field: [msgs]}} — the first
+    // field message is a far more useful toast than the generic top-level message
+    // ("The given data was invalid.") when one is available.
+    function errorMessage(data) {
+        if (data?.errors) {
+            const first = Object.values(data.errors).flat()[0];
+            if (first) return first;
+        }
+
+        return data?.message ?? 'Could not save. Please check the form.';
+    }
+
+    async function submitViaFetch(form) {
+        setBusy(true);
+
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                headers: {'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json'},
+                body: new FormData(form),
+            });
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                window.toast?.(errorMessage(data), 'error');
+                return;
+            }
+
+            // Refresh BEFORE the toast — same reasoning as settings' submitViaFetch:
+            // the toast is the "safe to touch the page again" signal, and firing it
+            // early would let a second action land mid-swap.
+            await refresh();
+            window.toast?.(data.message ?? 'Saved.', data.tone ?? 'success');
+        } catch {
+            window.toast?.('Could not reach the server. Please try again.', 'error');
+        } finally {
+            // setBusy(false) on the *current* #approval-detail — root() re-queries
+            // fresh, so this targets the swapped-in node when refresh() ran, and the
+            // original one otherwise (an error before any swap happened).
+            setBusy(false);
+        }
+    }
+
+    // Exposed so the Edit form's own x-on:submit handler can call it directly, after
+    // its own compression step, instead of the generic listener below ever seeing that
+    // form's submit event untouched.
+    window.submitApprovalForm = submitViaFetch;
+
+    document.addEventListener('submit', (event) => {
+        if (!withinScope(event.target) || event.target.hasAttribute('data-manual-submit')) return;
+        event.preventDefault();
+        submitViaFetch(event.target);
+    }, true);
+})();

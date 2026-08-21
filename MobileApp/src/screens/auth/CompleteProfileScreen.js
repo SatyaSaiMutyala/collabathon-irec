@@ -17,7 +17,7 @@ import {
   SectionHeader,
   SignaturePad,
 } from '../../components';
-import {kycApi, uploadApi} from '../../api/endpoints';
+import {configApi, kycApi, uploadApi} from '../../api/endpoints';
 import {extractError} from '../../api/client';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {startRegistration, saveRegistrationStep, logout} from '../../store/slices/authSlice';
@@ -326,6 +326,34 @@ const CompleteProfileScreen = ({navigation, route}) => {
   // on every stroke. See SignaturePad.capture().
   const signaturePadRef = useRef(null);
 
+  // Which non-core fields Settings > Form fields has turned on for this form — see
+  // ConfigController. null (not yet loaded) and a missing key both read as enabled
+  // via isFieldEnabled below, so a slow or failed fetch never hides a field that
+  // should be there; it only ever hides one the admin explicitly turned off.
+  const [fieldsEnabled, setFieldsEnabled] = useState(null);
+  const isFieldEnabled = key => fieldsEnabled?.[key] ?? true;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    configApi
+      .fetch()
+      .then(({data}) => {
+        const fields = data?.data?.fields?.broker_registration;
+        if (isMounted && fields) {
+          setFieldsEnabled(fields);
+        }
+      })
+      .catch(() => {
+        // Stays null — every field just renders as if enabled, same as before this
+        // existed. A registration form is not the place to fail loudly over this.
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   useEffect(() => {
     if (isResuming && !hasNavigatedRef.current && registrationStep && registrationStep !== currentStep) {
       setCurrentStep(registrationStep);
@@ -383,7 +411,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
       // Professional info — state/city/segments/zones/project contributions stay
       // optional, same as before this became its own step; only the company fields
       // are conditionally required, and only when registering as a company at all.
-      if (form.isCompany && !form.companyName.trim()) {
+      if (form.isCompany && isFieldEnabled('company_name') && !form.companyName.trim()) {
         next.companyName = 'Enter company name';
       }
       if (form.isCompany && !form.officeAddress.trim()) {
@@ -1049,15 +1077,17 @@ const CompleteProfileScreen = ({navigation, route}) => {
                     style={styles.label}>
                     If yes →
                   </AppText>
-                  <Input
-                    ref={registerRef('companyName')}
-                    label="Company name"
-                    placeholder="Firm name"
-                    leftIcon="business-outline"
-                    value={form.companyName}
-                    onChangeText={update('companyName')}
-                    error={errors.companyName}
-                  />
+                  {isFieldEnabled('company_name') && (
+                    <Input
+                      ref={registerRef('companyName')}
+                      label="Company name"
+                      placeholder="Firm name"
+                      leftIcon="business-outline"
+                      value={form.companyName}
+                      onChangeText={update('companyName')}
+                      error={errors.companyName}
+                    />
+                  )}
                   <Input
                     ref={registerRef('officeAddress')}
                     label="Office address *"
@@ -1145,16 +1175,18 @@ const CompleteProfileScreen = ({navigation, route}) => {
                   />
 
                   <View style={{flexDirection: 'row'}}>
-                    <View style={{flex: 1, marginRight: spacing.xs}}>
-                      <Input
-                        ref={registerRef('yearsOfExperience')}
-                        label="Total years of experience"
-                        placeholder="e.g. 5"
-                        keyboardType="numeric"
-                        value={form.yearsOfExperience}
-                        onChangeText={update('yearsOfExperience')}
-                      />
-                    </View>
+                    {isFieldEnabled('years_of_experience') && (
+                      <View style={{flex: 1, marginRight: spacing.xs}}>
+                        <Input
+                          ref={registerRef('yearsOfExperience')}
+                          label="Total years of experience"
+                          placeholder="e.g. 5"
+                          keyboardType="numeric"
+                          value={form.yearsOfExperience}
+                          onChangeText={update('yearsOfExperience')}
+                        />
+                      </View>
+                    )}
                     <View style={{flex: 1, marginLeft: spacing.xs}}>
                       <Input
                         ref={registerRef('teamSize')}
@@ -1329,24 +1361,28 @@ const CompleteProfileScreen = ({navigation, route}) => {
                 />
               </View>
 
-              <Input
-                ref={registerRef('gstNumber')}
-                label="GST number (if any)"
-                placeholder="Optional"
-                autoCapitalize="characters"
-                value={form.gstNumber}
-                onChangeText={update('gstNumber')}
-              />
-              <View style={{marginBottom: spacing.sm}}>
-                <DocumentAttachBox
-                  value={form.gstAttachment}
-                  onPick={handleAttachmentPick('gstAttachment')}
-                  onRemove={() => update('gstAttachment')(null)}
-                  loading={uploadingFields.gstAttachment}
-                  label="GST certificate"
-                  placeholder="Attach a PDF or a photo of your GST certificate"
-                />
-              </View>
+              {isFieldEnabled('gst_number') && (
+                <>
+                  <Input
+                    ref={registerRef('gstNumber')}
+                    label="GST number (if any)"
+                    placeholder="Optional"
+                    autoCapitalize="characters"
+                    value={form.gstNumber}
+                    onChangeText={update('gstNumber')}
+                  />
+                  <View style={{marginBottom: spacing.sm}}>
+                    <DocumentAttachBox
+                      value={form.gstAttachment}
+                      onPick={handleAttachmentPick('gstAttachment')}
+                      onRemove={() => update('gstAttachment')(null)}
+                      loading={uploadingFields.gstAttachment}
+                      label="GST certificate"
+                      placeholder="Attach a PDF or a photo of your GST certificate"
+                    />
+                  </View>
+                </>
+              )}
 
               <View style={{marginBottom: spacing.lg, marginTop: spacing.md}}>
                 <Checkbox

@@ -23,18 +23,26 @@ class TeamController extends Controller
 
     protected function defaultPerPage(): int
     {
-        return 15;
+        return 10;
     }
 
-    public function index(Request $request): View
+    public function index(Request $request): View|\Illuminate\Http\Response
     {
         $query = User::role(User::ROLE_ADMIN)->with('adminRole')->orderBy('name');
-        $roles = Role::orderBy('is_system', 'desc')->orderBy('name')->get();
 
-        return view('admin.team', [
+        $data = [
             'members' => $this->paginate($query, $request),
-            'roles' => $roles,
-        ]);
+            'roles' => Role::orderBy('is_system', 'desc')->orderBy('name')->get(),
+        ];
+
+        // The table (with its own pagination and per-page control) refreshes itself
+        // in place instead of a full reload — see the `data-ajax-panel` mechanism in
+        // app.js. The fragment is the exact same partial the full page includes, just
+        // rendered without the surrounding layout, so the two can never drift apart —
+        // same reasoning as SettingsController::index()'s own ajax()/view() fork.
+        return $request->ajax()
+            ? response()->view('admin.partials.team-table', $data)
+            : view('admin.team', $data);
     }
 
     public function store(Request $request): RedirectResponse

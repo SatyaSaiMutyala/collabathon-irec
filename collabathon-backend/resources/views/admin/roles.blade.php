@@ -62,8 +62,23 @@
                                 </form>
                             </x-modal>
 
+                            @php
+                                // Js::from + {{ }} rather than @js() — Blade does not compile
+                                // directives inside a component's attribute string (same
+                                // reasoning as developers.blade.php's own delete payload).
+                                $deletePayload = \Illuminate\Support\Js::from([
+                                    'title' => 'Delete this role?',
+                                    'message' => $role->users_count > 0
+                                        ? 'This cannot be undone, and ' . $role->users_count . ' '
+                                            . ($role->users_count === 1 ? 'member' : 'members')
+                                            . ' will lose the permissions it grants.'
+                                        : 'This cannot be undone.',
+                                    'confirmLabel' => 'Delete',
+                                    'tone' => 'danger',
+                                ]);
+                            @endphp
                             <form method="POST" action="{{ route('admin.roles.destroy', $role) }}"
-                                  onsubmit="return confirm('Delete this role? This cannot be undone.');">
+                                  x-on:submit.prevent="$dispatch('confirm-request', { ...{{ $deletePayload }}, form: $el })">
                                 @csrf @method('DELETE')
                                 <x-button variant="danger-ghost" size="sm" tag="button" type="submit" icon="x">
                                     Delete

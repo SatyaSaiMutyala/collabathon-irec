@@ -14,10 +14,15 @@
                   form: $el,
               })">
 
-    On accept the dialog calls form.submit(), which bypasses submit listeners — so the
-    handler above cannot re-fire and loop. It also fires `navigate-start` on window,
-    the layout's cue to raise the page skeleton: the prevented submit that opened this
-    dialog deliberately does not raise it, or cancelling would strand it on screen.
+    On accept the dialog first dispatches a cancelable `confirmed-submit` event on the
+    form — an ajax-aware region (see the settings page's own interceptor in app.js) can
+    call preventDefault() on it to handle the actual submission itself via fetch,
+    without confirm-dialog needing to know anything about that machinery. Anywhere else
+    (nothing listens), the event is a no-op and this falls through to form.submit(),
+    exactly as before — which bypasses submit listeners, so the handler above cannot
+    re-fire and loop. It also fires `navigate-start` on window, the layout's cue to
+    raise the page skeleton: the prevented submit that opened this dialog deliberately
+    does not raise it, or cancelling would strand it on screen.
 --}}
 
 <div x-data="confirmDialog()"
@@ -101,6 +106,15 @@
                         this.open = false;
                         this.form = null;
                         if (!form) return;
+
+                        // preventDefault()'d => an ajax-aware listener is handling this
+                        // submit itself; dispatchEvent then returns false and there is
+                        // nothing left to do here.
+                        const intercepted = !form.dispatchEvent(
+                            new CustomEvent('confirmed-submit', {bubbles: true, cancelable: true}),
+                        );
+                        if (intercepted) return;
+
                         // The layout ignores the prevented submit that opened this dialog,
                         // so the page skeleton has to be raised by hand for the real one.
                         window.dispatchEvent(new CustomEvent('navigate-start'));

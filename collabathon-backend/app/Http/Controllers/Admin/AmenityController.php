@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Amenity;
 use App\Models\PropertyDetail;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,9 +20,15 @@ use Illuminate\Validation\Rule;
  */
 class AmenityController extends Controller
 {
-    private function backToPanel(): RedirectResponse
+    // See the matching note on SettingsController::settingsResponse() — a real
+    // redirect for a normal submit, JSON for the settings page's own fetch-based one.
+    private function backToPanel(Request $request, string $message, string $flash = 'success'): RedirectResponse|JsonResponse
     {
-        return redirect()->route('admin.settings', ['tab' => 'amenities']);
+        if ($request->ajax()) {
+            return response()->json(['message' => $message]);
+        }
+
+        return redirect()->route('admin.settings', ['tab' => 'amenities'])->with($flash, $message);
     }
 
     private function rules(?Amenity $amenity = null): array
@@ -44,7 +51,7 @@ class AmenityController extends Controller
         ];
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
 
@@ -55,10 +62,10 @@ class AmenityController extends Controller
 
         $amenity = Amenity::create($data);
 
-        return $this->backToPanel()->with('success', "Amenity “{$amenity->name}” added.");
+        return $this->backToPanel($request, "Amenity “{$amenity->name}” added.");
     }
 
-    public function update(Request $request, Amenity $amenity): RedirectResponse
+    public function update(Request $request, Amenity $amenity): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
 
@@ -90,10 +97,10 @@ class AmenityController extends Controller
                 });
         });
 
-        return $this->backToPanel()->with('success', "Amenity “{$amenity->name}” updated.");
+        return $this->backToPanel($request, "Amenity “{$amenity->name}” updated.");
     }
 
-    public function destroy(Amenity $amenity): RedirectResponse
+    public function destroy(Request $request, Amenity $amenity): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
 
@@ -101,16 +108,17 @@ class AmenityController extends Controller
         // something the admin can no longer see or manage. Turning it off is the
         // reversible move and keeps the projects using it intact.
         if ($count = $amenity->usageCount()) {
-            return $this->backToPanel()->with(
-                'error',
+            return $this->backToPanel(
+                $request,
                 "“{$amenity->name}” is listed on {$count} project" . ($count === 1 ? '' : 's')
-                . ' — remove it there first, or turn it off instead of deleting it.'
+                . ' — remove it there first, or turn it off instead of deleting it.',
+                'error'
             );
         }
 
         $name = $amenity->name;
         $amenity->delete();
 
-        return $this->backToPanel()->with('warning', "Amenity “{$name}” removed.");
+        return $this->backToPanel($request, "Amenity “{$name}” removed.", 'warning');
     }
 }
