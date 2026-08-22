@@ -2,17 +2,13 @@
 
 A round of fixes and improvements across registration, notifications, and the property & developer pages — focused on reliability during broker onboarding and a faster, less repetitive experience across the app.
 
-**Scope:** Channel Partner & Developer apps
 **Type:** Fixes + improvements
-**Status:** Ready for review
 
 ---
 
 ## Registration & Document Upload
 
-- **[Fixed]** Registration could silently fail to complete on a slow connection. The final submission step (uploading PAN, Aadhaar, RERA and GST documents together) could time out without a clear reason on weaker networks, leaving a broker stuck without knowing why.
 - **[Improved]** Documents now upload the moment they're selected, one at a time, with a visible progress state — instead of all four being sent together at the very end. Submission is faster and far less likely to fail.
-- **[Fixed]** A signed-out, then newly registered broker could briefly see the previous account's mobile number pre-filled. Each new registration now starts from a fully clean session.
 
 ## Notifications
 
@@ -36,5 +32,3 @@ A round of fixes and improvements across registration, notifications, and the pr
 ---
 
 All changes above have been reloaded and verified on a live device today. Happy to walk through any of these together, or prioritize the next round based on your feedback.
-
-— The Collabathon build team
