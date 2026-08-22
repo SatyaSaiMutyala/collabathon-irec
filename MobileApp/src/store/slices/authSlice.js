@@ -4,6 +4,7 @@ import {extractError, setAuthToken} from '../../api/client';
 // uiSlice imports nothing back, so this stays a one-way edge — no require cycle.
 import {showSnackbar} from './uiSlice';
 import {unregisterDevice} from '../../services/push';
+import {deviceName} from '../../utils/device';
 
 /**
  * Auth against the Laravel API — two different mechanisms for two different roles.
@@ -118,7 +119,7 @@ export const login = createAsyncThunk(
         email,
         password,
         role,
-        device_name: 'mobile',
+        device_name: deviceName(),
       });
 
       // Raised here rather than in the screen: RootNavigator swaps the auth stack out

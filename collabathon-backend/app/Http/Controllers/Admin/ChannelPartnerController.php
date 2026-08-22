@@ -62,7 +62,15 @@ class ChannelPartnerController extends Controller
             // Joined rather than filtered through whereHas so city and name can both be
             // sorted on, and so a broker with no profile row never disappears silently.
             ->leftJoin('broker_profiles', 'broker_profiles.user_id', '=', 'users.id')
-            ->with('brokerProfile')
+            ->with([
+                'brokerProfile',
+                // The active session, for the Device column. A channel partner is
+                // single-device (AuthController::issueToken revokes the rest on every
+                // sign-in), so this is at most one row — `latest` only decides which one
+                // wins for a developer-turned-broker or a token left over from before
+                // that rule existed.
+                'tokens' => fn ($q) => $q->latest('created_at')->limit(1),
+            ])
             // Counted here rather than per row: the roster is the whole point of the page,
             // and one aggregate beats a query per partner.
             ->withCount(['leads as accepted_leads_count' => fn ($q) => $q

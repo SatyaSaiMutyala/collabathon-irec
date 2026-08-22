@@ -1,6 +1,5 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {StyleSheet, TouchableOpacity, View} from 'react-native';
-import {useFocusEffect} from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
@@ -8,8 +7,6 @@ import {firstName} from '../../utils/name';
 import {
   AppText,
   Avatar,
-  Card,
-  Chip,
   DeveloperCard,
   IconButton,
   Input,
@@ -17,14 +14,12 @@ import {
   PaginatedList,
   DeveloperCardSkeleton,
   ScreenContainer,
-  StatRow,
 } from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {fetchDevelopers, fetchNextDevelopers} from '../../store/slices/developersSlice';
 // Same /dashboard endpoint the developer side's board reads — DashboardController
 // branches on the signed-in role, so this broker token gets {requests_sent,
 // associations} instead of the developer's listing/lead breakdown.
-import {fetchDashboard} from '../../store/slices/dashboardSlice';
 import {useCurrentLocation} from '../../hooks/useLocation';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {setMapPickerCallback} from '../../utils/mapPickerCallback';
@@ -40,16 +35,32 @@ const HomeScreen = ({navigation}) => {
 
   const user = useAppSelector(state => state.auth.user);
   const list = useAppSelector(state => state.developers.list);
-  const stats = useAppSelector(state => state.dashboard.data);
 
   const [query, setQuery] = useState('');
   const [isPickerVisible, setIsPickerVisible] = useState(false);
-  const [manualCity, setManualCity] = useState(null);
+  /**
+   * Which of the three location choices is in force.
+   *
+   * 'current' follows the GPS fix and keeps following it across re-detections,
+   * 'city' pins whatever was chosen from the map, 'all' applies no filter.
+   *
+   * A mode rather than a nullable city, because "nothing chosen yet", "the broker
+   * cleared it" and "the broker asked to re-detect" are three different intentions
+   * that all produced the same `null`. The screen could not tell them apart: tapping
+   * Current location cleared the filter and left it to an effect to re-apply the
+   * detected city, but that effect was keyed on the city *changing* — so a fix that
+   * came back as the same city as before never re-ran it, and the header sat on
+   * Hyderabad while the list showed every city.
+   */
+  const [mode, setMode] = useState('current');
+  /** Only meaningful in `city` mode — what the map screen handed back. */
+  const [pickedCity, setPickedCity] = useState(null);
   const location = useCurrentLocation();
 
   // One request per typing pause, not one per keystroke.
   const debouncedQuery = useDebouncedValue(query, 400);
-  const activeCity = manualCity ?? null;
+  const activeCity =
+    mode === 'all' ? null : mode === 'city' ? pickedCity : (location.city ?? null);
 
   // Once only — a GPS fix isn't something to redo every time this tab regains
   // focus, and nothing here changes it anyway once the broker's on the screen.
@@ -57,34 +68,6 @@ const HomeScreen = ({navigation}) => {
     location.detectLocation();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Applies the detected city as the active filter the moment it resolves, rather
-  // than leaving it sitting in the header as text the broker still has to open the
-  // picker and tap "Use current location" to actually act on — the whole point of
-  // detecting it automatically on open is that it's already the filter, not just a
-  // label. Guarded on `manualCity === null` so it only ever fills in an *unset*
-  // filter: it must not stomp on a city the broker picked themselves (manually, or
-  // from the map), and must not un-clear one they explicitly cleared via the chip's
-  // ✕ — clearing sets `manualCity` back to null too, but `location.city` itself
-  // hasn't changed, so this effect (keyed on `location.city` only) doesn't refire.
-  useEffect(() => {
-    if (location.city && manualCity === null) {
-      setManualCity(location.city);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.city]);
-
-  // Refetched on every focus, not just mount — this tab stays mounted for the life
-  // of the session (React Navigation doesn't remount a tab on switch), so a
-  // mount-only fetch never saw a request/association made from somewhere else in
-  // the app (mark an interest on a property, come back here) until the whole app
-  // restarted. Coming back into focus is exactly the moment those counts might
-  // have changed.
-  useFocusEffect(
-    useCallback(() => {
-      dispatch(fetchDashboard());
-    }, [dispatch]),
-  );
 
   const loadFirstPage = useCallback(() => {
     dispatch(
@@ -133,7 +116,13 @@ const HomeScreen = ({navigation}) => {
                 weight="semiBold"
                 numberOfLines={1}
                 style={{marginLeft: moderateScale(4), maxWidth: moderateScale(160)}}>
-                {activeCity ?? (location.isLoading ? 'Locating…' : location.label)}
+                {mode === 'all'
+                  ? 'All locations'
+                  : mode === 'city'
+                    ? pickedCity
+                    : location.isLoading
+                      ? 'Locating…'
+                      : (location.city ?? location.label)}
               </AppText>
               <Icon
                 name="chevron-down"
@@ -150,23 +139,6 @@ const HomeScreen = ({navigation}) => {
         />
       </View>
 
-      <Card style={{paddingVertical: spacing.sm, marginBottom: spacing.lg}}>
-        <StatRow
-          stats={[
-            {
-              value: String(stats?.requests_sent ?? 0),
-              label: 'Interested Projects',
-              onPress: () => navigation.navigate('RequestsTab'),
-            },
-            {
-              value: String(stats?.associations ?? 0),
-              label: 'Approved Interests',
-              onPress: () => navigation.navigate('PartnersTab'),
-            },
-          ]}
-        />
-      </Card>
-
       <Input
         placeholder="Search developer by name..."
         leftIcon="search-outline"
@@ -175,17 +147,6 @@ const HomeScreen = ({navigation}) => {
         autoCapitalize="none"
         containerStyle={styles.searchShadow}
       />
-
-      {activeCity && (
-        <View style={{flexDirection: 'row', marginBottom: spacing.md}}>
-          <Chip
-            label={`City: ${activeCity}`}
-            active
-            icon="close"
-            onPress={() => setManualCity(null)}
-          />
-        </View>
-      )}
 
       <View style={{marginBottom: spacing.sm}}>
         <AppText variant="h3">
@@ -227,15 +188,19 @@ const HomeScreen = ({navigation}) => {
         onClose={() => setIsPickerVisible(false)}
         isDetecting={location.isLoading}
         onUseCurrentLocation={() => {
-          setManualCity(null);
+          setMode('current');
           location.detectLocation();
+          setIsPickerVisible(false);
+        }}
+        onShowAllLocations={() => {
+          setMode('all');
           setIsPickerVisible(false);
         }}
         onChooseFromMap={() => {
           setIsPickerVisible(false);
           setMapPickerCallback(result => {
-            setManualCity(result.city);
-            location.setManualLocation(result.city);
+            setMode('city');
+            setPickedCity(result.city);
           });
           navigation.navigate('MapPicker');
         }}

@@ -43,12 +43,24 @@ const OptionRow = ({icon, label, onPress, isBusy, isLast}) => {
 };
 
 /**
- * Two ways to set the home screen's location — GPS (current position, reverse-
- * geocoded) or a full map screen with a search box (see MapPickerScreen). Replaced a
- * fixed list of hardcoded cities: that list could only ever offer the handful of
- * places someone thought to type in ahead of time, not wherever a broker actually is.
+ * Three ways to set the home screen's location — GPS (current position, reverse-
+ * geocoded), a full map screen with a search box (see MapPickerScreen), or no filter
+ * at all. Replaced a fixed list of hardcoded cities: that list could only ever offer
+ * the handful of places someone thought to type in ahead of time, not wherever a
+ * broker actually is.
+ *
+ * "All locations" is the only way back out of a city filter. The home screen applies
+ * the detected city automatically on open, so without it a broker can change which
+ * city they are looking at but never see the whole roster again.
  */
-const LocationPickerSheet = ({visible, onClose, onUseCurrentLocation, onChooseFromMap, isDetecting}) => {
+const LocationPickerSheet = ({
+  visible,
+  onClose,
+  onUseCurrentLocation,
+  onChooseFromMap,
+  onShowAllLocations,
+  isDetecting,
+}) => {
   const {colors, roundedRadius, spacing} = useAppTheme();
 
   return (
@@ -92,7 +104,13 @@ const LocationPickerSheet = ({visible, onClose, onUseCurrentLocation, onChooseFr
             isBusy={isDetecting}
             onPress={onUseCurrentLocation}
           />
-          <OptionRow icon="map-outline" label="Choose from map" onPress={onChooseFromMap} isLast />
+          <OptionRow icon="map-outline" label="Choose from map" onPress={onChooseFromMap} />
+          <OptionRow
+            icon="globe-outline"
+            label="All locations"
+            onPress={onShowAllLocations}
+            isLast
+          />
         </Pressable>
       </Pressable>
     </Modal>

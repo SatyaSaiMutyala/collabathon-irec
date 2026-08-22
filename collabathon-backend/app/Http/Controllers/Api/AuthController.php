@@ -151,7 +151,7 @@ class AuthController extends Controller
         $user->load('brokerProfile');
 
         return response()->json([
-            'token' => $user->createToken('mobile')->plainTextToken,
+            'token' => $this->issueToken($user),
             'data' => new UserResource($user),
         ], 201);
     }
@@ -519,7 +519,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'status' => 'draft',
-                'token' => $user->createToken($data['device_name'] ?? 'mobile')->plainTextToken,
+                'token' => $this->issueToken($user, $data['device_name'] ?? null),
                 'data' => new UserResource($user),
             ]);
         }
@@ -538,7 +538,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'status' => 'draft',
-                'token' => $user->createToken($data['device_name'] ?? 'mobile')->plainTextToken,
+                'token' => $this->issueToken($user, $data['device_name'] ?? null),
                 'data' => new UserResource($user),
             ]);
         }
@@ -558,7 +558,7 @@ class AuthController extends Controller
 
         return response()->json([
             'status' => 'login',
-            'token' => $user->createToken($data['device_name'] ?? 'mobile')->plainTextToken,
+            'token' => $this->issueToken($user, $data['device_name'] ?? null),
             'data' => new UserResource($user),
         ]);
     }
@@ -661,7 +661,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'status' => 'draft',
-                'token' => $user->createToken($data['device_name'] ?? 'mobile')->plainTextToken,
+                'token' => $this->issueToken($user, $data['device_name'] ?? null),
                 'data' => new UserResource($user),
             ]);
         }
@@ -673,7 +673,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'status' => 'draft',
-                'token' => $user->createToken($data['device_name'] ?? 'mobile')->plainTextToken,
+                'token' => $this->issueToken($user, $data['device_name'] ?? null),
                 'data' => new UserResource($user),
             ]);
         }
@@ -693,7 +693,7 @@ class AuthController extends Controller
 
         return response()->json([
             'status' => 'login',
-            'token' => $user->createToken($data['device_name'] ?? 'mobile')->plainTextToken,
+            'token' => $this->issueToken($user, $data['device_name'] ?? null),
             'data' => new UserResource($user),
         ]);
     }
@@ -745,7 +745,7 @@ class AuthController extends Controller
         $this->loadProfile($user);
 
         return response()->json([
-            'token' => $user->createToken($data['device_name'] ?? 'mobile')->plainTextToken,
+            'token' => $this->issueToken($user, $data['device_name'] ?? null),
             'data' => new UserResource($user),
         ]);
     }
@@ -813,6 +813,34 @@ class AuthController extends Controller
         }
 
         $user->load('brokerProfile');
+    }
+
+    /**
+     * Issues the Sanctum token for a sign-in, enforcing one active device per broker.
+     *
+     * A channel partner's account is single-device: signing in anywhere revokes every
+     * token that account already held, so the previous handset's next API call comes
+     * back 401 and the app drops it back to the sign-in screen. Developers are
+     * deliberately exempt — a sales desk legitimately runs the same account on a phone
+     * and a tablet, and this is an anti-account-sharing measure aimed at partners.
+     *
+     * The old handset's `device_tokens` rows go with the session. Leaving them would
+     * keep pushing lead alerts to a phone that can no longer open the app, and the
+     * unique index on the token means the row is recreated cleanly on the next sign-in.
+     *
+     * `$deviceName` becomes the token's name and is what the admin panel's CP tab
+     * shows as the signed-in device, so it is worth something readable — the app sends
+     * "OPPO CPH2617 · Android 15" (see utils/device.js). "mobile" is the fallback for
+     * an older build that predates that.
+     */
+    private function issueToken(User $user, ?string $deviceName = null): string
+    {
+        if ($user->isBroker()) {
+            $user->tokens()->delete();
+            DeviceToken::where('user_id', $user->id)->delete();
+        }
+
+        return $user->createToken($deviceName ?: 'mobile')->plainTextToken;
     }
 
     /** Revokes the current device's token only, not every session. */

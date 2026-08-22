@@ -20,7 +20,7 @@ import {Platform} from 'react-native';
 // still works even when the tunnel keeps dying. Machine-specific — update this (or
 // set back to null to use the adb-reverse/loopback path) whenever the Mac's Wi-Fi
 // IP changes.
-const LAN_HOST = '192.168.1.34';
+const LAN_HOST = '192.168.1.40';
 
 const DEV_HOST =
   LAN_HOST ??

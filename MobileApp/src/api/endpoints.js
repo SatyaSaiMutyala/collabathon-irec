@@ -1,5 +1,6 @@
 import client from './client';
 import {UPLOAD_TIMEOUT_MS} from './config';
+import {deviceName} from '../utils/device';
 
 /**
  * Thin transport layer — one function per endpoint, no state.
@@ -108,7 +109,7 @@ export const authApi = {
    * client build), or 'pending' / 'rejected'.
    */
   verifyOtp: ({mobile, code}) =>
-    client.post('/auth/otp/verify', {mobile, code, device_name: 'mobile'}),
+    client.post('/auth/otp/verify', {mobile, code, device_name: deviceName()}),
 
   // ---------------------------------------------------------------- channel-partner email OTP
   /** Issues (or re-issues) a 4-digit code for an email address. */
@@ -120,7 +121,7 @@ export const authApi = {
    * CompleteProfileScreen), or 'pending' / 'rejected'.
    */
   verifyEmailOtp: ({email, code}) =>
-    client.post('/auth/email-otp/verify', {email, code, device_name: 'mobile'}),
+    client.post('/auth/email-otp/verify', {email, code, device_name: deviceName()}),
 };
 
 // ---------------------------------------------------------------- KYC verification

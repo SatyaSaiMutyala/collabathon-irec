@@ -235,6 +235,7 @@
             <x-th hide="xl">Categories</x-th>
             <x-th sort="city" hide="lg">Location</x-th>
             <x-th sort="created_at" hide="xl">Joined</x-th>
+            <x-th hide="lg">Signed in on</x-th>
             <x-th>Status</x-th>
             <x-th align="right">Listings</x-th>
         </x-slot:head>
@@ -282,6 +283,28 @@
 
                 <td class="px-4 py-3 hidden xl:table-cell">
                     <span class="text-[12.5px] text-ink-3 nums">{{ $partner->created_at->format('d M Y') }}</span>
+                </td>
+
+                {{-- The one active session. Channel partners are single-device: every
+                     sign-in revokes the account's other tokens (AuthController::issueToken),
+                     so a name here is the handset they are on right now. "Not signed in"
+                     means the account is approved but nobody has ever logged in with it —
+                     worth seeing on a roster of people who are supposed to be selling. --}}
+                <td class="px-4 py-3 hidden lg:table-cell">
+                    @php $session = $partner->tokens->first(); @endphp
+                    @if($session)
+                        <p class="text-[12.5px] text-ink-2 truncate max-w-[190px]"
+                           title="{{ $session->name }}">{{ $session->name }}</p>
+                        <p class="text-[11.5px] text-ink-3">
+                            {{-- last_used_at stays null until the app makes its first
+                                 authenticated call, a moment after sign-in — falling back
+                                 to created_at avoids a blank row for someone who just
+                                 logged in. --}}
+                            {{ ($session->last_used_at ?? $session->created_at)->diffForHumans() }}
+                        </p>
+                    @else
+                        <span class="text-[12.5px] text-ink-3">Not signed in</span>
+                    @endif
                 </td>
 
                 <td class="px-4 py-3">
