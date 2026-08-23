@@ -133,14 +133,6 @@ const DeveloperProfileScreen = ({route, navigation}) => {
                   style={{marginTop: moderateScale(2)}}>
                   {[developer.city, developer.state].filter(Boolean).join(', ')}
                 </AppText>
-                {!!developer.status && (
-                  <View style={{marginTop: spacing.sm}}>
-                    <Badge
-                      label={developer.status[0].toUpperCase() + developer.status.slice(1)}
-                      tone={developer.status === 'active' ? 'success' : 'neutral'}
-                    />
-                  </View>
-                )}
               </View>
 
               <View
@@ -162,10 +154,25 @@ const DeveloperProfileScreen = ({route, navigation}) => {
                       // developer-level and real, unlike Verified/Unverified
                       // (which used to sit here but has no admin-panel
                       // equivalent any more).
-                      value: developer.created_at
-                        ? String(new Date(developer.created_at).getFullYear())
-                        : '—',
-                      label: 'Since',
+                      //
+                      // One combined cell rather than a status badge under the
+                      // location plus a bare year here — same green badge that
+                      // used to sit under the location, just moved into this row
+                      // with the year underneath it instead of split across two
+                      // spots that both said something about this developer.
+                      render: () => (
+                        <>
+                          <Badge label="Active" tone="success" />
+                          {!!developer.created_at && (
+                            <AppText
+                              variant="caption"
+                              color={colors.textMuted}
+                              style={{marginTop: moderateScale(4)}}>
+                              Since {new Date(developer.created_at).getFullYear()}
+                            </AppText>
+                          )}
+                        </>
+                      ),
                     },
                   ]}
                 />

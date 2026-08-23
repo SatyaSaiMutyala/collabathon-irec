@@ -28,27 +28,43 @@ const StatRow = ({stats}) => {
         const Wrapper = stat.onPress ? TouchableOpacity : View;
 
         return (
-          <React.Fragment key={stat.label}>
+          <React.Fragment key={stat.label || index}>
             <Wrapper
               activeOpacity={stat.onPress ? 0.6 : undefined}
               onPress={stat.onPress}
               style={{flex: 1, alignItems: 'center'}}>
-              {stat.icon ? (
-                <Icon name={stat.icon} size={moderateScale(17)} color={toneColor(stat.iconTone)} />
+              {stat.render ? (
+                // Escape hatch for a cell that isn't a plain value+label pair — e.g.
+                // a coloured status badge with a year underneath it. Everything
+                // else keeps using the plain shape below.
+                stat.render()
               ) : (
-                <AppText variant="h3" color={colors.textPrimary}>
-                  {stat.value}
-                </AppText>
+                <>
+                  {stat.icon ? (
+                    <Icon name={stat.icon} size={moderateScale(17)} color={toneColor(stat.iconTone)} />
+                  ) : (
+                    <AppText
+                      variant="h3"
+                      color={colors.textPrimary}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}>
+                      {stat.value}
+                    </AppText>
+                  )}
+                  {!!stat.label && (
+                    <AppText
+                      variant="caption"
+                      color={colors.textMuted}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                      style={{marginTop: moderateScale(2)}}>
+                      {stat.label}
+                    </AppText>
+                  )}
+                </>
               )}
-              <AppText
-                variant="caption"
-                color={colors.textMuted}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.8}
-                style={{marginTop: moderateScale(2)}}>
-                {stat.label}
-              </AppText>
             </Wrapper>
             {index < stats.length - 1 && (
               <View

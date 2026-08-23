@@ -37,24 +37,24 @@ const DeveloperCard = ({developer, onPress}) => {
 
   return (
     <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={{marginBottom: spacing.sm}}>
-      <Card style={{paddingVertical: spacing.sm, borderWidth: 0}}>
+      <Card style={{paddingVertical: spacing.sm, paddingHorizontal: moderateScale(16), borderWidth: 0}}>
         <View style={{flexDirection: 'row', alignItems: 'center'}}>
           {/* A logo box, not a circle. The admin's upload cropper fixes every logo to
               5:2 before it is saved (see app.js's cropper), and Avatar's `square` shape
               is that same 5:2 frame with `contain` — so the logo lands here exactly as
               it was cropped, edge to edge. The circle default was cropping a wide
               wordmark to its middle with `cover`, which cut the ends off every logo.
-              `md` rather than `lg`: at 5:2 an `lg` box is 160pt wide and leaves the
-              name nowhere to go on a row this size. */}
+              A custom 56 — between the `md`/`lg` tokens — matches the three text rows
+              beside it (name + location + projects) stacked up without going as wide
+              as a full `lg` box would. */}
           <Avatar
             uri={developer.logo_url}
             name={name}
-            size="md"
+            size={56}
             shape="square"
-            showVerified={developer.verified}
           />
 
-          <View style={{flex: 1, marginLeft: spacing.sm}}>
+          <View style={{flex: 1, marginLeft: moderateScale(16)}}>
             <AppText variant="h3" numberOfLines={1}>
               {name}
             </AppText>

@@ -4,8 +4,11 @@
         title="Pending Approvals"
         subtitle="Channel partners cannot sign in to the mobile app until an admin approves their registration. Approving issues their access immediately.">
         <x-slot:actions>
-            {{-- The decision history lives on its own page: this one is work outstanding,
-                 that one is a record that only grows. --}}
+            {{-- Drafts and Decided both live on their own pages: this one is work
+                 outstanding, those are "not yet finished" and "already resolved". --}}
+            <x-button variant="subtle" tag="a" icon="sparkles" href="{{ route('admin.approvals.drafts') }}">
+                Drafts
+            </x-button>
             <x-button variant="subtle" tag="a" icon="check" href="{{ route('admin.approvals.decided') }}">
                 Decided
             </x-button>

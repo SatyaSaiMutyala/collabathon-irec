@@ -14,7 +14,10 @@ const LOGO_RATIO = 2.5;
 
 const Avatar = ({uri, name, size = 'md', ringColor, showVerified, shape = 'circle'}) => {
   const {colors, avatarSize} = useAppTheme();
-  const dim = avatarSize[size];
+  // A raw number sizes the box directly (in points, before scaling) — an escape hatch
+  // for the one caller that needs a height between two named tokens, without adding a
+  // new token every other Avatar everywhere else would have to consider too.
+  const dim = typeof size === 'number' ? moderateScale(size) : avatarSize[size];
   const width = shape === 'square' ? dim * LOGO_RATIO : dim;
   // A ring reads as an intentional frame on a person photo, but on a logo it shows up
   // as a stray border cutting across the image itself — skip it regardless of whether
@@ -72,7 +75,16 @@ const Avatar = ({uri, name, size = 'md', ringColor, showVerified, shape = 'circl
               backgroundColor: colors.primarySoft,
             },
           ]}>
-          <AppText variant="bodyMedium" color={colors.primaryDark}>
+          {/* Sized off the box itself, not a fixed text variant — a 32pt circle and a
+              64pt logo box need visibly different-sized initials, and a flat font
+              size left the bigger boxes (the developer card's logo-shaped fallback,
+              in particular) looking like the letters had been left behind at the
+              smallest size. */}
+          <AppText
+            variant="bodyMedium"
+            weight="semiBold"
+            color={colors.primaryDark}
+            style={{fontSize: dim * 0.42, lineHeight: dim * 0.5}}>
             {initialsOf(name)}
           </AppText>
         </View>

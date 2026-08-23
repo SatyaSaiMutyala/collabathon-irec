@@ -32,6 +32,7 @@ $tabs = [
     ['key' => 'brand',     'label' => 'Branding'],
     ['key' => 'email',     'label' => 'Email'],
     ['key' => 'kyc',       'label' => 'KYC Verification'],
+    ['key' => 'whatsapp',  'label' => 'WhatsApp OTP'],
     ['key' => 'maps',      'label' => 'Maps'],
     ['key' => 'access',    'label' => 'Access'],
 ];
@@ -1117,6 +1118,118 @@ $openTab = in_array(request()->query('tab'), array_column($tabs, 'key'), true)
                 <p class="text-[12px] text-ink-3 mt-4 pt-3 border-t border-line-soft leading-relaxed">
                     This panel only stores the credential. The GST/Aadhaar/PAN verification calls
                     themselves are the next step, once the exact Surepass endpoint contracts are on hand.
+                </p>
+            </x-panel>
+        </div>
+
+        {{-- ---------------------------- WhatsApp OTP (MSG91) ---------------------------- --}}
+        <div x-show="tab === 'whatsapp'" x-cloak class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            <x-panel title="MSG91 WhatsApp"
+                     subtitle="Delivers the mobile-number sign-in code over WhatsApp instead of SMS"
+                     padded class="xl:col-span-2">
+
+                <div @class([
+                    'flex items-start gap-2.5 px-3.5 py-3 mb-5 border',
+                    'bg-success-soft border-success-ring' => $whatsapp['configured'],
+                    'bg-warning-soft border-warning-ring' => ! $whatsapp['configured'],
+                ])>
+                    <x-icon :name="$whatsapp['configured'] ? 'check' : 'clock'"
+                            class="w-4 h-4 shrink-0 mt-px {{ $whatsapp['configured'] ? 'text-success' : 'text-warning' }}" />
+                    <div class="min-w-0">
+                        <p class="text-[13px] font-medium {{ $whatsapp['configured'] ? 'text-success' : 'text-warning' }}">
+                            {{ $whatsapp['configured'] ? 'Connected' : 'Not configured' }}
+                            — running in {{ $whatsapp['environment'] === 'production' ? 'Production' : 'Sandbox' }}
+                        </p>
+                        <p class="text-[12.5px] text-ink-2 mt-0.5 leading-relaxed">
+                            @if($whatsapp['configured'])
+                                An auth key and template are saved for this environment. The mobile-number
+                                sign-in flow sends its code through WhatsApp instead of logging it.
+                            @else
+                                Until an auth key and template are saved below, the code is only logged
+                                server-side (and returned to the app directly outside production) —
+                                nothing is actually sent to the broker's phone.
+                            @endif
+                        </p>
+                    </div>
+                </div>
+
+                {{-- Same `env`-reactive required pattern as Surepass above — see the note
+                     there for why the plain `required` prop is forced off and this drives
+                     it instead. --}}
+                <form method="POST" action="{{ route('admin.settings.whatsapp') }}" class="space-y-4"
+                      x-data="{ env: '{{ $whatsapp['environment'] }}' }">
+                    @csrf
+                    @method('PATCH')
+
+                    <x-select-field label="Active environment" name="whatsapp_environment" required
+                                     x-model="env"
+                                     :selected="$whatsapp['environment']"
+                                     :options="['sandbox' => 'Sandbox (testing)', 'production' => 'Production (live)']"
+                                     hint="MSG91's API endpoint never changes — only the auth key, number and template do. Build and test on Sandbox first." />
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <x-field label="Sandbox auth key" name="whatsapp_sandbox_token" type="password"
+                                 :required="false"
+                                 x-bind:required="env === 'sandbox' && {{ $whatsapp['has_sandbox_token'] ? 'false' : 'true' }}"
+                                 :placeholder="$whatsapp['has_sandbox_token'] ? 'Saved — leave blank to keep' : 'MSG91 auth key'"
+                                 :hint="$whatsapp['has_sandbox_token'] ? 'Stored encrypted (' . $whatsapp['masked_sandbox_token'] . '). Enter a new one only to replace it.' : 'MSG91 dashboard → API → Auth Key.'" />
+                        <x-field label="Production auth key" name="whatsapp_production_token" type="password"
+                                 :required="false"
+                                 x-bind:required="env === 'production' && {{ $whatsapp['has_production_token'] ? 'false' : 'true' }}"
+                                 :placeholder="$whatsapp['has_production_token'] ? 'Saved — leave blank to keep' : 'MSG91 auth key'"
+                                 :hint="$whatsapp['has_production_token'] ? 'Stored encrypted (' . $whatsapp['masked_production_token'] . '). Enter a new one only to replace it.' : 'Add once Sandbox is verified working.'" />
+                    </div>
+
+                    <div class="border-t border-line-soft pt-4 space-y-3">
+                        <p class="text-[12.5px] font-medium text-ink">Template &amp; number</p>
+                        <p class="text-[11.5px] text-ink-3 -mt-2">
+                            Not secret — visible on the MSG91 dashboard already, and the same for both environments.
+                        </p>
+
+                        <x-field label="Integrated WhatsApp number" name="whatsapp_integrated_number" required
+                                 :value="$whatsapp['integrated_number']"
+                                 placeholder="e.g. 919876543210"
+                                 hint="The business's own WhatsApp number registered with MSG91, with country code." />
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <x-field label="Template name" name="whatsapp_template_name" required
+                                     :value="$whatsapp['template_name']"
+                                     placeholder="e.g. otp_login"
+                                     hint="Must be an approved Authentication-category template." />
+                            <x-field label="Template language code" name="whatsapp_template_language" required
+                                     :value="$whatsapp['template_language']"
+                                     placeholder="en" />
+                        </div>
+
+                        <x-field label="Template namespace" name="whatsapp_template_namespace"
+                                 :value="$whatsapp['template_namespace']"
+                                 placeholder="Optional — only if your MSG91 account requires one"
+                                 hint="Leave blank unless MSG91's own template page shows a namespace to copy." />
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2.5 pt-1">
+                        <x-button type="submit" icon="check">Save</x-button>
+                    </div>
+                </form>
+            </x-panel>
+
+            <x-panel title="What this needs" padded class="self-start">
+                <ul class="space-y-2.5 text-[12.5px] text-ink-2 leading-relaxed">
+                    <li class="flex gap-2">
+                        <span class="text-primary">&bull;</span>
+                        <span>A WhatsApp Business Account verified on the MSG91 dashboard, with its own number.</span>
+                    </li>
+                    <li class="flex gap-2">
+                        <span class="text-primary">&bull;</span>
+                        <span>An <strong class="text-ink">Authentication</strong>-category template approved by Meta — WhatsApp's own rule for OTP messages, the same for every provider.</span>
+                    </li>
+                    <li class="flex gap-2">
+                        <span class="text-primary">&bull;</span>
+                        <span>Only mobile-number sign-in uses this. Email sign-in still goes through Mailjet, unaffected.</span>
+                    </li>
+                </ul>
+                <p class="text-[12px] text-ink-3 mt-4 pt-3 border-t border-line-soft leading-relaxed">
+                    Which one a broker sees is set on the Access tab's Channel Partner login method.
                 </p>
             </x-panel>
         </div>

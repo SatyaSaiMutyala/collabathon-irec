@@ -321,6 +321,26 @@ const authSlice = createSlice({
     resetEmailOtp: state => {
       state.emailOtp = initialState.emailOtp;
     },
+    /**
+     * "Start Over" on CompleteProfileScreen — wipes what the wizard has *shown so
+     * far* back to a blank step 1, purely in this client. No thunk, no request:
+     * the server's actual saved draft is untouched and reappears exactly as it was
+     * if the broker closes the app without saving anything new, which is the
+     * point — this is a local "let me retype it" reset, not a delete.
+     *
+     * `verified_channel` survives the wipe — it says which of mobile/email this
+     * broker actually proved with an OTP (see CompleteProfileScreen's own
+     * `verifiedChannel` derivation), a fact about how they authenticated, not
+     * draft content. A resumed session (no route params) reads it off this same
+     * object, so clearing it here would silently unlock whichever field it was
+     * meant to keep locked.
+     */
+    resetDraftLocally: state => {
+      state.registrationStep = 1;
+      state.draftProfile = state.draftProfile
+        ? {verified_channel: state.draftProfile.verified_channel}
+        : null;
+    },
   },
 
   extraReducers: builder => {
@@ -568,6 +588,7 @@ export const {
   resetAuth,
   resetOtp,
   resetEmailOtp,
+  resetDraftLocally,
 } = authSlice.actions;
 
 export default authSlice.reducer;

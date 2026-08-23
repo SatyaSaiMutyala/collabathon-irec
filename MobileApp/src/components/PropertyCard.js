@@ -66,6 +66,16 @@ const PropertyCard = ({project, onPress, showDots = true, priceVariant = 'h1'}) 
             <AppText variant="bodyMedium" color={colors.textInverse} style={{marginTop: moderateScale(2)}}>
               {project.listingType} · {project.type}
             </AppText>
+            {!!project.name && (
+              <AppText
+                variant="bodyMedium"
+                weight="semiBold"
+                color={colors.textInverse}
+                numberOfLines={1}
+                style={{marginTop: moderateScale(2)}}>
+                {project.name}
+              </AppText>
+            )}
             <View style={styles.locationRow}>
               <AppText variant="caption" color={colors.textInverse}>
                 📍 {project.location}

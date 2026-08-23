@@ -45,8 +45,8 @@
     </a>
 
     {{-- ============================== Header ============================== --}}
-    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
-        <div class="flex items-start gap-3.5 min-w-0">
+    <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <div class="flex items-start gap-3.5 flex-1 min-w-[260px]">
             <x-avatar :name="$broker?->name ?? '—'" :src="$profile?->photo_path" size="lg" class="w-14 h-14 shrink-0" />
 
             <div class="min-w-0">

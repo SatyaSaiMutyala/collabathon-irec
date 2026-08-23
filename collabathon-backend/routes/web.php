@@ -90,8 +90,10 @@ Route::prefix('admin')
 
         Route::get('/approvals', [ApprovalController::class, 'index'])->name('approvals')
             ->middleware("can:view-module,'approvals'");
-        // Declared before `{user}` so "decided" is not read as a broker id.
+        // Declared before `{user}` so "decided"/"drafts" are not read as a broker id.
         Route::get('/approvals/decided', [ApprovalController::class, 'decided'])->name('approvals.decided')
+            ->middleware("can:view-module,'approvals'");
+        Route::get('/approvals/drafts', [ApprovalController::class, 'drafts'])->name('approvals.drafts')
             ->middleware("can:view-module,'approvals'");
         Route::get('/approvals/{user}', [ApprovalController::class, 'show'])->name('approvals.show')
             ->middleware("can:view-module,'approvals'");
@@ -182,6 +184,7 @@ Route::prefix('admin')
         Route::patch('/settings/mail', [SettingsController::class, 'updateMail'])->name('settings.mail');
         Route::post('/settings/mail/test', [SettingsController::class, 'testMail'])->name('settings.mail.test');
         Route::patch('/settings/surepass', [SettingsController::class, 'updateSurepass'])->name('settings.surepass');
+        Route::patch('/settings/whatsapp', [SettingsController::class, 'updateWhatsApp'])->name('settings.whatsapp');
         Route::patch('/settings/google-maps', [SettingsController::class, 'updateGoogleMaps'])->name('settings.google-maps');
 
         // Measurement units — the "Project extent metric" options.

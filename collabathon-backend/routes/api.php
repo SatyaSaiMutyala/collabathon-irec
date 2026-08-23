@@ -54,8 +54,10 @@ Route::prefix('v1')->group(function () {
     // for why this is public rather than behind auth:sanctum. Aadhaar verification
     // was removed (Surepass's Aadhaar scope was never actually enabled on this
     // account, so every attempt failed with "access token is not valid for this
-    // API/Scope") — PAN is the only document left that verifies live.
+    // API/Scope") — PAN and GST are the documents left that verify live.
     Route::post('kyc/pan/verify', [KycController::class, 'verifyPan'])
+        ->middleware('throttle:10,1');
+    Route::post('kyc/gst/verify', [KycController::class, 'verifyGst'])
         ->middleware('throttle:10,1');
 
     // ---------------------------------------------------------------- authenticated

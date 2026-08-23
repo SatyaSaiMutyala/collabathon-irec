@@ -78,6 +78,55 @@ class ApprovalController extends Controller
     }
 
     /**
+     * Registrations that never reached a real step-3 submit — signed up (or resumed a
+     * session) and either hit Save Draft or simply closed the app partway through.
+     *
+     * Deliberately excluded from index()'s own query: STATUS_DRAFT is a distinct status
+     * from STATUS_PENDING specifically so a half-finished registration never shows up
+     * in the decision queue next to ones actually waiting on an admin — see the
+     * docblock on User::STATUS_DRAFT. Before this page, that meant a draft was
+     * invisible everywhere in the admin panel; this is the one place to see who has
+     * started but not finished, and how far each one got.
+     */
+    public function drafts(Request $request): View
+    {
+        $this->authorize('view-module', 'approvals');
+
+        $drafts = User::role(User::ROLE_BROKER)
+            ->status(User::STATUS_DRAFT)
+            ->with('brokerProfile')
+            ->when($request->query('search'), function ($q, $term) {
+                $q->where(fn ($w) => $w->where('name', 'like', $term . '%')
+                    ->orWhere('email', 'like', $term . '%')
+                    ->orWhere('mobile', 'like', $term . '%'));
+            })
+            // registration_step is the high-water mark of the last step actually
+            // reached — see AuthController::saveRegistrationStep's own note on why it
+            // never regresses even after a Back. A row with no profile at all yet
+            // (the very first instant after sign-up, before any save) reads as step 1.
+            ->when($request->query('step'), fn ($q, $v) => $q
+                ->whereHas('brokerProfile', fn ($p) => $p->where('registration_step', $v)))
+            // Most recently active first — the point of this page is "who's mid-flow
+            // right now and might be worth a nudge", not a FIFO of who signed up first.
+            ->orderByDesc('updated_at');
+
+        $data = [
+            'drafts' => $drafts->paginate($this->perPage($request))->withQueryString(),
+            'stats' => [
+                'total' => User::role(User::ROLE_BROKER)->status(User::STATUS_DRAFT)->count(),
+                'stalled' => User::role(User::ROLE_BROKER)->status(User::STATUS_DRAFT)
+                    ->where('updated_at', '<=', now()->subDays(7))->count(),
+                'today' => User::role(User::ROLE_BROKER)->status(User::STATUS_DRAFT)
+                    ->where('updated_at', '>=', now()->startOfDay())->count(),
+            ],
+        ];
+
+        return $request->ajax()
+            ? view('admin.approvals.partials.drafts-table', $data)
+            : view('admin.approvals.drafts', $data);
+    }
+
+    /**
      * Decisions already made — its own page rather than a tab on the queue.
      *
      * The two lists answer different questions: the queue is work outstanding, this is an

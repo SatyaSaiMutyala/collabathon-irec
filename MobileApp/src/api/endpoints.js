@@ -168,6 +168,13 @@ export const kycApi = {
    * of the form once a broker types a valid PAN.
    */
   verifyPan: panNumber => client.post('/kyc/pan/verify', {pan_number: panNumber}),
+
+  /**
+   * A GSTIN in, Surepass's GST Advance data out — legal name, registration date,
+   * GSTIN status, taxpayer type, address, contact details. Used to confirm the
+   * typed GST number is real and auto-fill the company name.
+   */
+  verifyGst: gstNumber => client.post('/kyc/gst/verify', {gst_number: gstNumber}),
 };
 
 /**

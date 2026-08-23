@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Support\MailSettings;
 use App\Support\GoogleMapsSettings;
 use App\Support\SurepassSettings;
+use App\Support\WhatsAppSettings;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -154,6 +155,18 @@ class SettingsController extends Controller
                 'configured' => GoogleMapsSettings::isConfigured(),
                 'masked' => GoogleMapsSettings::masked(),
             ],
+            'whatsapp' => [
+                'environment' => WhatsAppSettings::environment(),
+                'configured' => WhatsAppSettings::isConfigured(),
+                'has_sandbox_token' => filled(WhatsAppSettings::sandboxToken()),
+                'has_production_token' => filled(WhatsAppSettings::productionToken()),
+                'masked_sandbox_token' => WhatsAppSettings::masked(WhatsAppSettings::sandboxToken()),
+                'masked_production_token' => WhatsAppSettings::masked(WhatsAppSettings::productionToken()),
+                'integrated_number' => WhatsAppSettings::integratedNumber(),
+                'template_name' => WhatsAppSettings::templateName(),
+                'template_namespace' => WhatsAppSettings::templateNamespace(),
+                'template_language' => WhatsAppSettings::templateLanguage(),
+            ],
         ];
 
         // Every mutating action on this page saves via fetch and then re-requests this
@@ -280,6 +293,52 @@ class SettingsController extends Controller
         SurepassSettings::setEnvironment($data['surepass_environment']);
 
         return $this->settingsResponse($request, 'KYC verification settings saved.');
+    }
+
+    /**
+     * Save the MSG91 WhatsApp OTP auth keys, which environment is active, and the
+     * template/number MSG91 sends through — see {@see WhatsAppSettings} and
+     * {@see \App\Services\OtpSender}.
+     *
+     * A blank auth key means "keep what is stored", same reasoning as `updateSurepass()`.
+     * The template fields are plain text (not secrets, visible on the MSG91 dashboard
+     * already), so they always save from whatever the form currently holds.
+     */
+    public function updateWhatsApp(Request $request): RedirectResponse|JsonResponse
+    {
+        $this->authorize('edit-module', 'settings');
+
+        $data = $request->validate([
+            'whatsapp_environment' => ['required', Rule::in([WhatsAppSettings::ENV_SANDBOX, WhatsAppSettings::ENV_PRODUCTION])],
+            'whatsapp_sandbox_token' => [WhatsAppSettings::sandboxToken() ? 'nullable' : 'required_if:whatsapp_environment,' . WhatsAppSettings::ENV_SANDBOX, 'string', 'max:2048'],
+            'whatsapp_production_token' => [WhatsAppSettings::productionToken() ? 'nullable' : 'required_if:whatsapp_environment,' . WhatsAppSettings::ENV_PRODUCTION, 'string', 'max:2048'],
+            'whatsapp_integrated_number' => ['required', 'string', 'max:32'],
+            'whatsapp_template_name' => ['required', 'string', 'max:255'],
+            'whatsapp_template_namespace' => ['nullable', 'string', 'max:255'],
+            'whatsapp_template_language' => ['required', 'string', 'max:16'],
+        ], [
+            'whatsapp_sandbox_token.required_if' => 'Enter the sandbox auth key before switching to it.',
+            'whatsapp_production_token.required_if' => 'Enter the production auth key before switching to it.',
+        ]);
+
+        if (filled($data['whatsapp_sandbox_token'] ?? null)) {
+            WhatsAppSettings::putSandboxToken(trim($data['whatsapp_sandbox_token']));
+        }
+
+        if (filled($data['whatsapp_production_token'] ?? null)) {
+            WhatsAppSettings::putProductionToken(trim($data['whatsapp_production_token']));
+        }
+
+        WhatsAppSettings::putConfig(
+            trim($data['whatsapp_integrated_number']),
+            trim($data['whatsapp_template_name']),
+            filled($data['whatsapp_template_namespace'] ?? null) ? trim($data['whatsapp_template_namespace']) : null,
+            trim($data['whatsapp_template_language']),
+        );
+
+        WhatsAppSettings::setEnvironment($data['whatsapp_environment']);
+
+        return $this->settingsResponse($request, 'WhatsApp OTP settings saved.');
     }
 
     /**

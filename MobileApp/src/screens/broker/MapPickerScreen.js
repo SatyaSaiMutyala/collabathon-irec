@@ -152,7 +152,13 @@ const MapPickerScreen = ({navigation}) => {
           ref={mapRef}
           style={{flex: 1}}
           initialRegion={DEFAULT_REGION}
-          onPress={e => setMarker(e.nativeEvent.coordinate)}>
+          onPress={e => setMarker(e.nativeEvent.coordinate)}
+          // A tap that lands on a labelled point of interest (a shop, a building, a
+          // landmark — Google's own map tiles are full of these) fires this instead
+          // of onPress and never reaches it at all. Without this, that tap is just
+          // silently swallowed — which reads as "the map isn't responding" and only
+          // "works" once someone happens to tap empty space instead.
+          onPoiClick={e => setMarker(e.nativeEvent.coordinate)}>
           {marker && (
             <Marker
               coordinate={marker}

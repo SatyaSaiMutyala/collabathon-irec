@@ -2,7 +2,7 @@
 
     <x-page-header
         title="Channel Partners"
-        subtitle="Channel partners who are through approval and able to sign in. New registrations are reviewed on the approvals queue before they appear here.">
+        subtitle="Approved partners who can sign in. New registrations go through the approval queue first.">
         <x-slot:actions>
             <x-button variant="subtle" tag="a" icon="clock" href="{{ route('admin.approvals') }}">
                 Approval queue

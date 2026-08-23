@@ -7,6 +7,9 @@
             <x-button variant="subtle" tag="a" icon="clock" href="{{ route('admin.approvals') }}">
                 Back to queue
             </x-button>
+            <x-button variant="subtle" tag="a" icon="sparkles" href="{{ route('admin.approvals.drafts') }}">
+                Drafts
+            </x-button>
         </x-slot:actions>
     </x-page-header>
 

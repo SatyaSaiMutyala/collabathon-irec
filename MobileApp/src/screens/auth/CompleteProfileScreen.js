@@ -20,7 +20,7 @@ import {
 import {configApi, kycApi, uploadApi} from '../../api/endpoints';
 import {extractError} from '../../api/client';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
-import {startRegistration, saveRegistrationStep, logout} from '../../store/slices/authSlice';
+import {startRegistration, saveRegistrationStep, logout, resetDraftLocally} from '../../store/slices/authSlice';
 import {showSnackbar} from '../../store/slices/uiSlice';
 
 const SUFFIX_OPTIONS = ['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Eng.'];
@@ -34,6 +34,7 @@ const SEGMENT_OPTIONS = [
 const ZONE_OPTIONS = ['East', 'West', 'North', 'South', 'Central', 'All'];
 
 const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 
 /** Picking "All" covers every other option, so the list has nothing left to offer. */
 const TERMINAL_OPTIONS = ['All'];
@@ -303,6 +304,14 @@ const CompleteProfileScreen = ({navigation, route}) => {
   // already been saved, so silently rewriting those here would look like it
   // worked but never reach the backend unless the broker revisits those steps.
   const [panVerification, setPanVerification] = useState({
+    status: 'idle', // idle | verifying | verified | rejected | unavailable
+    name: null,
+    message: null,
+  });
+  // Same idea as panVerification, but GST stays optional on this form — this is
+  // purely informational (confirms the number is real, shows the legal name on
+  // file) and never blocks submission the way a rejected PAN does.
+  const [gstVerification, setGstVerification] = useState({
     status: 'idle', // idle | verifying | verified | rejected | unavailable
     name: null,
     message: null,
@@ -585,6 +594,34 @@ const CompleteProfileScreen = ({navigation, route}) => {
     }
   };
 
+  /** Same contract as verifyPan — GST just stays optional, so a missing/malformed number never blocks anything. */
+  const verifyGst = async gstNumber => {
+    setGstVerification({status: 'verifying', name: null, message: null});
+
+    try {
+      const {data} = await kycApi.verifyGst(gstNumber);
+      setGstVerification({
+        status: data.status,
+        name: data.status === 'verified' ? data.data?.legal_name ?? null : null,
+        message: data.status === 'verified' ? null : data.message ?? null,
+      });
+    } catch (error) {
+      setGstVerification({
+        status: 'unavailable',
+        name: null,
+        message: extractError(error).message ?? 'Could not verify right now.',
+      });
+    }
+  };
+
+  /** Fires once the GST field loses focus with a complete, correctly-formatted GSTIN — GST itself stays optional, so an empty field does nothing. */
+  const handleGstBlur = () => {
+    const gst = form.gstNumber.trim().toUpperCase();
+    if (GST_REGEX.test(gst)) {
+      verifyGst(gst);
+    }
+  };
+
   /**
    * Maps the current step's form fields onto that step's slice of the API contract.
    * `signaturePath` is step 3 only — the storage path POST /uploads already handed
@@ -644,6 +681,9 @@ const CompleteProfileScreen = ({navigation, route}) => {
       aadhaar_card: form.aadhaarCard.trim() || null,
       rera_number: form.reraNumber.trim() || null,
       gst_number: form.gstNumber.trim() || null,
+      // Same idea as pan_verified above — off the typed GSTIN alone.
+      gst_verified: gstVerification.status === 'verified',
+      gst_verified_name: gstVerification.status === 'verified' ? gstVerification.name : null,
       // Only present for a document picked *this* session — see handleAttachmentPick.
       // A resumed draft's attachment has no `.path` (it was already linked on an
       // earlier save), so this stays null and nothing is re-sent for it.
@@ -823,6 +863,56 @@ const CompleteProfileScreen = ({navigation, route}) => {
   };
 
   /**
+   * Client-side only, on purpose — wipes the wizard back to a blank step 1 in this
+   * app, but never calls the server. Whatever was last actually saved (via Next or
+   * Save Draft) stays exactly as it was: closing the app right after Start Over
+   * without typing anything new just resumes that old data again next time, which
+   * is correct — a reset the broker never followed through on shouldn't be able to
+   * destroy a save that already succeeded.
+   */
+  const handleStartOver = () => {
+    Alert.alert(
+      'Start over?',
+      'This clears everything you’ve typed on this device and takes you back to step 1. Anything already saved stays safe until you save again.',
+      [
+        {text: 'Cancel', style: 'cancel'},
+        {
+          text: 'Start Over',
+          style: 'destructive',
+          onPress: () => {
+            hasNavigatedRef.current = true;
+            dispatch(resetDraftLocally());
+            setForm(buildInitialForm({mobile: mobileParam, email: emailParam, identity: user, draft: undefined}));
+            setCurrentStep(1);
+            setErrors({});
+            setPanVerification({status: 'idle', name: null, message: null});
+            setGstVerification({status: 'idle', name: null, message: null});
+          },
+        },
+      ],
+    );
+  };
+
+  /** Whether there's anything on screen worth offering to clear — an untouched brand-new form has nothing to start over from. */
+  const hasFormData =
+    isResuming ||
+    currentStep > 1 ||
+    !!form.fullNameAsRera.trim() ||
+    !!form.residenceAddress.trim() ||
+    !!form.panCard.trim() ||
+    !!form.aadhaarCard.trim() ||
+    !!form.reraNumber.trim();
+
+  /** Passed as each step's SectionHeader `right` — sits beside that step's own title rather than the app bar. */
+  const startOverAction = hasFormData ? (
+    <TouchableOpacity onPress={handleStartOver} disabled={isSubmitting} hitSlop={8}>
+      <AppText variant="bodyMedium" color={isSubmitting ? colors.textMuted : colors.danger}>
+        Start Over
+      </AppText>
+    </TouchableOpacity>
+  ) : null;
+
+  /**
    * The progress bar's 3-colour states — driven by what the server actually holds
    * (`registrationStep`/`draftProfile`), not by `currentStep` (which just tracks
    * where the wizard is scrolled to right now, and used to be what this read,
@@ -959,7 +1049,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
 
         {currentStep === 1 && (
           <>
-            <SectionHeader step={1} title="Personal info" />
+            <SectionHeader step={1} title="Personal info" right={startOverAction} />
             <View style={{marginTop: spacing.md}}>
               <View style={{flexDirection: 'row'}}>
                 <View style={{flex: 1, marginRight: spacing.xs}}>
@@ -1059,7 +1149,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
 
         {currentStep === 2 && (
           <>
-            <SectionHeader step={2} title="Professional info" />
+            <SectionHeader step={2} title="Professional info" right={startOverAction} />
             <View style={{marginTop: spacing.md}}>
               <View style={{marginBottom: spacing.sm}}>
                 <Checkbox
@@ -1266,7 +1356,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
 
         {currentStep === 3 && (
           <>
-            <SectionHeader step={3} title="More Business info" />
+            <SectionHeader step={3} title="More Business info" right={startOverAction} />
             <View style={{marginTop: spacing.md}}>
               <Input
                 ref={registerRef('panCard')}
@@ -1370,7 +1460,37 @@ const CompleteProfileScreen = ({navigation, route}) => {
                     autoCapitalize="characters"
                     value={form.gstNumber}
                     onChangeText={update('gstNumber')}
+                    onBlur={handleGstBlur}
                   />
+                  {gstVerification.status === 'verifying' && (
+                    <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm}}>
+                      <ActivityIndicator size="small" color={colors.primary} />
+                      <AppText variant="caption" color={colors.textSecondary} style={{marginLeft: spacing.xs}}>
+                        Verifying GST…
+                      </AppText>
+                    </View>
+                  )}
+                  {gstVerification.status === 'verified' && (
+                    <View style={{flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.sm}}>
+                      <Icon name="checkmark-circle" size={moderateScale(14)} color={colors.success} style={{marginTop: moderateScale(1)}} />
+                      <AppText variant="caption" color={colors.success} style={{marginLeft: spacing.xs, flex: 1}}>
+                        {gstVerification.name ? `Verified — ${gstVerification.name}` : 'Verified'}
+                      </AppText>
+                    </View>
+                  )}
+                  {gstVerification.status === 'rejected' && (
+                    <View style={{flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.sm}}>
+                      <Icon name="alert-circle-outline" size={moderateScale(14)} color={colors.warning} style={{marginTop: moderateScale(1)}} />
+                      <AppText variant="caption" color={colors.warning} style={{marginLeft: spacing.xs, flex: 1}}>
+                        {gstVerification.message ?? 'Could not verify this GST number.'}
+                      </AppText>
+                    </View>
+                  )}
+                  {gstVerification.status === 'unavailable' && (
+                    <AppText variant="caption" color={colors.textMuted} style={{marginBottom: spacing.sm}}>
+                      {gstVerification.message ?? 'Could not verify right now.'}
+                    </AppText>
+                  )}
                   <View style={{marginBottom: spacing.sm}}>
                     <DocumentAttachBox
                       value={form.gstAttachment}

@@ -1,4 +1,5 @@
 import React, {useCallback, useEffect, useState} from 'react';
+import {useFocusEffect} from '@react-navigation/native';
 import {StyleSheet, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from '../../theme/scaling';
@@ -79,10 +80,16 @@ const HomeScreen = ({navigation}) => {
     );
   }, [dispatch, debouncedQuery, activeCity]);
 
-  // Any change to search or city restarts at page 1.
-  useEffect(() => {
-    loadFirstPage();
-  }, [loadFirstPage]);
+  // Any change to search or city restarts at page 1, same as before — but this also
+  // now re-runs on every focus, not just on mount. A developer's logo/name/project
+  // count can change from the admin panel at any time, and returning to this tab
+  // (from a developer's profile, or just switching tabs and back) used to keep
+  // showing whatever page 1 looked like the moment this screen first mounted.
+  useFocusEffect(
+    useCallback(() => {
+      loadFirstPage();
+    }, [loadFirstPage]),
+  );
 
   const handleEndReached = useCallback(() => {
     dispatch(fetchNextDevelopers());
@@ -158,6 +165,11 @@ const HomeScreen = ({navigation}) => {
       </View>
 
       <PaginatedList
+        // Cancels ScreenContainer's own horizontal padding so DeveloperCard's much
+        // smaller paddingHorizontal is the only inset left — two stacked paddings
+        // (the screen's 20 plus the card's own) were eating enough width that a
+        // longer developer name had nowhere left to go before truncating.
+        style={{marginHorizontal: -spacing.lg}}
         renderSkeleton={() => <DeveloperCardSkeleton />}
         list={list}
         onRefresh={loadFirstPage}

@@ -26,14 +26,16 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Mobile auth. Developers sign in with email + password (Sanctum tokens). Channel
- * partners sign in with `sendEmailOtp`/`verifyEmailOtp` — a 4-digit code emailed
- * through whichever mailer MailSettings points at (Mailjet), since there is no SMS
- * provider configured for the mobile-number version below.
+ * partners sign in with either `sendEmailOtp`/`verifyEmailOtp` (a 4-digit code emailed
+ * through whichever mailer MailSettings points at — Mailjet) or `sendOtp`/`verifyOtp`
+ * (a 6-digit code delivered over WhatsApp via {@see \App\Services\OtpSender} — MSG91,
+ * configured through {@see \App\Support\WhatsAppSettings}) — WelcomeScreen on the
+ * mobile app picks which pair to route into per the admin's `cp_login_method` setting
+ * (Settings -> Channel Partners), so both stay live rather than one being dead code.
  *
- * `sendOtp`/`verifyOtp` implement that earlier mobile-number + OTP alternative. It is
- * not wired into either client build anymore — re-enabling it is a client-side
- * navigation change, not a backend one, so the endpoints and the OtpCode/OtpSender
- * plumbing stay in place rather than being ripped out.
+ * `OtpSender` falls back to logging the code (plus `debug_code` in the response below)
+ * whenever WhatsApp isn't configured yet, so a fresh install still has a working
+ * mobile-OTP flow before anyone's added a MSG91 key.
  *
  * A new channel partner isn't registered in one shot — `startRegistration()` (step 1)
  * then `saveRegistrationStep()` (steps 2-3) walk the account through
@@ -112,6 +114,9 @@ class AuthController extends Controller
             // Optional even on a real "Next", same reasoning as before this became
             // step 1 of the wizard: a broker can finish registering without a photo.
             'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+        ], [
+            'email.unique' => 'This email is already registered.',
+            'mobile.unique' => 'This phone number is already registered.',
         ]);
 
         if (! $data['save_draft'] && blank($data['residence_address'] ?? null)) {
@@ -178,6 +183,11 @@ class AuthController extends Controller
             ], 403);
         }
 
+        // Own row excluded from each unique check below — resubmitting (or just
+        // re-saving) this broker's own already-stored PAN/Aadhaar/RERA must never
+        // flag itself as a duplicate.
+        $profileId = $user->brokerProfile->id;
+
         $data = $request->validate([
             'step' => ['required', 'integer', 'in:1,2,3'],
             'save_draft' => ['required', 'boolean'],
@@ -202,7 +212,12 @@ class AuthController extends Controller
             ...SocialPlatforms::rules(),
             'years_of_experience' => ['nullable', 'integer', 'min:0', 'max:80'],
             'team_size' => ['nullable', 'integer', 'min:0', 'max:10000'],
-            'pan_card' => ['nullable', 'string', 'max:32'],
+            // One government-issued PAN/Aadhaar, or one RERA registration, belongs to
+            // one real person — enforced here so the same identity can't sit behind
+            // a second channel partner account. Own row excluded via $profileId
+            // (see above), same reasoning as email/mobile's own unique rules but
+            // scoped to broker_profiles rather than users.
+            'pan_card' => ['nullable', 'string', 'max:32', Rule::unique('broker_profiles', 'pan_card')->ignore($profileId)],
             // Set by the app after KycController::verifyPan succeeded on the typed PAN
             // number — not re-checked here. Read-only informational for the admin,
             // not a permission. PAN is the only field left with a verified flag —
@@ -211,9 +226,13 @@ class AuthController extends Controller
             // below are a plain number + attachment now, same as rera_number/gst_number.
             'pan_verified' => ['nullable', 'boolean'],
             'pan_verified_name' => ['nullable', 'string', 'max:255'],
-            'aadhaar_card' => ['nullable', 'string', 'max:32'],
-            'rera_number' => ['nullable', 'string', 'max:64'],
+            'aadhaar_card' => ['nullable', 'string', 'max:32', Rule::unique('broker_profiles', 'aadhaar_card')->ignore($profileId)],
+            'rera_number' => ['nullable', 'string', 'max:64', Rule::unique('broker_profiles', 'rera_number')->ignore($profileId)],
             'gst_number' => ['nullable', 'string', 'max:32'],
+            // Set by the app after KycController::verifyGst succeeded on the typed
+            // GSTIN — same trust boundary as pan_verified above.
+            'gst_verified' => ['nullable', 'boolean'],
+            'gst_verified_name' => ['nullable', 'string', 'max:255'],
 
             'state' => ['nullable', 'string', 'max:96'],
             'city' => ['nullable', 'string', 'max:96'],
@@ -249,6 +268,10 @@ class AuthController extends Controller
                 ->values()
                 ->mapWithKeys(fn ($column) => [$column => ['nullable', 'string']])
                 ->all(),
+        ], [
+            'pan_card.unique' => 'This PAN number is already registered with another channel partner account.',
+            'aadhaar_card.unique' => 'This Aadhaar number is already registered with another channel partner account.',
+            'rera_number.unique' => 'This RERA number is already registered with another channel partner account.',
         ]);
 
         // A step's own required fields only matter when this is a real "Next"/final
@@ -294,6 +317,14 @@ class AuthController extends Controller
                 $profile->pan_verified = $panVerified;
                 $profile->pan_verified_name = $panVerified ? ($data['pan_verified_name'] ?? null) : null;
                 $profile->pan_verified_at = $panVerified ? now() : null;
+            }
+
+            // Same idea as pan_verified above, off the typed GSTIN alone.
+            if (array_key_exists('gst_verified', $data)) {
+                $gstVerified = (bool) $data['gst_verified'];
+                $profile->gst_verified = $gstVerified;
+                $profile->gst_verified_name = $gstVerified ? ($data['gst_verified_name'] ?? null) : null;
+                $profile->gst_verified_at = $gstVerified ? now() : null;
             }
 
             // A completed step ("Next") resumes on the step after it — that step's
@@ -451,16 +482,28 @@ class AuthController extends Controller
         ]);
 
         $otp = OtpCode::issueFor($data['mobile']);
-        $sender->send($data['mobile'], $otp->rawCode());
+        $sent = $sender->send($data['mobile'], $otp->rawCode());
+
+        // A WhatsApp send that genuinely failed (WhatsApp is configured, MSG91 itself
+        // rejected or errored) is a dead end for the broker unless debug_code is about
+        // to bail them out below — nothing else in this flow ever hands the code back.
+        // "Not configured yet" is not this case: OtpSender::send() already logged it
+        // and returned true, same as it always has.
+        if (! $sent && ! $this->exposesOtpCode()) {
+            return response()->json([
+                'message' => 'Could not send the verification code. Please try again in a moment.',
+            ], 502);
+        }
 
         return response()->json([
             'message' => 'OTP sent.',
             'expires_in' => OtpCode::TTL_MINUTES * 60,
-            // Only because nothing here actually texts the code anywhere yet (see
-            // OtpSender) — without it there is no way to finish the flow short of
-            // tailing the log. Local/testing always; a deployed test server only when
-            // OTP_EXPOSE_CODE is set, because APP_ENV there is production and an
-            // environment check alone cannot distinguish it from the real thing.
+            // Local/testing always; a deployed test server only when OTP_EXPOSE_CODE is
+            // set, because APP_ENV there is production and an environment check alone
+            // cannot distinguish it from the real thing. Still returned here even after
+            // a failed send in that case — a developer working before WhatsApp is
+            // configured, or against a broken sandbox key, still needs a way to finish
+            // testing the flow without tailing a log.
             'debug_code' => $this->exposesOtpCode() ? $otp->rawCode() : null,
         ]);
     }
