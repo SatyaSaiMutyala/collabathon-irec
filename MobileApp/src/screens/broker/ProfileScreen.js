@@ -5,6 +5,7 @@ import {moderateScale} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
 import {
   AppText,
+  AppVersion,
   Avatar,
   Badge,
   Button,
@@ -260,6 +261,7 @@ const ProfileScreen = () => {
           style={{marginTop: spacing.sm}}
           onPress={() => setConfirmDelete(true)}
         />
+        <AppVersion />
       </ScrollView>
 
       <ConfirmDialog

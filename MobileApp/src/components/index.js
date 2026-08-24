@@ -1,5 +1,6 @@
 export {default as ActionSheet} from './ActionSheet';
 export {default as AppText} from './AppText';
+export {default as AppVersion} from './AppVersion';
 export {default as AuthHeader} from './AuthHeader';
 export {default as Button} from './Button';
 export {default as Input} from './Input';

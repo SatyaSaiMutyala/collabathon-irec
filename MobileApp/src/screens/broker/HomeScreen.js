@@ -8,23 +8,25 @@ import {firstName} from '../../utils/name';
 import {
   AppText,
   Avatar,
+  Card,
   DeveloperCard,
   IconButton,
   Input,
   LocationPickerSheet,
   PaginatedList,
+  StatRow,
   DeveloperCardSkeleton,
   ScreenContainer,
 } from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {fetchDevelopers, fetchNextDevelopers} from '../../store/slices/developersSlice';
+import {fetchDashboard} from '../../store/slices/dashboardSlice';
 // Same /dashboard endpoint the developer side's board reads — DashboardController
 // branches on the signed-in role, so this broker token gets {requests_sent,
 // associations} instead of the developer's listing/lead breakdown.
 import {useCurrentLocation} from '../../hooks/useLocation';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {setMapPickerCallback} from '../../utils/mapPickerCallback';
-import {version as APP_VERSION} from '../../../package.json';
 
 /**
  * Developer directory. Search and city filtering are sent to the API — this screen
@@ -36,6 +38,7 @@ const HomeScreen = ({navigation}) => {
 
   const user = useAppSelector(state => state.auth.user);
   const list = useAppSelector(state => state.developers.list);
+  const stats = useAppSelector(state => state.dashboard.data);
 
   const [query, setQuery] = useState('');
   const [isPickerVisible, setIsPickerVisible] = useState(false);
@@ -88,7 +91,11 @@ const HomeScreen = ({navigation}) => {
   useFocusEffect(
     useCallback(() => {
       loadFirstPage();
-    }, [loadFirstPage]),
+      // Refreshed on focus, not just on mount: an interest accepted while this tab
+      // was in the background would otherwise leave the counts on the old numbers
+      // until the app was restarted.
+      dispatch(fetchDashboard());
+    }, [loadFirstPage, dispatch]),
   );
 
   const handleEndReached = useCallback(() => {
@@ -146,6 +153,26 @@ const HomeScreen = ({navigation}) => {
         />
       </View>
 
+      {/* Each cell is a shortcut to the tab that lists what it counts, so the
+          number is not a dead end. Figures come from /dashboard — see the note
+          on its import above. */}
+      <Card style={{paddingVertical: spacing.sm, marginBottom: spacing.lg}}>
+        <StatRow
+          stats={[
+            {
+              value: String(stats?.requests_sent ?? 0),
+              label: 'Interested Projects',
+              onPress: () => navigation.navigate('RequestsTab'),
+            },
+            {
+              value: String(stats?.associations ?? 0),
+              label: 'Approved Interests',
+              onPress: () => navigation.navigate('PartnersTab'),
+            },
+          ]}
+        />
+      </Card>
+
       <Input
         placeholder="Search developer by name..."
         leftIcon="search-outline"
@@ -181,19 +208,6 @@ const HomeScreen = ({navigation}) => {
           <DeveloperCard developer={item} onPress={() => goToDeveloper(item.id)} />
         )}
       />
-
-      {/* A quiet corner watermark, not a functional control — pointerEvents="none"
-          so it never steals a tap from whatever card happens to scroll underneath
-          it (DeveloperCard's own city/project pill sits in this same corner). Reads
-          package.json's version directly rather than a hand-maintained constant, so
-          it can't drift from what actually gets bumped at release time — kept in
-          sync with the native versionName in android/app/build.gradle by hand,
-          same as any other release-time bump. */}
-      <View pointerEvents="none" style={{position: 'absolute', right: spacing.sm, bottom: spacing.xs}}>
-        <AppText variant="overline" color={colors.textMuted}>
-          v{APP_VERSION}
-        </AppText>
-      </View>
 
       <LocationPickerSheet
         visible={isPickerVisible}

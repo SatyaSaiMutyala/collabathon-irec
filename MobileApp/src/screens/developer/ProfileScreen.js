@@ -4,6 +4,7 @@ import {moderateScale} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
 import {
   AppText,
+  AppVersion,
   Avatar,
   Badge,
   Button,
@@ -191,6 +192,7 @@ const ProfileScreen = () => {
           style={{marginTop: spacing.lg}}
           onPress={() => setConfirmLogout(true)}
         />
+        <AppVersion />
       </ScrollView>
 
       <ConfirmDialog
