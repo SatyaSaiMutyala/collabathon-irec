@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ConfigController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DeveloperController;
+use App\Http\Controllers\Api\DigilockerController;
 use App\Http\Controllers\Api\KycController;
 use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\MyPropertyController;
@@ -51,19 +52,36 @@ Route::prefix('v1')->group(function () {
         ->middleware('throttle:15,1');
 
     // Document verification during registration — see KycController's own docblock
-    // for why this is public rather than behind auth:sanctum. Aadhaar verification
-    // was removed (Surepass's Aadhaar scope was never actually enabled on this
-    // account, so every attempt failed with "access token is not valid for this
-    // API/Scope") — PAN and GST are the documents left that verify live.
+    // for why this is public rather than behind auth:sanctum. The offline
+    // QR/XML/eAadhaar-upload Aadhaar paths were removed (Surepass's scope for
+    // those was never actually enabled on this account, so every attempt failed
+    // with "access token is not valid for this API/Scope") — PAN, GST, and
+    // Aadhaar-via-DigiLocker (a different, live-verification product that IS
+    // enabled) are what's left.
     Route::post('kyc/pan/verify', [KycController::class, 'verifyPan'])
         ->middleware('throttle:10,1');
     Route::post('kyc/gst/verify', [KycController::class, 'verifyGst'])
         ->middleware('throttle:10,1');
 
+    // DigiLocker Aadhaar verification — the first two calls of the flow, see
+    // DigilockerVerificationService's own docblock. `status` gets a looser
+    // throttle than initialize since the app polls it a few times while waiting
+    // for the broker to finish in the WebView. `download-aadhaar` (the third
+    // call) lives in the authenticated group below instead — it saves the
+    // returned Aadhaar XML as an Upload row owned by the caller, which needs a
+    // real user to own it.
+    Route::post('kyc/digilocker/initialize', [DigilockerController::class, 'initialize'])
+        ->middleware('throttle:10,1');
+    Route::get('kyc/digilocker/status/{clientId}', [DigilockerController::class, 'status'])
+        ->middleware('throttle:30,1');
+
     // ---------------------------------------------------------------- authenticated
     Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('auth/me', [AuthController::class, 'me']);
+        // The mobile Profile screen's formatted Aadhaar read-out — see
+        // AuthController::aadhaarPreview's own docblock.
+        Route::get('auth/me/aadhaar-preview', [AuthController::class, 'aadhaarPreview']);
         Route::get('dashboard', DashboardController::class);
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::delete('auth/account', [AuthController::class, 'deleteAccount']);
@@ -81,6 +99,13 @@ Route::prefix('v1')->group(function () {
         // documents plus a couple of retries without getting in the way.
         Route::post('uploads', [UploadController::class, 'store'])
             ->middleware('throttle:30,1');
+
+        // The third DigiLocker call — see kyc/digilocker/initialize above for the
+        // first two. Authenticated so it can save the verified Aadhaar XML as an
+        // Upload row owned by the caller, the same "pick a file, get a path back
+        // to link on the real submit" contract every other step-3 attachment uses.
+        Route::get('kyc/digilocker/download-aadhaar/{clientId}', [DigilockerController::class, 'downloadAadhaar'])
+            ->middleware('throttle:10,1');
 
         // Push registration. Sent right after sign-in and cleared on sign-out.
         Route::post('auth/device-token', [AuthController::class, 'registerDevice']);

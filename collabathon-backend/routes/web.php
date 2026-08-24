@@ -31,6 +31,20 @@ Route::get('/', fn () => redirect()->to(
     auth()->check() ? route('admin.dashboard') : route('login')
 ));
 
+// The DigiLocker Aadhaar flow's redirect_url — see DigilockerVerificationService's
+// own docblock for why this has to live at a real public URL rather than the app's
+// own APP_URL. Nothing here does any work: the mobile app's WebView is watching for
+// navigation to this exact path as its own "the broker just finished" signal, and
+// closes itself the moment it sees it — this page never actually has to be seen.
+Route::get('/digilocker/callback', fn () => response(
+    '<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">'
+    .'<title>Verification complete</title></head><body style="font-family:-apple-system,BlinkMacSystemFont,'
+    .'\'Segoe UI\',Roboto,sans-serif;text-align:center;padding-top:80px;color:#1c1c1e;">'
+    .'<h2>Verification complete</h2><p>You can close this window now.</p></body></html>',
+    200,
+    ['Content-Type' => 'text/html'],
+))->name('digilocker.callback');
+
 // ---------------------------------------------------------------- guest
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'show'])->name('login');
@@ -96,6 +110,11 @@ Route::prefix('admin')
         Route::get('/approvals/drafts', [ApprovalController::class, 'drafts'])->name('approvals.drafts')
             ->middleware("can:view-module,'approvals'");
         Route::get('/approvals/{user}', [ApprovalController::class, 'show'])->name('approvals.show')
+            ->middleware("can:view-module,'approvals'");
+        // The Documents panel's "View" link for a DigiLocker Aadhaar XML — see
+        // ApprovalController::aadhaarPreview's own docblock.
+        Route::get('/approvals/{user}/aadhaar-preview', [ApprovalController::class, 'aadhaarPreview'])
+            ->name('approvals.aadhaar-preview')
             ->middleware("can:view-module,'approvals'");
         Route::post('/approvals/{user}/approve', [ApprovalController::class, 'approve'])->name('approvals.approve');
         Route::post('/approvals/{user}/reject', [ApprovalController::class, 'reject'])->name('approvals.reject');

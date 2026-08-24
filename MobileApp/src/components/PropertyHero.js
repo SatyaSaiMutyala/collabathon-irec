@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useState} from 'react';
 import {StyleSheet, TouchableOpacity, View} from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -7,16 +7,24 @@ import {roundedRadius, useAppTheme} from '../theme';
 import AppText from './AppText';
 import SwipeableImages from './SwipeableImages';
 
-const HERO_HEIGHT = moderateScale(420);
+// Matches the admin panel's crop tool exactly (resources/js/app.js cropTool, ratio 4/3 —
+// see photo-field.blade.php). SwipeableImages renders with resizeMode "cover", so any
+// mismatch between this frame's ratio and the image's actual ratio shows up as a sliver
+// cropped off the sides — a fixed height couldn't guarantee that across every device
+// width. Deriving height from the measured width at the same ratio makes the fit exact.
+const MEDIA_ASPECT_RATIO = 4 / 3;
 
 const PropertyHero = ({project, onBack}) => {
   const {colors, spacing} = useAppTheme();
+  const [heroHeight, setHeroHeight] = useState(0);
 
   return (
-    <View style={styles.heroWrap}>
+    <View
+      style={{height: heroHeight}}
+      onLayout={e => setHeroHeight(e.nativeEvent.layout.width / MEDIA_ASPECT_RATIO)}>
       <SwipeableImages
         images={project.images?.length ? project.images : [project.coverImage]}
-        height={HERO_HEIGHT}
+        height={heroHeight}
         dotsPosition="bottom"
       />
       <View pointerEvents="box-none" style={StyleSheet.absoluteFillObject}>
@@ -52,9 +60,6 @@ const PropertyHero = ({project, onBack}) => {
 };
 
 const styles = StyleSheet.create({
-  heroWrap: {
-    height: HERO_HEIGHT,
-  },
   backButton: {
     position: 'absolute',
     left: moderateScale(16),

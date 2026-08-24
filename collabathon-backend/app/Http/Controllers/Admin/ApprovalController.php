@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\BrokerApprovedMail;
 use App\Models\ApprovalDecision;
 use App\Models\User;
+use App\Services\AadhaarXmlReader;
 use App\Services\PushNotifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -15,6 +16,7 @@ use App\Support\MailSettings;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -189,6 +191,30 @@ class ApprovalController extends Controller
         return $request->ajax()
             ? view('admin.approvals.partials.detail', $data)
             : view('admin.approvals.show', $data);
+    }
+
+    /**
+     * A formatted, human-readable rendering of the DigiLocker Aadhaar XML — the
+     * "View" link for that one document points here instead of opening the raw
+     * signed XML in the browser, which shows nothing an admin can actually read
+     * (every browser just dumps the tag tree for an .xml file). Only ever
+     * reached for that specific case: the Documents list only points here when
+     * `aadhaar_path` ends in .xml — see the `$documents` array in
+     * partials/detail.blade.php. A manually-attached photo/PDF Aadhaar still
+     * opens directly, unchanged.
+     */
+    public function aadhaarPreview(User $user): View
+    {
+        $this->authorize('view-module', 'approvals');
+        abort_unless($user->isBroker(), 404);
+
+        $path = $user->brokerProfile?->aadhaar_path;
+        abort_unless($path && Storage::disk('public')->exists($path), 404);
+
+        $data = AadhaarXmlReader::read(Storage::disk('public')->get($path));
+        abort_unless($data !== null, 404);
+
+        return view('admin.approvals.aadhaar-preview', ['broker' => $user, ...$data]);
     }
 
     /**

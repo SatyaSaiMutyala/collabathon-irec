@@ -1,5 +1,7 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Alert, StyleSheet, TouchableOpacity, View} from 'react-native';
+import {ActivityIndicator, Alert, Modal, StyleSheet, TouchableOpacity, View} from 'react-native';
+import {WebView} from 'react-native-webview';
+import {SafeAreaProvider} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from '../../theme/scaling';
 import {KeyboardAwareScrollView} from 'react-native-keyboard-aware-scroll-view';
@@ -35,6 +37,13 @@ const ZONE_OPTIONS = ['East', 'West', 'North', 'South', 'Central', 'All'];
 
 const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+
+/**
+ * Must match DigilockerVerificationService::REDIRECT_URL on the backend exactly —
+ * this is the "the broker just finished" signal the WebView below watches for,
+ * not a page this app ever actually navigates anywhere on its own.
+ */
+const DIGILOCKER_REDIRECT_PREFIX = 'https://brown-hedgehog-768805.hostingersite.com/digilocker/callback';
 
 /** Picking "All" covers every other option, so the list has nothing left to offer. */
 const TERMINAL_OPTIONS = ['All'];
@@ -255,7 +264,7 @@ const buildInitialForm = ({mobile, email, identity, draft}) => {
  * that data still filled in.
  */
 const CompleteProfileScreen = ({navigation, route}) => {
-  const {colors, spacing} = useAppTheme();
+  const {colors, radius, spacing} = useAppTheme();
   const dispatch = useAppDispatch();
   const mobileParam = route.params?.mobile;
   const emailParam = route.params?.email;
@@ -316,6 +325,19 @@ const CompleteProfileScreen = ({navigation, route}) => {
     name: null,
     message: null,
   });
+  // A live, UIDAI-backed check via DigiLocker rather than an uploaded document —
+  // see DigilockerVerificationService's own docblock for why this replaced the
+  // earlier QR/XML/eAadhaar-upload attempts. `initializing` covers the moment
+  // between tapping the button and the WebView actually opening.
+  const [aadhaarVerification, setAadhaarVerification] = useState({
+    status: 'idle', // idle | initializing | verifying | verified | rejected | unavailable
+    name: null,
+    message: null,
+    maskedAadhaar: null,
+  });
+  // The WebView modal's own state — kept separate from aadhaarVerification since
+  // it's what's on screen right now, not a verification result.
+  const [digilockerSession, setDigilockerSession] = useState({visible: false, url: null, clientId: null});
   const [isScrollEnabled, setIsScrollEnabled] = useState(true);
   // Which of the four step-3 documents is mid-upload right now — keyed by form
   // field, so each attachment shows its own spinner without the other three
@@ -450,11 +472,18 @@ const CompleteProfileScreen = ({navigation, route}) => {
       // RERA) carry that weight instead, and a company isn't a person with an
       // Aadhaar of its own to attach.
       if (!form.isCompany) {
-        if (!form.aadhaarCard.trim()) {
-          next.aadhaarCard = 'Enter Aadhaar number';
-        }
-        if (!form.aadhaarAttachment) {
-          next.aadhaarAttachment = 'Attach your Aadhaar (PDF or a photo of the card)';
+        // The number field and attachment only render once DigiLocker succeeds —
+        // this is what a submit attempt before that actually needs fixed, not
+        // "Enter Aadhaar number" pointing at a field the broker can't even see.
+        if (aadhaarVerification.status !== 'verified') {
+          next.aadhaarCard = 'Verify your Aadhaar with DigiLocker to continue';
+        } else {
+          if (!form.aadhaarCard.trim()) {
+            next.aadhaarCard = 'Enter Aadhaar number';
+          }
+          if (!form.aadhaarAttachment) {
+            next.aadhaarAttachment = 'Attach your Aadhaar (PDF or a photo of the card)';
+          }
         }
       }
       if (!form.reraNumber.trim()) {
@@ -623,6 +652,135 @@ const CompleteProfileScreen = ({navigation, route}) => {
   };
 
   /**
+   * Kicks off a DigiLocker session and opens it in a WebView. The broker's own
+   * name/mobile/email ride along as prefill hints only — DigiLocker still
+   * requires them to sign in with their own Aadhaar-linked mobile + OTP; this
+   * just saves them retyping what the form already has.
+   */
+  const startDigilockerVerification = async () => {
+    setAadhaarVerification({status: 'initializing', name: null, message: null, maskedAadhaar: null});
+
+    try {
+      const fullName = [form.suffix, form.fullNameAsRera].filter(Boolean).join(' ').trim();
+      const {data} = await kycApi.digilockerInitialize(fullName, form.mobileNumber.trim(), form.emailId.trim());
+
+      if (data.status !== 'initialized') {
+        setAadhaarVerification({status: 'unavailable', name: null, message: data.message ?? 'Could not start DigiLocker verification.', maskedAadhaar: null});
+        return;
+      }
+
+      setDigilockerSession({visible: true, url: data.url, clientId: data.client_id});
+      setAadhaarVerification({status: 'idle', name: null, message: null, maskedAadhaar: null});
+    } catch (error) {
+      setAadhaarVerification({
+        status: 'unavailable',
+        name: null,
+        message: extractError(error).message ?? 'Could not start DigiLocker verification.',
+        maskedAadhaar: null,
+      });
+    }
+  };
+
+  /**
+   * Fires on every WebView navigation — most are just DigiLocker's own internal
+   * steps (login, OTP, consent) and are ignored. The one that matters is landing
+   * on our own redirect_url, which only happens once the broker has actually
+   * finished — that's the cue to close the WebView and ask the server what
+   * actually happened, not to trust the URL itself as proof of anything.
+   */
+  const handleDigilockerNavigationChange = navState => {
+    if (!navState.url?.startsWith(DIGILOCKER_REDIRECT_PREFIX)) {
+      return;
+    }
+    const clientId = digilockerSession.clientId;
+    setDigilockerSession({visible: false, url: null, clientId: null});
+    if (clientId) {
+      finishDigilockerVerification(clientId);
+    }
+  };
+
+  /**
+   * Checks what actually happened server-side, then pulls the verified data if
+   * it succeeded. Does not auto-fill the name field — same reasoning as PAN:
+   * Aadhaar is entered on step 3, after step 1 (name) has already been saved,
+   * so silently rewriting it here would look like it worked but never reach
+   * the backend unless the broker revisits step 1.
+   */
+  const finishDigilockerVerification = async clientId => {
+    setAadhaarVerification({status: 'verifying', name: null, message: null, maskedAadhaar: null});
+
+    try {
+      const {data: statusData} = await kycApi.digilockerStatus(clientId);
+
+      if (statusData.status === 'failed') {
+        setAadhaarVerification({status: 'rejected', name: null, message: statusData.message ?? 'DigiLocker verification failed.', maskedAadhaar: null});
+        return;
+      }
+      if (statusData.status !== 'completed') {
+        setAadhaarVerification({
+          status: 'rejected',
+          name: null,
+          message: 'DigiLocker verification did not complete. Please try again.',
+          maskedAadhaar: null,
+        });
+        return;
+      }
+      if (!statusData.aadhaar_linked) {
+        setAadhaarVerification({
+          status: 'rejected',
+          name: null,
+          message: 'No Aadhaar is linked to that DigiLocker account.',
+          maskedAadhaar: null,
+        });
+        return;
+      }
+
+      const {data} = await kycApi.digilockerDownloadAadhaar(clientId);
+
+      if (data.status === 'verified') {
+        const details = data.data ?? {};
+        setAadhaarVerification({
+          status: 'verified',
+          name: details.name ?? null,
+          message: null,
+          maskedAadhaar: details.masked_aadhaar ?? null,
+        });
+
+        // UIDAI never hands back the real number through this flow — only this
+        // masked one (e.g. "XXXXXXXX2576"). Pre-filling it still saves the broker
+        // re-typing eight already-known digits; they can overwrite it with the
+        // real number, and only when they've actually typed something does this
+        // *not* overwrite it (so a retry never clobbers a number already entered).
+        if (details.masked_aadhaar) {
+          setForm(prev => (prev.aadhaarCard.trim() ? prev : {...prev, aadhaarCard: details.masked_aadhaar}));
+        }
+
+        // The UIDAI-signed XML DigilockerController already re-hosted as a real
+        // Upload row — same {uri, name, type, path} shape handleAttachmentPick
+        // sets after a manual pick, so the rest of the form treats it identically.
+        if (details.document) {
+          update('aadhaarAttachment')({
+            uri: details.document.url,
+            name: details.document.name,
+            type: 'text/xml',
+            path: details.document.path,
+          });
+        }
+        return;
+      }
+
+      setAadhaarVerification({status: data.status, name: null, message: data.message ?? null, maskedAadhaar: null});
+    } catch (error) {
+      setAadhaarVerification({
+        status: 'unavailable',
+        name: null,
+        message: extractError(error).message ?? 'Could not verify right now.',
+        maskedAadhaar: null,
+      });
+    }
+  };
+
+  /**
    * Maps the current step's form fields onto that step's slice of the API contract.
    * `signaturePath` is step 3 only — the storage path POST /uploads already handed
    * back for a signature captured and uploaded this session, or null when nothing
@@ -674,11 +832,13 @@ const CompleteProfileScreen = ({navigation, route}) => {
       pan_card: form.panCard.trim() || null,
       // What verifyPan already found out about the typed PAN number, carried into
       // the same save — trusted as reported rather than re-checked server-side.
-      // PAN is the only field left that verifies live at all — see the class
-      // docblock for why Aadhaar (below) no longer sends a verified flag of its own.
       pan_verified: panVerification.status === 'verified',
       pan_verified_name: panVerification.status === 'verified' ? panVerification.name : null,
       aadhaar_card: form.aadhaarCard.trim() || null,
+      // What the DigiLocker flow already found out, carried into the same save —
+      // same trust boundary as pan_verified above.
+      aadhaar_verified: aadhaarVerification.status === 'verified',
+      aadhaar_verified_name: aadhaarVerification.status === 'verified' ? aadhaarVerification.name : null,
       rera_number: form.reraNumber.trim() || null,
       gst_number: form.gstNumber.trim() || null,
       // Same idea as pan_verified above — off the typed GSTIN alone.
@@ -887,6 +1047,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
             setErrors({});
             setPanVerification({status: 'idle', name: null, message: null});
             setGstVerification({status: 'idle', name: null, message: null});
+            setAadhaarVerification({status: 'idle', name: null, message: null, maskedAadhaar: null});
           },
         },
       ],
@@ -1409,26 +1570,101 @@ const CompleteProfileScreen = ({navigation, route}) => {
                 />
               </View>
 
-              <Input
-                ref={registerRef('aadhaarCard')}
-                label={form.isCompany ? 'Aadhaar card (optional for a company)' : 'Aadhaar card *'}
-                placeholder="XXXX XXXX XXXX"
-                keyboardType="number-pad"
-                value={form.aadhaarCard}
-                onChangeText={update('aadhaarCard')}
-                error={errors.aadhaarCard}
-              />
-              <View style={{marginBottom: spacing.sm}}>
-                <DocumentAttachBox
-                  value={form.aadhaarAttachment}
-                  onPick={handleAttachmentPick('aadhaarAttachment')}
-                  onRemove={() => update('aadhaarAttachment')(null)}
-                  loading={uploadingFields.aadhaarAttachment}
-                  label="Aadhaar"
-                  placeholder="Attach a PDF or a photo of the card"
-                  error={errors.aadhaarAttachment}
-                />
-              </View>
+              {/* A live UIDAI-backed check via DigiLocker, not an uploaded document — the
+                  broker signs in with their own Aadhaar-linked mobile + OTP in the WebView
+                  below. The number field and attachment only appear once this succeeds:
+                  DigiLocker is the only way in here, so there's nothing to type or attach
+                  before it has. */}
+              {aadhaarVerification.status !== 'verified' && (
+                <>
+                  <AppText
+                    variant="caption"
+                    color={colors.textSecondary}
+                    style={styles.label}>
+                    Aadhaar verification *
+                  </AppText>
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={startDigilockerVerification}
+                    disabled={aadhaarVerification.status === 'initializing' || aadhaarVerification.status === 'verifying'}
+                    style={{marginBottom: spacing.md}}>
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderWidth: 1.5,
+                        borderStyle: 'dashed',
+                        borderColor: colors.primary,
+                        borderRadius: radius.md,
+                        paddingVertical: spacing.sm,
+                        backgroundColor: colors.primarySoft,
+                      }}>
+                      <Icon name="shield-checkmark-outline" size={moderateScale(18)} color={colors.primaryDark} />
+                      <AppText variant="bodyMedium" color={colors.primaryDark} style={{marginLeft: spacing.xs}}>
+                        Verify Aadhaar with DigiLocker
+                      </AppText>
+                    </View>
+                  </TouchableOpacity>
+                </>
+              )}
+              {(aadhaarVerification.status === 'initializing' || aadhaarVerification.status === 'verifying') && (
+                <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm}}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <AppText variant="caption" color={colors.textSecondary} style={{marginLeft: spacing.xs}}>
+                    {aadhaarVerification.status === 'initializing' ? 'Opening DigiLocker…' : 'Verifying…'}
+                  </AppText>
+                </View>
+              )}
+              {aadhaarVerification.status === 'rejected' && (
+                <View style={{flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.sm}}>
+                  <Icon name="alert-circle-outline" size={moderateScale(14)} color={colors.warning} style={{marginTop: moderateScale(1)}} />
+                  <AppText variant="caption" color={colors.warning} style={{marginLeft: spacing.xs, flex: 1}}>
+                    {aadhaarVerification.message ?? 'Could not verify via DigiLocker.'}
+                  </AppText>
+                </View>
+              )}
+              {aadhaarVerification.status === 'unavailable' && (
+                <AppText variant="caption" color={colors.textMuted} style={{marginBottom: spacing.sm}}>
+                  {aadhaarVerification.message ?? 'Could not verify right now.'}
+                </AppText>
+              )}
+
+              {aadhaarVerification.status === 'verified' && (
+                <>
+                  <View style={{flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.sm}}>
+                    <Icon name="checkmark-circle" size={moderateScale(14)} color={colors.success} style={{marginTop: moderateScale(1)}} />
+                    <AppText variant="caption" color={colors.success} style={{marginLeft: spacing.xs, flex: 1}}>
+                      {aadhaarVerification.name ? `Verified via DigiLocker — ${aadhaarVerification.name}` : 'Verified via DigiLocker'}
+                      {/* Only ever a masked number — UIDAI never hands back the real one
+                          through this flow, so this is confirmation only, not something
+                          that ever fills the number field below. */}
+                      {aadhaarVerification.maskedAadhaar ? ` (Aadhaar ending ${aadhaarVerification.maskedAadhaar.slice(-4)})` : ''}
+                    </AppText>
+                  </View>
+
+                  <Input
+                    ref={registerRef('aadhaarCard')}
+                    label={form.isCompany ? 'Aadhaar card (optional for a company)' : 'Aadhaar card *'}
+                    placeholder="XXXX XXXX XXXX"
+                    keyboardType="number-pad"
+                    value={form.aadhaarCard}
+                    onChangeText={update('aadhaarCard')}
+                    error={errors.aadhaarCard}
+                  />
+                  <View style={{marginBottom: spacing.sm}}>
+                    <DocumentAttachBox
+                      value={form.aadhaarAttachment}
+                      onPick={handleAttachmentPick('aadhaarAttachment')}
+                      onRemove={() => update('aadhaarAttachment')(null)}
+                      loading={uploadingFields.aadhaarAttachment}
+                      label="Aadhaar"
+                      placeholder="Attach a PDF or a photo of the card"
+                      error={errors.aadhaarAttachment}
+                    />
+                  </View>
+                </>
+              )}
 
               <Input
                 ref={registerRef('reraNumber')}
@@ -1582,6 +1818,40 @@ const CompleteProfileScreen = ({navigation, route}) => {
           </View>
         )}
       </KeyboardAwareScrollView>
+
+      {/* The DigiLocker flow itself — a real UIDAI page, not anything this app
+          renders. `handleDigilockerNavigationChange` is the only thing watching
+          it; the broker interacts with DigiLocker's own UI throughout. */}
+      <Modal visible={digilockerSession.visible} animationType="slide" onRequestClose={() => setDigilockerSession({visible: false, url: null, clientId: null})}>
+        {/* A Modal mounts in its own native window on both platforms, so the
+            SafeAreaProvider wrapping the rest of the app (see App.js) never
+            reaches in here — ScreenContainer's SafeAreaView had nothing to measure
+            against and rendered the header flush under the status bar/notch. A
+            fresh provider re-establishes that context for just this subtree. */}
+        <SafeAreaProvider>
+          <ScreenContainer edges={['top', 'bottom']}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.sm,
+                borderBottomWidth: 1,
+                borderBottomColor: colors.border,
+              }}>
+              <TouchableOpacity onPress={() => setDigilockerSession({visible: false, url: null, clientId: null})} hitSlop={10}>
+                <Icon name="close" size={moderateScale(24)} color={colors.textPrimary} />
+              </TouchableOpacity>
+              <AppText variant="bodyMedium" style={{marginLeft: spacing.sm}}>
+                DigiLocker verification
+              </AppText>
+            </View>
+            {digilockerSession.url && (
+              <WebView source={{uri: digilockerSession.url}} onNavigationStateChange={handleDigilockerNavigationChange} startInLoadingState />
+            )}
+          </ScreenContainer>
+        </SafeAreaProvider>
+      </Modal>
     </ScreenContainer>
   );
 };

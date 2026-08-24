@@ -600,15 +600,34 @@
                                           subtitle="Everything channel partners see and share." />
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <x-file-field label="Cover image" name="cover_image" accept="image/*" :current="$property?->cover_image_path"
-                                          hint="The hero image on listing cards." />
+                            <div>
+                                <x-photo-field label="Cover image" name="cover_image"
+                                               hint="The hero image on listing cards and the mobile app — crop to a clean landscape shot." />
+
+                                {{-- Existing cover image, since <x-photo-field> can't show a stored path the
+                                     way <x-file-field>'s "On file" link does — it has no native input value
+                                     to read back and its own preview is reserved for what's cropped this
+                                     session. --}}
+                                @if($property?->cover_image_path)
+                                    <p class="flex items-center gap-1.5 text-[11.5px] text-ink-3 mt-1.5">
+                                        <x-icon name="check" class="w-3.5 h-3.5 text-success shrink-0" />
+                                        <span class="truncate">
+                                            Current:
+                                            <a href="{{ asset('storage/' . $property->cover_image_path) }}" target="_blank" rel="noopener"
+                                               class="text-ink-2 hover:text-ink underline decoration-line underline-offset-2">
+                                                {{ basename($property->cover_image_path) }}
+                                            </a>
+                                        </span>
+                                    </p>
+                                @endif
+                            </div>
                             <x-file-field label="Site layout plan" name="site_layout" accept="image/*,application/pdf" :current="$firstMedia('site_layout')?->path" />
                         </div>
 
-                        <x-file-field label="Project images" name="gallery[]" multiple accept="image/*"
-                                      :hint="$isEdit
-                                          ? 'Anything chosen here is added to the gallery — existing images stay.'
-                                          : 'Exterior, interior and amenity shots — select several at once.'" />
+                        <x-photo-field label="Project images" name="gallery[]" multiple
+                                       :hint="$isEdit
+                                           ? 'Anything cropped here is added to the gallery — existing images stay.'
+                                           : 'Exterior, interior and amenity shots — pick several at once, crop each to a clean landscape shot.'" />
 
                         {{-- Existing gallery, with per-image removal. Ticking the box posts the
                              media id in remove_media[]; nothing is deleted until the form saves. --}}

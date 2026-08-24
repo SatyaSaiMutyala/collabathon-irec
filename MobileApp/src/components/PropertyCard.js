@@ -6,6 +6,12 @@ import {useAppTheme} from '../theme';
 import AppText from './AppText';
 import SwipeableImages from './SwipeableImages';
 
+// A fixed card height, not one derived from the (portrait) crop ratio — SwipeableImages
+// renders with resizeMode "contain" (see that file), so a taller source photo still shows
+// in full either way; this height only controls how much of a scrolling list this one
+// card takes up, independent of the source image's own shape.
+const CARD_HEIGHT = moderateScale(240);
+
 // en-IN — matches the max half of the same range, built separately in
 // normalizers.js's `priceUnit`. INR pricing reads in lakhs/crores throughout the
 // rest of the app (see LeadCard's own money() helper), not Western 3-digit grouping.
@@ -92,8 +98,6 @@ const PropertyCard = ({project, onPress, showDots = true, priceVariant = 'h1'}) 
     </TouchableOpacity>
   );
 };
-
-const CARD_HEIGHT = moderateScale(240);
 
 const styles = StyleSheet.create({
   imageWrap: {

@@ -68,14 +68,17 @@
             'label' => 'Aadhaar card',
             'number' => $maskAadhaar($profile?->aadhaar_card),
             'path' => $profile?->aadhaar_path,
-            // Aadhaar is no longer checked against Surepass at registration time —
-            // AadhaarVerificationService and its endpoints were removed (Surepass's
-            // Aadhaar scope was never enabled on this account, so every attempt just
-            // errored). This stays `false` for every registration from here on; it
-            // only ever reads `true` for an account that registered back when the
-            // check still ran.
+            // Checked live via DigiLocker at registration time — see
+            // DigilockerVerificationService / DigilockerController::downloadAadhaar.
             'verified' => (bool) $profile?->aadhaar_verified,
             'verified_name' => $profile?->aadhaar_verified_name,
+            // A DigiLocker verification attaches the actual UIDAI-signed XML, not a
+            // photo/PDF — opening that raw file shows nothing an admin can read (every
+            // browser just dumps the tag tree), so it routes through a formatted
+            // preview instead. A manually-attached photo/PDF still opens directly.
+            'view_url' => \Illuminate\Support\Str::endsWith((string) $profile?->aadhaar_path, '.xml')
+                ? route('admin.approvals.aadhaar-preview', $broker)
+                : null,
         ],
         ['label' => 'RERA certificate', 'number' => $profile?->rera_number, 'path' => $profile?->rera_certificate_path],
         ['label' => 'GST certificate', 'number' => $profile?->gst_number, 'path' => $profile?->gst_path],
@@ -338,7 +341,7 @@
                                 </div>
 
                                 @if(filled($doc['path']))
-                                    <a href="{{ asset('storage/' . $doc['path']) }}"
+                                    <a href="{{ $doc['view_url'] ?? asset('storage/' . $doc['path']) }}"
                                        target="_blank" rel="noopener noreferrer"
                                        class="shrink-0 inline-flex items-center gap-1 text-[11.5px] font-medium
                                               text-primary-dark hover:underline">

@@ -37,6 +37,11 @@ class SurepassClient
         return $this->request()->post($path, $payload);
     }
 
+    public function getJson(string $path): Response
+    {
+        return $this->request()->get($path);
+    }
+
     /**
      * `attach()` is what actually switches the request to multipart — Laravel has no
      * separate `asMultipart()` to pair it with; calling that would be a no-op method

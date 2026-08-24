@@ -379,8 +379,11 @@
                             @php $imageUrl = $image->url ?: asset('storage/' . $image->path); @endphp
                             <a href="{{ $imageUrl }}" target="_blank" rel="noopener"
                                class="block rounded-lg overflow-hidden border border-line hover:opacity-90 transition-opacity">
+                                {{-- 4:3 matches the crop tool's output ratio (_form.blade.php /
+                                     resources/js/app.js cropTool) — aspect-square was clipping a
+                                     chunk off every thumbnail here. --}}
                                 <img src="{{ $imageUrl }}" alt=""
-                                     class="w-full aspect-square object-cover">
+                                     class="w-full aspect-[4/3] object-cover">
                             </a>
                         @endforeach
                     </div>

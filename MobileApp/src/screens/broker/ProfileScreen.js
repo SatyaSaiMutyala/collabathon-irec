@@ -1,5 +1,5 @@
 import React, {useState} from 'react';
-import {ScrollView, TouchableOpacity, View} from 'react-native';
+import {ActivityIndicator, Image, Modal, ScrollView, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
@@ -14,6 +14,8 @@ import {
   ScreenContainer,
   SectionHeader,
 } from '../../components';
+import {authApi} from '../../api/endpoints';
+import {extractError} from '../../api/client';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {deleteAccount, logout} from '../../store/slices/authSlice';
 import {showSnackbar} from '../../store/slices/uiSlice';
@@ -65,8 +67,12 @@ const InfoRow = ({icon, label, value, valueColor, half}) => {
  * whatever the device already has" approach `AttachmentList` uses for property
  * documents, rather than shipping an in-app viewer per file type. Only tappable when
  * there's really a file behind it; an unattached document has nothing to open.
+ *
+ * `onPress`, when given, replaces that default entirely — the Aadhaar row uses it to
+ * show a formatted preview instead of handing a raw signed XML to the OS, which
+ * renders as an unreadable tag tree (see openAadhaarDocument below).
  */
-const DocumentRow = ({icon, label, value, uri}) => {
+const DocumentRow = ({icon, label, value, uri, onPress}) => {
   const {colors, radius, spacing} = useAppTheme();
   const attached = !!uri;
 
@@ -74,7 +80,7 @@ const DocumentRow = ({icon, label, value, uri}) => {
     <TouchableOpacity
       activeOpacity={attached ? 0.7 : 1}
       disabled={!attached}
-      onPress={() => openLink(uri)}
+      onPress={onPress ?? (() => openLink(uri))}
       style={{width: '100%', flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.xs}}>
       <View
         style={{
@@ -106,11 +112,15 @@ const FieldGrid = ({children}) => (
 );
 
 const ProfileScreen = () => {
-  const {colors, spacing} = useAppTheme();
+  const {colors, radius, spacing} = useAppTheme();
   const dispatch = useAppDispatch();
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  // Modal state for the Aadhaar row's formatted preview — separate from the
+  // logout/delete dialogs above since it also has to carry a loading state and
+  // the fetched fields, not just a visible/hidden flag.
+  const [aadhaarPreview, setAadhaarPreview] = useState({visible: false, loading: false, data: null});
   // The API returns the user plus their broker_profile; flatten into the shape
   // this screen renders so the field list below stays untouched.
   const user = useAppSelector(state => state.auth.user) ?? {};
@@ -153,6 +163,45 @@ const ProfileScreen = () => {
     operatesMultipleStates: profile.operates_multiple_states,
   };
 
+  /**
+   * The Aadhaar row's tap handler — a DigiLocker verification attaches the
+   * actual signed XML, not a photo/PDF, and opening that raw file via the OS
+   * (same as every other document) just shows an unreadable tag tree. Tries the
+   * formatted preview first; `status: 'unavailable'` (a manually-attached
+   * photo/PDF, or nothing parseable) falls back to the plain `openLink` every
+   * other document row uses, so a broker who attached a photo instead of using
+   * DigiLocker still sees it exactly as before.
+   */
+  const openAadhaarDocument = async () => {
+    if (!broker.aadhaarAttachment) {
+      return;
+    }
+    if (!/\.xml$/i.test(broker.aadhaarAttachment)) {
+      openLink(broker.aadhaarAttachment);
+      return;
+    }
+
+    setAadhaarPreview({visible: true, loading: true, data: null});
+
+    try {
+      const {data} = await authApi.aadhaarPreview();
+      if (data.status === 'available') {
+        setAadhaarPreview({visible: true, loading: false, data: data.data});
+      } else {
+        setAadhaarPreview({visible: false, loading: false, data: null});
+        openLink(broker.aadhaarAttachment);
+      }
+    } catch (error) {
+      setAadhaarPreview({visible: false, loading: false, data: null});
+      dispatch(
+        showSnackbar({
+          message: extractError(error).message ?? 'Could not load the Aadhaar preview.',
+          tone: 'danger',
+        }),
+      );
+    }
+  };
+
   return (
     <ScreenContainer edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: spacing.xxl}}>
@@ -187,9 +236,10 @@ const ProfileScreen = () => {
         <Card>
           <FieldGrid>
             <InfoRow half icon="person-outline" label="Suffix" value={fallback(broker.suffix)} />
+            <InfoRow half icon="person-outline" label="Name" value={fallback(broker.fullNameAsRera)} />
             <InfoRow half icon="call-outline" label="Mobile Number" value={fallback(broker.mobileNumber)} />
             <InfoRow half icon="call-outline" label="Alternate Mobile" value={fallback(broker.alternateMobile)} />
-            <InfoRow half icon="mail-outline" label="Email ID" value={fallback(broker.emailId)} />
+            <InfoRow icon="mail-outline" label="Email ID" value={fallback(broker.emailId)} />
             <InfoRow icon="home-outline" label="Residence Address" value={fallback(broker.residenceAddress)} />
           </FieldGrid>
         </Card>
@@ -236,7 +286,13 @@ const ProfileScreen = () => {
         </View>
         <Card>
           <DocumentRow icon="card-outline" label="PAN Card" value={broker.panCard} uri={broker.panCardAttachment} />
-          <DocumentRow icon="card-outline" label="Aadhaar Card" value={broker.aadhaarCard} uri={broker.aadhaarAttachment} />
+          <DocumentRow
+            icon="card-outline"
+            label="Aadhaar Card"
+            value={broker.aadhaarCard}
+            uri={broker.aadhaarAttachment}
+            onPress={openAadhaarDocument}
+          />
           <DocumentRow icon="shield-checkmark-outline" label="RERA Number" value={broker.reraNumber} uri={broker.reraCertificateAttachment} />
           {/* No cancelled-cheque row: registration stopped collecting the number and
               the scan, so it could only ever render the "—" placeholder. */}
@@ -306,6 +362,93 @@ const ProfileScreen = () => {
           }
         }}
       />
+
+      {/* The Aadhaar row's formatted preview — see openAadhaarDocument's own
+          docblock for why this exists instead of just handing the raw signed
+          XML to the OS like every other document row does. */}
+      <Modal
+        visible={aadhaarPreview.visible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setAadhaarPreview({visible: false, loading: false, data: null})}>
+        <View style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: spacing.lg}}>
+          <View style={{width: '100%', maxWidth: moderateScale(360), backgroundColor: colors.background, borderRadius: radius.lg, overflow: 'hidden'}}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: colors.primaryDark,
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.sm,
+              }}>
+              <AppText variant="bodyMedium" color="#fff">
+                Aadhaar — verified via DigiLocker
+              </AppText>
+              <TouchableOpacity onPress={() => setAadhaarPreview({visible: false, loading: false, data: null})} hitSlop={10}>
+                <Icon name="close" size={moderateScale(20)} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            {aadhaarPreview.loading ? (
+              <View style={{padding: spacing.xl, alignItems: 'center'}}>
+                <ActivityIndicator size="small" color={colors.primary} />
+              </View>
+            ) : (
+              aadhaarPreview.data && (
+                <>
+                  <View style={{flexDirection: 'row', padding: spacing.md}}>
+                    {aadhaarPreview.data.photoBase64 ? (
+                      <Image
+                        source={{uri: `data:image/jpeg;base64,${aadhaarPreview.data.photoBase64}`}}
+                        style={{
+                          width: moderateScale(84),
+                          height: moderateScale(104),
+                          borderRadius: radius.sm,
+                          backgroundColor: colors.primarySoft,
+                        }}
+                      />
+                    ) : (
+                      <View
+                        style={{
+                          width: moderateScale(84),
+                          height: moderateScale(104),
+                          borderRadius: radius.sm,
+                          backgroundColor: colors.primarySoft,
+                        }}
+                      />
+                    )}
+                    <View style={{marginLeft: spacing.md, flex: 1}}>
+                      <AppText variant="caption" color={colors.textMuted}>
+                        Name
+                      </AppText>
+                      <AppText variant="bodyMedium" style={{marginBottom: spacing.xs}}>
+                        {fallback(aadhaarPreview.data.name)}
+                      </AppText>
+                      <AppText variant="caption" color={colors.textMuted}>
+                        Date of birth
+                      </AppText>
+                      <AppText variant="bodyMedium" style={{marginBottom: spacing.xs}}>
+                        {fallback(aadhaarPreview.data.dob)}
+                      </AppText>
+                      <AppText variant="caption" color={colors.textMuted}>
+                        Aadhaar number
+                      </AppText>
+                      <AppText variant="bodyMedium">{fallback(aadhaarPreview.data.maskedAadhaar)}</AppText>
+                    </View>
+                  </View>
+                  <View style={{paddingHorizontal: spacing.md, paddingBottom: spacing.md}}>
+                    <AppText variant="caption" color={colors.textMuted}>
+                      Address
+                    </AppText>
+                    <AppText variant="bodyMedium">{fallback(aadhaarPreview.data.address)}</AppText>
+                  </View>
+                </>
+              )
+            )}
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 };

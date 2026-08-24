@@ -11,6 +11,7 @@ use App\Models\EmailOtpCode;
 use App\Models\OtpCode;
 use App\Models\Upload;
 use App\Models\User;
+use App\Services\AadhaarXmlReader;
 use App\Services\OtpSender;
 use App\Services\PushNotifier;
 use App\Support\MailSettings;
@@ -20,6 +21,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -220,13 +222,18 @@ class AuthController extends Controller
             'pan_card' => ['nullable', 'string', 'max:32', Rule::unique('broker_profiles', 'pan_card')->ignore($profileId)],
             // Set by the app after KycController::verifyPan succeeded on the typed PAN
             // number — not re-checked here. Read-only informational for the admin,
-            // not a permission. PAN is the only field left with a verified flag —
-            // Aadhaar's own (aadhaar_verified/aadhaar_verified_name) was removed
-            // along with KycController's Aadhaar endpoints; aadhaar_card/aadhaar_file
-            // below are a plain number + attachment now, same as rera_number/gst_number.
+            // not a permission.
             'pan_verified' => ['nullable', 'boolean'],
             'pan_verified_name' => ['nullable', 'string', 'max:255'],
             'aadhaar_card' => ['nullable', 'string', 'max:32', Rule::unique('broker_profiles', 'aadhaar_card')->ignore($profileId)],
+            // Set by the app after DigilockerController::downloadAadhaar came back
+            // verified — same trust boundary as pan_verified above. The earlier
+            // QR/XML/eAadhaar-upload Aadhaar endpoints (and their own verified flag)
+            // were removed when Surepass's scope for those never got enabled;
+            // DigiLocker is a live, UIDAI-backed check via a different product that
+            // IS enabled, so this flag is back.
+            'aadhaar_verified' => ['nullable', 'boolean'],
+            'aadhaar_verified_name' => ['nullable', 'string', 'max:255'],
             'rera_number' => ['nullable', 'string', 'max:64', Rule::unique('broker_profiles', 'rera_number')->ignore($profileId)],
             'gst_number' => ['nullable', 'string', 'max:32'],
             // Set by the app after KycController::verifyGst succeeded on the typed
@@ -310,8 +317,7 @@ class AuthController extends Controller
 
             // PAN verification runs off the typed number alone, not an attachment,
             // so the app reporting a fresh result is the only thing that ever
-            // changes this. Aadhaar has no equivalent any more — see
-            // KycController's own docblock for why its verified flag was removed.
+            // changes this.
             if (array_key_exists('pan_verified', $data)) {
                 $panVerified = (bool) $data['pan_verified'];
                 $profile->pan_verified = $panVerified;
@@ -325,6 +331,15 @@ class AuthController extends Controller
                 $profile->gst_verified = $gstVerified;
                 $profile->gst_verified_name = $gstVerified ? ($data['gst_verified_name'] ?? null) : null;
                 $profile->gst_verified_at = $gstVerified ? now() : null;
+            }
+
+            // Same idea again, off a completed DigiLocker session rather than a
+            // typed number or an attachment.
+            if (array_key_exists('aadhaar_verified', $data)) {
+                $aadhaarVerified = (bool) $data['aadhaar_verified'];
+                $profile->aadhaar_verified = $aadhaarVerified;
+                $profile->aadhaar_verified_name = $aadhaarVerified ? ($data['aadhaar_verified_name'] ?? null) : null;
+                $profile->aadhaar_verified_at = $aadhaarVerified ? now() : null;
             }
 
             // A completed step ("Next") resumes on the step after it — that step's
@@ -840,6 +855,33 @@ class AuthController extends Controller
         $this->loadProfile($user);
 
         return response()->json(['data' => new UserResource($user)]);
+    }
+
+    /**
+     * GET /api/v1/auth/me/aadhaar-preview — a formatted read-out of the broker's
+     * own DigiLocker-verified Aadhaar XML, for the mobile Profile screen's
+     * Aadhaar row. The raw signed XML shows nothing readable when opened
+     * directly (see ApprovalController::aadhaarPreview, the admin-panel
+     * equivalent this mirrors); `status: 'unavailable'` covers both "no
+     * document on file" and "it's a manually-attached photo/PDF, not the
+     * DigiLocker XML" — either way the app falls back to opening the raw
+     * attachment as before.
+     */
+    public function aadhaarPreview(Request $request): JsonResponse
+    {
+        $path = $request->user()->brokerProfile?->aadhaar_path;
+
+        if (! $path || ! Str::endsWith($path, '.xml') || ! Storage::disk('public')->exists($path)) {
+            return response()->json(['status' => 'unavailable']);
+        }
+
+        $data = AadhaarXmlReader::read(Storage::disk('public')->get($path));
+
+        if ($data === null) {
+            return response()->json(['status' => 'unavailable']);
+        }
+
+        return response()->json(['status' => 'available', 'data' => $data]);
     }
 
     /**

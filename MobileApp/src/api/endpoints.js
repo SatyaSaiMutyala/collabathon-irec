@@ -94,6 +94,13 @@ export const authApi = {
   /** Shared sign-in for both mobile roles — see LoginScreen. */
   login: payload => client.post('/auth/login', payload),
   me: () => client.get('/auth/me'),
+  /**
+   * A formatted read-out of the broker's own DigiLocker-verified Aadhaar XML —
+   * `status: 'unavailable'` covers both "nothing on file" and "it's a
+   * manually-attached photo/PDF, not the XML"; ProfileScreen falls back to
+   * opening the raw attachment either way.
+   */
+  aadhaarPreview: () => client.get('/auth/me/aadhaar-preview'),
   logout: () => client.post('/auth/logout'),
   /** Self-service account deletion — soft delete server-side, see AuthController. */
   deleteAccount: () => client.delete('/auth/account'),
@@ -175,6 +182,20 @@ export const kycApi = {
    * typed GST number is real and auto-fill the company name.
    */
   verifyGst: gstNumber => client.post('/kyc/gst/verify', {gst_number: gstNumber}),
+
+  // ---------------------------------------------------------------- Aadhaar via DigiLocker
+  /**
+   * Opens a DigiLocker session — the broker signs in with their own
+   * Aadhaar-linked mobile + OTP in a WebView, a live UIDAI-backed check rather
+   * than an uploaded document. Returns `{status, client_id, url, expiry_seconds}`;
+   * `url` is what the calling screen loads in the WebView.
+   */
+  digilockerInitialize: (fullName, mobile, email) =>
+    client.post('/kyc/digilocker/initialize', {full_name: fullName || null, mobile: mobile || null, email: email || null}),
+  /** Whether the broker actually finished the DigiLocker steps yet — poll after the WebView reports the redirect happened. */
+  digilockerStatus: clientId => client.get(`/kyc/digilocker/status/${clientId}`),
+  /** Once status() says completed, the actual verified Aadhaar data. */
+  digilockerDownloadAadhaar: clientId => client.get(`/kyc/digilocker/download-aadhaar/${clientId}`),
 };
 
 /**

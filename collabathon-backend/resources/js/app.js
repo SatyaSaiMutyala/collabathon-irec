@@ -555,10 +555,13 @@ export function nearbyPlacesFinder(config = {}) {
 }
 
 /**
- * Interactive crop for logo uploads — a fixed 5:2 ratio (a logo is a wide wordmark, not a
- * square headshot), drag to reposition and a slider to zoom, canvas-based like
- * compressImage above rather than a runtime cropping library (this project has none, and
- * deliberately hand-rolls its own image handling — see the file header).
+ * Interactive crop for image uploads that need a fixed aspect ratio rather than whatever
+ * shape the source photo happens to be — a logo is a wide wordmark, a property cover/gallery
+ * photo is a landscape shot, and letting either through unconstrained is exactly what
+ * produces the tiny-letterboxed logos and edge-cropped hero photos this exists to prevent.
+ * Drag to reposition and a slider to zoom, canvas-based like compressImage above rather than
+ * a runtime cropping library (this project has none, and deliberately hand-rolls its own
+ * image handling — see the file header).
  *
  * The real <input type="file"> stays empty until apply() runs: a picked file only ever
  * produces a bitmap held in memory here, never sits in the input's own FileList directly.
@@ -566,17 +569,33 @@ export function nearbyPlacesFinder(config = {}) {
  * submit time same as any other file input — it operates generically over
  * `input[type="file"]` with no knowledge of "crop," so the cropped PNG this produces just
  * gets whatever further re-encoding its own size warrants, same as any upload.
+ *
+ * config.multiple turns this into a crop *queue*: onFileChange loads every picked file one
+ * after another, each cropped against the same frame, and the results accumulate in
+ * `results` (rather than replacing the real input's FileList outright) so a second "Add
+ * more" pick appends instead of discarding what was already cropped this session.
  */
 const LOGO_RATIO = 5 / 2;
 const LOGO_OUTPUT_WIDTH = 600;
-const LOGO_OUTPUT_HEIGHT = Math.round(LOGO_OUTPUT_WIDTH / LOGO_RATIO);
 const LOGO_FRAME_WIDTH = 320;
-const LOGO_FRAME_HEIGHT = Math.round(LOGO_FRAME_WIDTH / LOGO_RATIO);
 
-export function cropTool() {
+export function cropTool(config = {}) {
+    const ratio = config.ratio ?? LOGO_RATIO;
+    const outputWidth = config.outputWidth ?? LOGO_OUTPUT_WIDTH;
+    const outputHeight = Math.round(outputWidth / ratio);
+    const frameWidth = config.frameWidth ?? LOGO_FRAME_WIDTH;
+    const frameHeight = Math.round(frameWidth / ratio);
+    const multiple = config.multiple ?? false;
+
+    // Source pixels per output pixel at frameWidth → outputWidth scale. A crop rendered
+    // from a bitmap smaller than the output canvas has to upscale to fill it — no amount
+    // of cropping recovers detail that was never in the source, so this only ever warns.
+    const outputScale = outputWidth / frameWidth;
+
     return {
-        frameWidth: LOGO_FRAME_WIDTH,
-        frameHeight: LOGO_FRAME_HEIGHT,
+        frameWidth,
+        frameHeight,
+        multiple,
 
         editing: false,
         fileName: '',
@@ -591,23 +610,29 @@ export function cropTool() {
         dragStartY: 0,
         dragOriginX: 0,
         dragOriginY: 0,
+        // True once the current crop selection would upscale the source past its own
+        // native resolution — the image will look soft however it's displayed.
+        lowResolution: false,
 
-        async onFileChange(event) {
-            const file = event.target.files?.[0];
-            if (! file) return;
+        // Multi mode only: files picked but not yet cropped, and files already cropped
+        // this session — kept across repeated picks so "Add more" appends rather than
+        // starting over.
+        queue: [],
+        queueIndex: 0,
+        results: [],
 
-            this.fileName = file.name;
-
-            let bitmap;
+        async decode(file) {
             try {
                 // `from-image` applies EXIF orientation — without it, phone photos land rotated.
-                bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+                return await createImageBitmap(file, { imageOrientation: 'from-image' });
             } catch {
                 // Not decodable in-browser (e.g. HEIC) — nothing to crop against. Leave the
                 // raw file sitting in the input as picked; the server still validates it.
-                return;
+                return null;
             }
+        },
 
+        startEditing(bitmap) {
             this.bitmap?.close?.();
             this.bitmap = bitmap;
 
@@ -618,9 +643,51 @@ export function cropTool() {
             this.offsetX = 0;
             this.offsetY = 0;
             this.editing = true;
+            this.updateResolutionWarning();
 
-            await this.$nextTick();
-            this.draw();
+            this.$nextTick(() => this.draw());
+        },
+
+        updateResolutionWarning() {
+            this.lowResolution = (this.scale * outputScale) > 1;
+        },
+
+        async loadQueueItem() {
+            if (this.queueIndex >= this.queue.length) {
+                this.editing = false;
+                this.commitResults();
+                return;
+            }
+
+            const file = this.queue[this.queueIndex];
+            this.fileName = file.name;
+            const bitmap = await this.decode(file);
+
+            if (! bitmap) {
+                // Can't crop this one in-browser — skip it and move on to the next pick.
+                this.queueIndex++;
+                await this.loadQueueItem();
+                return;
+            }
+
+            this.startEditing(bitmap);
+        },
+
+        async onFileChange(event) {
+            const files = Array.from(event.target.files ?? []);
+            if (! files.length) return;
+
+            if (this.multiple) {
+                this.queue = files;
+                this.queueIndex = 0;
+                await this.loadQueueItem();
+                return;
+            }
+
+            this.fileName = files[0].name;
+            const bitmap = await this.decode(files[0]);
+            if (! bitmap) return;
+            this.startEditing(bitmap);
         },
 
         startDrag(event) {
@@ -646,6 +713,7 @@ export function cropTool() {
         onZoom(value) {
             this.scale = Number(value);
             this.clampOffset();
+            this.updateResolutionWarning();
             this.draw();
         },
 
@@ -676,32 +744,45 @@ export function cropTool() {
             context.drawImage(this.bitmap, x, y, width, height);
         },
 
-        async apply() {
-            if (! this.bitmap) return;
-
+        async renderOutput() {
             const canvas = document.createElement('canvas');
-            canvas.width = LOGO_OUTPUT_WIDTH;
-            canvas.height = LOGO_OUTPUT_HEIGHT;
+            canvas.width = outputWidth;
+            canvas.height = outputHeight;
 
             // Same crop, rendered at the real output resolution rather than the (smaller)
             // on-screen preview size.
-            const outputScale = LOGO_OUTPUT_WIDTH / this.frameWidth;
             const width = this.bitmap.width * this.scale * outputScale;
             const height = this.bitmap.height * this.scale * outputScale;
-            const x = (LOGO_OUTPUT_WIDTH - width) / 2 + this.offsetX * outputScale;
-            const y = (LOGO_OUTPUT_HEIGHT - height) / 2 + this.offsetY * outputScale;
+            const x = (outputWidth - width) / 2 + this.offsetX * outputScale;
+            const y = (outputHeight - height) / 2 + this.offsetY * outputScale;
 
             const context = canvas.getContext('2d');
             context.drawImage(this.bitmap, x, y, width, height);
 
-            // PNG, not JPEG — preserves transparency for a wordmark logo on a transparent
-            // background. compressFileInputs() still flattens/re-encodes this later, but
-            // only if its own size actually warrants it.
-            const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+            // PNG, not JPEG — preserves transparency for a logo on a transparent background.
+            // compressFileInputs() still flattens/re-encodes this later, but only if its own
+            // size actually warrants it.
+            return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+        },
+
+        async apply() {
+            if (! this.bitmap) return;
+
+            const blob = await this.renderOutput();
             if (! blob) return;
 
             const name = this.fileName.replace(/\.[^.]+$/, '') + '-cropped.png';
             const file = new File([blob], name, { type: 'image/png' });
+
+            this.bitmap.close?.();
+            this.bitmap = null;
+
+            if (this.multiple) {
+                this.results.push({ file, previewUrl: URL.createObjectURL(blob) });
+                this.queueIndex++;
+                await this.loadQueueItem();
+                return;
+            }
 
             // Same DataTransfer technique compressFileInputs uses — FileList is read-only.
             const transfer = new DataTransfer();
@@ -710,10 +791,22 @@ export function cropTool() {
 
             if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
             this.previewUrl = URL.createObjectURL(blob);
-
             this.editing = false;
-            this.bitmap.close?.();
-            this.bitmap = null;
+        },
+
+        // Multi mode only: rebuilds the real <input>'s FileList from every result cropped
+        // so far — called after each queue item finishes and after a removal, so the input
+        // is never left out of sync with what's actually shown.
+        commitResults() {
+            const transfer = new DataTransfer();
+            this.results.forEach((result) => transfer.items.add(result.file));
+            this.$refs.input.files = transfer.files;
+        },
+
+        removeResult(index) {
+            URL.revokeObjectURL(this.results[index].previewUrl);
+            this.results.splice(index, 1);
+            this.commitResults();
         },
 
         cancel() {
@@ -721,6 +814,15 @@ export function cropTool() {
             this.bitmap?.close?.();
             this.bitmap = null;
             this.fileName = '';
+
+            if (this.multiple) {
+                // Only the in-progress queue is discarded — anything already cropped and
+                // committed in an earlier "Add more" round this session stays.
+                this.queue = [];
+                this.queueIndex = 0;
+                return;
+            }
+
             this.$refs.input.value = '';
         },
     };

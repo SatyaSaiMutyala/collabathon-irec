@@ -156,7 +156,7 @@ const HomeScreen = ({navigation}) => {
       {/* Each cell is a shortcut to the tab that lists what it counts, so the
           number is not a dead end. Figures come from /dashboard — see the note
           on its import above. */}
-      <Card style={{paddingVertical: spacing.sm, marginBottom: spacing.lg}}>
+      <Card style={{paddingVertical: spacing.sm, marginBottom: moderateScale(10)}}>
         <StatRow
           stats={[
             {
