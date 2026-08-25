@@ -2,15 +2,18 @@
 
 namespace Tests\Feature;
 
+use App\Support\WhatsAppSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /**
- * The OTP is echoed back as `debug_code` because nothing texts it anywhere yet.
+ * WhatsApp (MSG91) is the only OTP delivery channel.
  *
- * Which environments do that is the point of these tests: an APP_ENV check alone cannot
- * separate the deployed test server from the real one — both run `production` — so the
- * flag exists to say "this particular production host is a test host".
+ * The code is never echoed back in the API response and there is no log fallback, so
+ * these tests pin the two things that follow from that: a send that could not happen is
+ * reported as a failure, and a send that did happen still tells the caller nothing about
+ * the code itself.
  */
 class OtpExposureTest extends TestCase
 {
@@ -18,42 +21,63 @@ class OtpExposureTest extends TestCase
 
     private const MOBILE = '9876543210';
 
-    public function test_the_code_comes_back_off_production_without_any_flag(): void
+    /** Puts a usable sandbox configuration in place so `isConfigured()` passes. */
+    private function configureWhatsApp(): void
     {
-        // The suite runs as `testing`, so this is the default path.
-        $response = $this->postJson('/api/v1/auth/otp/send', ['mobile' => self::MOBILE]);
-
-        $response->assertOk();
-        $this->assertMatchesRegularExpression('/^\d{6}$/', $response->json('debug_code'));
+        WhatsAppSettings::putSandboxToken('test-auth-key');
+        WhatsAppSettings::putConfig('919876543210', 'collabathon_otp', null, 'en');
+        WhatsAppSettings::setEnvironment(WhatsAppSettings::ENV_SANDBOX);
     }
 
-    public function test_production_withholds_the_code_by_default(): void
+    public function test_an_unconfigured_integration_reports_the_send_as_failed(): void
     {
-        app()->detectEnvironment(fn () => 'production');
-        config(['app.otp_expose_code' => false]);
+        Http::fake();
 
         $this->postJson('/api/v1/auth/otp/send', ['mobile' => self::MOBILE])
-            ->assertOk()
-            ->assertJson(['debug_code' => null]);
+            ->assertStatus(502);
+
+        // Nothing was attempted — the guard fires before any HTTP call.
+        Http::assertNothingSent();
     }
 
-    /** What makes a deployed test server able to complete the flow. */
-    public function test_production_returns_the_code_when_the_flag_is_set(): void
+    public function test_a_rejected_send_reports_the_send_as_failed(): void
     {
-        app()->detectEnvironment(fn () => 'production');
-        config(['app.otp_expose_code' => true]);
+        $this->configureWhatsApp();
+        Http::fake([WhatsAppSettings::API_URL . '*' => Http::response(['message' => 'nope'], 400)]);
 
-        $response = $this->postJson('/api/v1/auth/otp/send', ['mobile' => self::MOBILE]);
-
-        $response->assertOk();
-        $this->assertMatchesRegularExpression('/^\d{6}$/', $response->json('debug_code'));
+        $this->postJson('/api/v1/auth/otp/send', ['mobile' => self::MOBILE])
+            ->assertStatus(502);
     }
 
-    /** The echoed code has to be the one that actually verifies, not a decoy. */
-    public function test_the_echoed_code_is_the_one_that_verifies(): void
+    public function test_the_code_is_never_returned_in_the_response(): void
     {
-        $code = $this->postJson('/api/v1/auth/otp/send', ['mobile' => self::MOBILE])
-            ->json('debug_code');
+        $this->configureWhatsApp();
+        Http::fake([WhatsAppSettings::API_URL . '*' => Http::response(['type' => 'success'], 200)]);
+
+        $response = $this->postJson('/api/v1/auth/otp/send', ['mobile' => self::MOBILE])
+            ->assertOk();
+
+        $this->assertNull($response->json('debug_code'));
+        $this->assertArrayNotHasKey('debug_code', $response->json());
+    }
+
+    /** The code MSG91 was handed is the one that actually verifies. */
+    public function test_the_code_sent_to_whatsapp_is_the_one_that_verifies(): void
+    {
+        $this->configureWhatsApp();
+        Http::fake([WhatsAppSettings::API_URL . '*' => Http::response(['type' => 'success'], 200)]);
+
+        $this->postJson('/api/v1/auth/otp/send', ['mobile' => self::MOBILE])->assertOk();
+
+        // The only place the plaintext code exists now is the outbound payload.
+        $code = null;
+        Http::assertSent(function ($request) use (&$code) {
+            $code = data_get($request->data(), 'payload.template.to_and_components.0.components.body_1.value');
+
+            return $code !== null;
+        });
+
+        $this->assertMatchesRegularExpression('/^\d{4}$/', $code);
 
         $this->postJson('/api/v1/auth/otp/verify', [
             'mobile' => self::MOBILE,

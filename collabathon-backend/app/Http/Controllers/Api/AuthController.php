@@ -35,9 +35,10 @@ use Illuminate\Validation\ValidationException;
  * mobile app picks which pair to route into per the admin's `cp_login_method` setting
  * (Settings -> Channel Partners), so both stay live rather than one being dead code.
  *
- * `OtpSender` falls back to logging the code (plus `debug_code` in the response below)
- * whenever WhatsApp isn't configured yet, so a fresh install still has a working
- * mobile-OTP flow before anyone's added a MSG91 key.
+ * There is no fallback delivery channel and the code is never returned to the caller:
+ * if MSG91 is not configured, or the send fails, `sendOtp` answers 502 and mobile
+ * sign-in is unavailable until Settings -> WhatsApp OTP is working. Configure it before
+ * relying on this flow.
  *
  * A new channel partner isn't registered in one shot — `startRegistration()` (step 1)
  * then `saveRegistrationStep()` (steps 2-3) walk the account through
@@ -68,18 +69,6 @@ class AuthController extends Controller
         'cheque_file' => 'cheque_path',
         'signature_file' => 'signature_path',
     ];
-
-    /**
-     * Whether the issued OTP may be echoed back to the caller.
-     *
-     * True off-production regardless, so local work and the test suite never depend on
-     * an env var being set. On production it is opt-in and explicit — the deployed test
-     * server sets OTP_EXPOSE_CODE, the real one never does.
-     */
-    private function exposesOtpCode(): bool
-    {
-        return ! app()->isProduction() || (bool) config('app.otp_expose_code');
-    }
 
     /**
      * POST /api/v1/auth/register/start — step 1 (Personal info) of the 3-step wizard.
@@ -128,7 +117,7 @@ class AuthController extends Controller
         }
 
         $data['photo_path'] = $request->hasFile('photo')
-            ? $request->file('photo')->store('broker-photos', 'public')
+            ? $request->file('photo')->store('broker-photos', \App\Support\FileStorage::diskName('broker-photos'))
             : null;
 
         $user = DB::transaction(function () use ($data) {
@@ -288,14 +277,14 @@ class AuthController extends Controller
         }
 
         if ($request->hasFile('photo')) {
-            $data['photo_path'] = $request->file('photo')->store('broker-photos', 'public');
+            $data['photo_path'] = $request->file('photo')->store('broker-photos', \App\Support\FileStorage::diskName('broker-photos'));
         } elseif (filled($data['photo_path'] ?? null)) {
             $data['photo_path'] = $this->resolveUploadedPath($user, $data['photo_path']);
         }
 
         foreach (self::DOCUMENTS as $field => $column) {
             if ($request->hasFile($field)) {
-                $data[$column] = $request->file($field)->store('broker-documents', 'public');
+                $data[$column] = $request->file($field)->store('broker-documents', \App\Support\FileStorage::diskName('broker-documents'));
             } elseif (filled($data[$column] ?? null)) {
                 $data[$column] = $this->resolveUploadedPath($user, $data[$column]);
             }
@@ -499,12 +488,10 @@ class AuthController extends Controller
         $otp = OtpCode::issueFor($data['mobile']);
         $sent = $sender->send($data['mobile'], $otp->rawCode());
 
-        // A WhatsApp send that genuinely failed (WhatsApp is configured, MSG91 itself
-        // rejected or errored) is a dead end for the broker unless debug_code is about
-        // to bail them out below — nothing else in this flow ever hands the code back.
-        // "Not configured yet" is not this case: OtpSender::send() already logged it
-        // and returned true, same as it always has.
-        if (! $sent && ! $this->exposesOtpCode()) {
+        // Any failed send is a hard error — MSG91 rejecting it, or the integration not
+        // being configured at all. The code is never handed back to the caller, so a
+        // send that did not happen has to be reported, not papered over.
+        if (! $sent) {
             return response()->json([
                 'message' => 'Could not send the verification code. Please try again in a moment.',
             ], 502);
@@ -513,13 +500,6 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'OTP sent.',
             'expires_in' => OtpCode::TTL_MINUTES * 60,
-            // Local/testing always; a deployed test server only when OTP_EXPOSE_CODE is
-            // set, because APP_ENV there is production and an environment check alone
-            // cannot distinguish it from the real thing. Still returned here even after
-            // a failed send in that case — a developer working before WhatsApp is
-            // configured, or against a broken sandbox key, still needs a way to finish
-            // testing the flow without tailing a log.
-            'debug_code' => $this->exposesOtpCode() ? $otp->rawCode() : null,
         ]);
     }
 
@@ -639,7 +619,6 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'OTP sent.',
             'expires_in' => EmailOtpCode::TTL_MINUTES * 60,
-            'debug_code' => $this->exposesOtpCode() ? $otp->rawCode() : null,
         ]);
     }
 
@@ -871,11 +850,11 @@ class AuthController extends Controller
     {
         $path = $request->user()->brokerProfile?->aadhaar_path;
 
-        if (! $path || ! Str::endsWith($path, '.xml') || ! Storage::disk('public')->exists($path)) {
+        if (! $path || ! Str::endsWith($path, '.xml') || ! \App\Support\FileStorage::exists($path)) {
             return response()->json(['status' => 'unavailable']);
         }
 
-        $data = AadhaarXmlReader::read(Storage::disk('public')->get($path));
+        $data = AadhaarXmlReader::read(\App\Support\FileStorage::get($path));
 
         if ($data === null) {
             return response()->json(['status' => 'unavailable']);

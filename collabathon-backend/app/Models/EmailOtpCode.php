@@ -35,7 +35,17 @@ class EmailOtpCode extends Model
      * attempt-lockout machinery below still applies — a stale or overused challenge
      * still stops verifying — only the value itself stopped being random.
      */
-    private const FIXED_CODE = '8200';
+    private const CODE_LENGTH = 4;
+
+    /**
+     * A fresh random code per challenge, via random_int (CSPRNG) rather than rand() —
+     * this is an authentication credential, so a predictable sequence would be as good
+     * as no code at all. Padded so a value below 1000 is still four digits.
+     */
+    private static function generateCode(): string
+    {
+        return str_pad((string) random_int(0, 10 ** self::CODE_LENGTH - 1), self::CODE_LENGTH, '0', STR_PAD_LEFT);
+    }
 
     protected function casts(): array
     {
@@ -54,7 +64,7 @@ class EmailOtpCode extends Model
     {
         static::where('email', $email)->whereNull('consumed_at')->delete();
 
-        $code = self::FIXED_CODE;
+        $code = self::generateCode();
 
         return static::create([
             'email' => $email,

@@ -238,7 +238,7 @@
                            'border-b border-line-soft' => ! $loop->last,
                        ])>
                         @if($project->cover_image_path)
-                            <img src="{{ asset('storage/' . $project->cover_image_path) }}" alt=""
+                            <img src="{{ \App\Support\FileStorage::url($project->cover_image_path) }}" alt=""
                                  class="w-11 h-11 rounded-lg object-cover border border-line-soft shrink-0">
                         @else
                             <div class="w-11 h-11 rounded-lg bg-canvas border border-line-soft flex items-center justify-center shrink-0">

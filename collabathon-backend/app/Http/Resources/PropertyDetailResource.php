@@ -77,7 +77,7 @@ class PropertyDetailResource extends JsonResource
                 'type' => $this->terms_type,
                 'title' => $this->terms_title ?: 'Developer terms',
                 'document_url' => $this->terms_type === 'document'
-                    ? asset('storage/' . $this->terms_document_path)
+                    ? \App\Support\FileStorage::url($this->terms_document_path)
                     : null,
                 'document_name' => $this->terms_type === 'document'
                     ? basename($this->terms_document_path)

@@ -271,7 +271,7 @@ class ChannelPartnerController extends Controller
         $password = Str::password(32);
 
         if ($request->hasFile('photo')) {
-            $clean['photo_path'] = $request->file('photo')->store('broker-photos', 'public');
+            $clean['photo_path'] = $request->file('photo')->store('broker-photos', \App\Support\FileStorage::diskName('broker-photos'));
         }
 
         foreach ([
@@ -281,7 +281,7 @@ class ChannelPartnerController extends Controller
             'gst_file' => 'gst_path',
         ] as $field => $column) {
             if ($request->hasFile($field)) {
-                $clean[$column] = $request->file($field)->store('broker-documents', 'public');
+                $clean[$column] = $request->file($field)->store('broker-documents', \App\Support\FileStorage::diskName('broker-documents'));
             }
         }
 
@@ -399,9 +399,9 @@ class ChannelPartnerController extends Controller
         // one means "keep the current file", never "clear it".
         if ($request->hasFile('photo')) {
             $previous = $profile?->photo_path;
-            $clean['photo_path'] = $request->file('photo')->store('broker-photos', 'public');
+            $clean['photo_path'] = $request->file('photo')->store('broker-photos', \App\Support\FileStorage::diskName('broker-photos'));
             if ($previous) {
-                Storage::disk('public')->delete($previous);
+                \App\Support\FileStorage::delete($previous);
             }
         }
 
@@ -413,9 +413,9 @@ class ChannelPartnerController extends Controller
         ] as $field => $column) {
             if ($request->hasFile($field)) {
                 $previous = $profile?->{$column};
-                $clean[$column] = $request->file($field)->store('broker-documents', 'public');
+                $clean[$column] = $request->file($field)->store('broker-documents', \App\Support\FileStorage::diskName('broker-documents'));
                 if ($previous) {
-                    Storage::disk('public')->delete($previous);
+                    \App\Support\FileStorage::delete($previous);
                 }
             }
         }

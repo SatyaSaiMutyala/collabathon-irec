@@ -161,7 +161,7 @@
     <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div class="flex items-start gap-3.5 flex-1 min-w-[260px]">
             @if($profile?->photo_path)
-                <img src="{{ asset('storage/' . $profile->photo_path) }}" alt=""
+                <img src="{{ \App\Support\FileStorage::url($profile->photo_path) }}" alt=""
                      class="w-14 h-14 rounded-xl object-cover border border-line-soft shrink-0">
             @else
                 <x-avatar :name="$broker->name" :src="$profile?->photo_path" size="lg" class="w-14 h-14 shrink-0" />
@@ -341,7 +341,7 @@
                                 </div>
 
                                 @if(filled($doc['path']))
-                                    <a href="{{ $doc['view_url'] ?? asset('storage/' . $doc['path']) }}"
+                                    <a href="{{ $doc['view_url'] ?? \App\Support\FileStorage::url($doc['path']) }}"
                                        target="_blank" rel="noopener noreferrer"
                                        class="shrink-0 inline-flex items-center gap-1 text-[11.5px] font-medium
                                               text-primary-dark hover:underline">

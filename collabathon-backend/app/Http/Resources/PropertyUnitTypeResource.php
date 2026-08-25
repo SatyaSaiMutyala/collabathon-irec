@@ -18,7 +18,7 @@ class PropertyUnitTypeResource extends JsonResource
             'price_min' => $this->price_min !== null ? (int) $this->price_min : null,
             'price_max' => $this->price_max !== null ? (int) $this->price_max : null,
             'units_count' => $this->units_count,
-            'floor_plan_url' => $this->floor_plan_path ? asset('storage/' . $this->floor_plan_path) : null,
+            'floor_plan_url' => $this->floor_plan_path ? \App\Support\FileStorage::url($this->floor_plan_path) : null,
         ];
     }
 }

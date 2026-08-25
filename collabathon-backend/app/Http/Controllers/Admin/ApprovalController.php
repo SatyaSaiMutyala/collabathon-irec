@@ -209,9 +209,9 @@ class ApprovalController extends Controller
         abort_unless($user->isBroker(), 404);
 
         $path = $user->brokerProfile?->aadhaar_path;
-        abort_unless($path && Storage::disk('public')->exists($path), 404);
+        abort_unless($path && \App\Support\FileStorage::exists($path), 404);
 
-        $data = AadhaarXmlReader::read(Storage::disk('public')->get($path));
+        $data = AadhaarXmlReader::read(\App\Support\FileStorage::get($path));
         abort_unless($data !== null, 404);
 
         return view('admin.approvals.aadhaar-preview', ['broker' => $user, ...$data]);

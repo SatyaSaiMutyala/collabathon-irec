@@ -73,7 +73,7 @@ $fallbackRing = $shape === 'square' ? '' : 'ring-1 ring-inset';
 @endphp
 
 @if($src)
-    <img src="{{ \Illuminate\Support\Str::startsWith($src, ['http://', 'https://']) ? $src : asset('storage/' . $src) }}"
+    <img src="{{ \Illuminate\Support\Str::startsWith($src, ['http://', 'https://']) ? $src : \App\Support\FileStorage::url($src) }}"
          alt="{{ $name }}"
          title="{{ $name }}"
          {{ $attributes->merge(['class' => implode(' ', array_filter([$fit, $imgRing, 'shrink-0', $radius, $dims]))]) }} />

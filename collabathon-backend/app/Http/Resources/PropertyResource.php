@@ -58,7 +58,7 @@ class PropertyResource extends JsonResource
                 && $this->developer_status === \App\Models\Property::DEV_ACCEPTED,
 
             'tagline' => $this->tagline,
-            'cover_image_url' => $this->cover_image_path ? asset('storage/' . $this->cover_image_path) : null,
+            'cover_image_url' => $this->cover_image_path ? \App\Support\FileStorage::url($this->cover_image_path) : null,
 
             'location' => [
                 'country' => $this->country,
@@ -111,7 +111,7 @@ class PropertyResource extends JsonResource
                 'launch_date' => $this->launch_date?->toDateString(),
             ]),
 
-            'logo_url' => $this->logo_path ? asset('storage/' . $this->logo_path) : null,
+            'logo_url' => $this->logo_path ? \App\Support\FileStorage::url($this->logo_path) : null,
             'detail' => (new PropertyDetailResource($this->whenLoaded('detail')))->withContact($visible),
             'unit_types' => PropertyUnitTypeResource::collection($this->whenLoaded('unitTypes')),
             'media' => PropertyMediaResource::collection($this->whenLoaded('media')),

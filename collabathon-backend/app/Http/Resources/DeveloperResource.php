@@ -62,7 +62,7 @@ class DeveloperResource extends JsonResource
             'address' => $this->address,
             'latitude' => $this->latitude !== null ? (float) $this->latitude : null,
             'longitude' => $this->longitude !== null ? (float) $this->longitude : null,
-            'logo_url' => $this->logo_path ? asset('storage/' . $this->logo_path) : null,
+            'logo_url' => $this->logo_path ? \App\Support\FileStorage::url($this->logo_path) : null,
             'about' => $this->about,
             'cp_payout_percent' => (float) $this->cp_payout_percent,
             'verified' => (bool) $this->verified,

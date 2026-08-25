@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\BrokerProfile;
+use App\Support\FileStorage;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -37,7 +38,8 @@ class BrokerRegistrationDocumentsTest extends TestCase
 
     public function test_every_uploaded_document_is_stored_against_the_profile(): void
     {
-        Storage::fake('public');
+        Storage::fake('uploads');
+        Storage::fake('secure');
 
         $this->postJson('/api/v1/auth/register', $this->payload([
             'photo' => UploadedFile::fake()->image('me.jpg'),
@@ -56,7 +58,9 @@ class BrokerRegistrationDocumentsTest extends TestCase
             'rera_certificate_path', 'gst_path', 'cheque_path', 'signature_path',
         ] as $column) {
             $this->assertNotNull($profile->{$column}, "[{$column}] was not stored.");
-            Storage::disk('public')->assertExists($profile->{$column});
+            // The photo is public material; every scan is a KYC document and must not be.
+            $disk = $column === 'photo_path' ? 'uploads' : 'secure';
+            Storage::disk($disk)->assertExists($profile->{$column});
         }
 
         // Scans are grouped away from the profile photo so a KYC purge can target them.
@@ -66,7 +70,8 @@ class BrokerRegistrationDocumentsTest extends TestCase
 
     public function test_documents_are_optional_and_absent_ones_stay_null(): void
     {
-        Storage::fake('public');
+        Storage::fake('uploads');
+        Storage::fake('secure');
 
         $this->postJson('/api/v1/auth/register', $this->payload([
             'pan_card_file' => UploadedFile::fake()->image('pan.jpg'),
@@ -81,7 +86,8 @@ class BrokerRegistrationDocumentsTest extends TestCase
 
     public function test_an_oversized_or_wrong_type_document_is_rejected(): void
     {
-        Storage::fake('public');
+        Storage::fake('uploads');
+        Storage::fake('secure');
 
         $this->postJson('/api/v1/auth/register', $this->payload([
             'pan_card_file' => UploadedFile::fake()->create('malware.exe', 10, 'application/x-msdownload'),
@@ -93,7 +99,8 @@ class BrokerRegistrationDocumentsTest extends TestCase
     /** The whole point: what was uploaded has to reach the admin's Documents panel. */
     public function test_the_admin_documents_panel_links_the_uploaded_scans(): void
     {
-        Storage::fake('public');
+        Storage::fake('uploads');
+        Storage::fake('secure');
 
         $this->postJson('/api/v1/auth/register', $this->payload([
             'pan_card_file' => UploadedFile::fake()->image('pan.jpg'),
@@ -113,8 +120,8 @@ class BrokerRegistrationDocumentsTest extends TestCase
         $response = $this->actingAs($admin)->get(route('admin.approvals.show', $broker));
 
         $response->assertOk();
-        $response->assertSee(Storage::disk('public')->url($profile->pan_card_path), false);
-        $response->assertSee(Storage::disk('public')->url($profile->rera_certificate_path), false);
+        $response->assertSee(FileStorage::url($profile->pan_card_path), false);
+        $response->assertSee(FileStorage::url($profile->rera_certificate_path), false);
         // Two of six attached, so the counter must not still read zero.
         $response->assertSee('2 of 6');
     }

@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Upload;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 /**
@@ -44,8 +43,9 @@ class UploadController extends Controller
             'type' => ['required', 'string', Rule::in(self::TYPES)],
         ]);
 
-        $disk = 'public';
         $folder = $data['type'] === 'photo' ? 'broker-photos' : 'broker-documents';
+        // Photos are public, KYC scans private — FileStorage decides which disk from the folder.
+        $disk = \App\Support\FileStorage::diskName($folder);
         $file = $request->file('file');
         $path = $file->store($folder, $disk);
 
@@ -62,7 +62,7 @@ class UploadController extends Controller
                 'id' => $upload->id,
                 'type' => $upload->type,
                 'path' => $upload->path,
-                'url' => Storage::disk($disk)->url($path),
+                'url' => \App\Support\FileStorage::url($path),
             ],
         ], 201);
     }

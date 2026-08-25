@@ -253,7 +253,7 @@ class DeveloperController extends Controller
         // `logo` is the upload; `logo_path` is what the column stores.
         unset($data['logo']);
         if ($request->hasFile('logo')) {
-            $data['logo_path'] = $request->file('logo')->store('developers/logos', 'public');
+            $data['logo_path'] = $request->file('logo')->store('developers/logos', \App\Support\FileStorage::diskName('developers/logos'));
         }
 
         // Credential handed to the developer; they change it on first sign-in. `password` is
@@ -570,11 +570,11 @@ class DeveloperController extends Controller
         unset($data['logo']);
         if ($request->hasFile('logo')) {
             $previous = $developer->logo_path;
-            $data['logo_path'] = $request->file('logo')->store('developers/logos', 'public');
+            $data['logo_path'] = $request->file('logo')->store('developers/logos', \App\Support\FileStorage::diskName('developers/logos'));
 
             // Only after the replacement is safely stored.
             if ($previous) {
-                Storage::disk('public')->delete($previous);
+                \App\Support\FileStorage::delete($previous);
             }
         }
 
@@ -616,7 +616,7 @@ class DeveloperController extends Controller
         });
 
         if ($logo) {
-            Storage::disk('public')->delete($logo);
+            \App\Support\FileStorage::delete($logo);
         }
 
         return redirect()

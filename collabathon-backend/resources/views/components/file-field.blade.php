@@ -89,7 +89,7 @@
             <x-icon name="check" class="w-3.5 h-3.5 text-success shrink-0" />
             <span class="truncate">
                 On file:
-                <a href="{{ asset('storage/' . $current) }}" target="_blank" rel="noopener"
+                <a href="{{ \App\Support\FileStorage::url($current) }}" target="_blank" rel="noopener"
                    class="text-ink-2 hover:text-ink underline decoration-line underline-offset-2">
                     {{ basename($current) }}
                 </a>

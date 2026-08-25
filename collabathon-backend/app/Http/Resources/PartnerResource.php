@@ -67,7 +67,7 @@ class PartnerResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
-            'photo_url' => $photo ? asset('storage/' . $photo) : null,
+            'photo_url' => $photo ? \App\Support\FileStorage::url($photo) : null,
             'contact_visible' => $visible,
 
             // ---------------------------------------------------------- credentials

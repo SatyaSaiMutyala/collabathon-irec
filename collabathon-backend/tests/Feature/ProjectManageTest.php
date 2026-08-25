@@ -182,7 +182,7 @@ class ProjectManageTest extends TestCase
 
     public function test_a_full_edit_updates_every_table_and_keeps_unreplaced_attachments(): void
     {
-        Storage::fake('public');
+        Storage::fake('uploads');
         $developer = $this->developer();
         $other = $this->developer('Meridian Estates');
         $property = $this->project($developer);
@@ -243,11 +243,11 @@ class ProjectManageTest extends TestCase
 
     public function test_ticked_attachments_are_removed_and_their_files_deleted(): void
     {
-        Storage::fake('public');
+        Storage::fake('uploads');
         $property = $this->project($this->developer());
 
         $image = $property->media()->where('kind', 'image')->first();
-        Storage::disk('public')->put($image->path, 'x');
+        Storage::disk('uploads')->put($image->path, 'x');
 
         $this->actingAs($this->superAdmin())
             ->patch(route('admin.properties.update', $property), [
@@ -266,7 +266,7 @@ class ProjectManageTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->assertNull(PropertyMedia::find($image->id));
-        Storage::disk('public')->assertMissing($image->path);
+        Storage::disk('uploads')->assertMissing($image->path);
         // The other image is untouched.
         $this->assertCount(1, $property->fresh()->media->where('kind', 'image'));
     }

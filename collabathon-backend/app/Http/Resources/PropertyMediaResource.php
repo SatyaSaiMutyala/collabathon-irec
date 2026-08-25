@@ -12,7 +12,7 @@ class PropertyMediaResource extends JsonResource
         return [
             'id' => $this->id,
             'kind' => $this->kind,
-            'url' => $this->url ?: ($this->path ? asset('storage/' . $this->path) : null),
+            'url' => $this->url ?: ($this->path ? \App\Support\FileStorage::url($this->path) : null),
             'caption' => $this->caption,
         ];
     }

@@ -55,7 +55,7 @@ class ProjectAssignedMail extends Mailable
                 'acceptUrl' => $this->acceptUrl,
                 'declineUrl' => $this->declineUrl,
                 'appName' => config('app.name'),
-                'coverImageUrl' => $property->cover_image_path ? asset('storage/' . $property->cover_image_path) : null,
+                'coverImageUrl' => $property->cover_image_path ? \App\Support\FileStorage::url($property->cover_image_path) : null,
             ],
         );
     }

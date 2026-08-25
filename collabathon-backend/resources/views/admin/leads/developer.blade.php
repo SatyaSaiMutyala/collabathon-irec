@@ -129,7 +129,7 @@
                 <td class="px-4 py-3">
                     <div class="flex items-center gap-2.5 min-w-0">
                         @if($property->cover_image_path || $property->logo_path)
-                            <img src="{{ asset('storage/' . ($property->cover_image_path ?: $property->logo_path)) }}"
+                            <img src="{{ \App\Support\FileStorage::url(($property->cover_image_path ?: $property->logo_path)) }}"
                                  alt="" class="w-8 h-8 rounded-lg object-cover border border-line-soft shrink-0">
                         @else
                             <x-avatar :name="$property->name" size="md" />

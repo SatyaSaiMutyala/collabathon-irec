@@ -732,7 +732,7 @@ class PropertyController extends Controller
             $branding[$column] = $this->upload($file, $property->id);
 
             if ($previous) {
-                Storage::disk('public')->delete($previous);
+                \App\Support\FileStorage::delete($previous);
             }
         }
 
@@ -749,7 +749,7 @@ class PropertyController extends Controller
 
         foreach ($property->media()->whereIn('id', $ids)->get() as $media) {
             if ($media->path) {
-                Storage::disk('public')->delete($media->path);
+                \App\Support\FileStorage::delete($media->path);
             }
             $media->delete();
         }
@@ -993,7 +993,7 @@ class PropertyController extends Controller
             $documentPath = $this->upload($file, $propertyId);
 
             if ($existing?->terms_document_path) {
-                Storage::disk('public')->delete($existing->terms_document_path);
+                \App\Support\FileStorage::delete($existing->terms_document_path);
             }
         }
 
@@ -1124,7 +1124,7 @@ class PropertyController extends Controller
             ->get()
             ->each(function (PropertyMedia $media) {
                 if ($media->path) {
-                    Storage::disk('public')->delete($media->path);
+                    \App\Support\FileStorage::delete($media->path);
                 }
                 $media->delete();
             });
@@ -1133,6 +1133,6 @@ class PropertyController extends Controller
     /** Files are grouped by property so a deleted project's assets are easy to reap. */
     private function upload(UploadedFile $file, int $propertyId): string
     {
-        return $file->store("properties/{$propertyId}", 'public');
+        return $file->store("properties/{$propertyId}", \App\Support\FileStorage::diskName("properties/{$propertyId}"));
     }
 }

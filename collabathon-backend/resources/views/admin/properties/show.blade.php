@@ -119,7 +119,7 @@
     <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div class="flex items-start gap-3.5 flex-1 min-w-[260px]">
             @if($property->cover_image_path || $property->logo_path)
-                <img src="{{ asset('storage/' . ($property->cover_image_path ?: $property->logo_path)) }}"
+                <img src="{{ \App\Support\FileStorage::url(($property->cover_image_path ?: $property->logo_path)) }}"
                      alt="" class="w-14 h-14 rounded-xl object-cover border border-line-soft shrink-0">
             @else
                 <x-avatar :name="$property->name" size="lg" class="w-14 h-14 shrink-0" />
@@ -289,7 +289,7 @@
                                 <p class="text-[12.5px] text-ink truncate">{{ basename($detail->terms_document_path) }}</p>
                             </div>
                             <x-button variant="subtle" size="sm" tag="a" target="_blank"
-                                      href="{{ asset('storage/' . $detail->terms_document_path) }}">
+                                      href="{{ \App\Support\FileStorage::url($detail->terms_document_path) }}">
                                 Open
                             </x-button>
                         </div>
@@ -352,7 +352,7 @@
                                         <td class="px-4 py-3 text-[12.5px] text-ink-2 nums">{{ $unit->units_count ?? '—' }}</td>
                                         <td class="px-4 py-3">
                                             @if($unit->floor_plan_path)
-                                                <a href="{{ asset('storage/' . $unit->floor_plan_path) }}"
+                                                <a href="{{ \App\Support\FileStorage::url($unit->floor_plan_path) }}"
                                                    target="_blank" rel="noopener"
                                                    class="inline-flex items-center gap-1 text-[12.5px] text-primary hover:underline">
                                                     View <x-icon name="external" class="w-3.5 h-3.5" />
@@ -376,7 +376,7 @@
                 @if($media->get('image')?->isNotEmpty())
                     <div class="grid grid-cols-3 gap-2">
                         @foreach($media['image'] as $image)
-                            @php $imageUrl = $image->url ?: asset('storage/' . $image->path); @endphp
+                            @php $imageUrl = $image->url ?: \App\Support\FileStorage::url($image->path); @endphp
                             <a href="{{ $imageUrl }}" target="_blank" rel="noopener"
                                class="block rounded-lg overflow-hidden border border-line hover:opacity-90 transition-opacity">
                                 {{-- 4:3 matches the crop tool's output ratio (_form.blade.php /
@@ -414,7 +414,7 @@
                                 @if($items?->isNotEmpty())
                                     <span class="flex items-center gap-2">
                                         @foreach($items as $i => $item)
-                                            <a href="{{ asset('storage/' . $item->path) }}"
+                                            <a href="{{ \App\Support\FileStorage::url($item->path) }}"
                                                target="_blank" rel="noopener"
                                                class="inline-flex items-center gap-1 text-primary hover:underline">
                                                 {{ $items->count() > 1 ? '#' . ($i + 1) : 'View' }}
@@ -433,7 +433,7 @@
                         <dt class="text-[12.5px] text-ink-3">Legal due diligence</dt>
                         <dd class="text-[12.5px] shrink-0">
                             @if($detail?->legal_due_diligence_path)
-                                <a href="{{ asset('storage/' . $detail->legal_due_diligence_path) }}"
+                                <a href="{{ \App\Support\FileStorage::url($detail->legal_due_diligence_path) }}"
                                    target="_blank" rel="noopener"
                                    class="inline-flex items-center gap-1 text-primary hover:underline">
                                     View <x-icon name="external" class="w-3 h-3" />

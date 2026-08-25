@@ -121,11 +121,14 @@ class DigilockerController extends Controller
 
         $filename = 'aadhaar-digilocker-'.bin2hex(random_bytes(8)).'.xml';
         $path = 'broker-documents/'.$filename;
-        Storage::disk('public')->put($path, $response->body());
+        // broker-documents/ is a secure prefix — FileStorage routes it to the
+        // private disk, so the Aadhaar XML is never a publicly readable object.
+        $disk = \App\Support\FileStorage::diskName('broker-documents');
+        Storage::disk($disk)->put($path, $response->body());
 
         $upload = $request->user()->uploads()->create([
             'type' => 'aadhaar',
-            'disk' => 'public',
+            'disk' => $disk,
             'path' => $path,
             'original_name' => $filename,
             'size' => strlen($response->body()),
@@ -134,7 +137,7 @@ class DigilockerController extends Controller
         return [
             'id' => $upload->id,
             'path' => $upload->path,
-            'url' => Storage::disk('public')->url($path),
+            'url' => \App\Support\FileStorage::url($path),
             'name' => $filename,
         ];
     }

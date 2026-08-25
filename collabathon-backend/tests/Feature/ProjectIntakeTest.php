@@ -50,7 +50,7 @@ class ProjectIntakeTest extends TestCase
 
     public function test_the_full_project_sheet_is_persisted_across_all_four_tables(): void
     {
-        Storage::fake('public');
+        Storage::fake('uploads');
         $developer = $this->developer();
 
         $response = $this->actingAs($this->superAdmin())->post('/admin/properties', [
@@ -224,7 +224,7 @@ class ProjectIntakeTest extends TestCase
 
         // Every upload is grouped under its property id.
         foreach ($property->media->whereNotNull('path') as $media) {
-            Storage::disk('public')->assertExists($media->path);
+            Storage::disk('uploads')->assertExists($media->path);
             $this->assertStringStartsWith("properties/{$property->id}/", $media->path);
         }
     }
@@ -276,7 +276,7 @@ class ProjectIntakeTest extends TestCase
 
     public function test_developer_intake_captures_the_trust_signal_fields(): void
     {
-        Storage::fake('public');
+        Storage::fake('uploads');
 
         $this->actingAs($this->superAdmin())->post('/admin/developers', [
             'company_name' => 'Meridian Estates',
@@ -299,7 +299,7 @@ class ProjectIntakeTest extends TestCase
         $this->assertSame('RERA-AUH-9931', $developer->rera_number);
         $this->assertTrue($developer->verified);
         $this->assertStringContainsString('nine delivered communities', $developer->about);
-        Storage::disk('public')->assertExists($developer->logo_path);
+        Storage::disk('uploads')->assertExists($developer->logo_path);
 
         // The login account is issued alongside the company record.
         $this->assertSame(User::ROLE_DEVELOPER, $developer->user->role);
@@ -307,7 +307,7 @@ class ProjectIntakeTest extends TestCase
         // The list surfaces the uploaded logo and the verified badge.
         $list = $this->get('/admin/developers');
         $list->assertOk();
-        $list->assertSee(Storage::disk('public')->url($developer->logo_path), false);
+        $list->assertSee(\App\Support\FileStorage::url($developer->logo_path), false);
     }
 
     public function test_an_unchecked_switch_posts_false_rather_than_dropping_the_field(): void

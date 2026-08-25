@@ -74,7 +74,7 @@ class UserResource extends JsonResource
         $path = $this->avatar_path
             ?: ($this->relationLoaded('brokerProfile') ? $this->brokerProfile?->photo_path : null);
 
-        return $path ? asset('storage/' . $path) : null;
+        return $path ? \App\Support\FileStorage::url($path) : null;
     }
 
     /**
@@ -105,7 +105,7 @@ class UserResource extends JsonResource
     {
         foreach (self::PROFILE_FILE_COLUMNS as $column) {
             if (! empty($attributes[$column])) {
-                $attributes[$column] = asset('storage/' . $attributes[$column]);
+                $attributes[$column] = \App\Support\FileStorage::url($attributes[$column]);
             }
         }
 

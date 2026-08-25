@@ -7,12 +7,12 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Delivers an OTP to a mobile number over WhatsApp (MSG91), falling back to a log entry
- * when WhatsApp isn't configured yet — the same position `MAIL_MAILER=log` already
- * takes for email, and what this whole class did unconditionally before WhatsApp was
- * wired up. That fallback is what keeps local/testing work exactly as it was: an admin
- * who hasn't added a MSG91 key yet still gets a working mobile-OTP flow via the log +
- * `debug_code` in the API response, same as before this class did anything else.
+ * Delivers an OTP to a mobile number over WhatsApp (MSG91).
+ *
+ * WhatsApp is the only channel — there is deliberately no log fallback and the code is
+ * never echoed back through the API. An unconfigured integration is therefore a failed
+ * send, not a quietly successful one, so a missing MSG91 key surfaces immediately
+ * instead of looking like a delivery problem on the phone's end.
  *
  * `AuthController` depends on this class, not on an HTTP call directly, so swapping
  * providers later is "replace what's inside `send()`", not a hunt through the
@@ -30,9 +30,13 @@ class OtpSender
     public function send(string $mobile, string $code): bool
     {
         if (! WhatsAppSettings::isConfigured()) {
-            Log::info("OTP for {$mobile}: {$code}");
+            // Deliberately not logging the code. There is no fallback delivery channel
+            // any more: an unconfigured integration is a failed send, so the caller
+            // surfaces an error rather than the app silently "succeeding" with a code
+            // nobody received.
+            Log::error('OTP not sent — WhatsApp (MSG91) is not configured.', ['mobile' => $mobile]);
 
-            return true;
+            return false;
         }
 
         return $this->sendViaWhatsApp($mobile, $code);

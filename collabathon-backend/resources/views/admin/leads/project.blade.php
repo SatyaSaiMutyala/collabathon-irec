@@ -16,7 +16,7 @@
 
     <div class="flex items-center gap-3.5 mb-6">
         @if($property->cover_image_path || $property->logo_path)
-            <img src="{{ asset('storage/' . ($property->cover_image_path ?: $property->logo_path)) }}"
+            <img src="{{ \App\Support\FileStorage::url(($property->cover_image_path ?: $property->logo_path)) }}"
                  alt="" class="w-12 h-12 rounded-xl object-cover border border-line-soft shrink-0">
         @else
             <x-avatar :name="$property->name" size="lg" class="w-12 h-12 shrink-0" />

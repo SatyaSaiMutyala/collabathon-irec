@@ -613,7 +613,7 @@
                                         <x-icon name="check" class="w-3.5 h-3.5 text-success shrink-0" />
                                         <span class="truncate">
                                             Current:
-                                            <a href="{{ asset('storage/' . $property->cover_image_path) }}" target="_blank" rel="noopener"
+                                            <a href="{{ \App\Support\FileStorage::url($property->cover_image_path) }}" target="_blank" rel="noopener"
                                                class="text-ink-2 hover:text-ink underline decoration-line underline-offset-2">
                                                 {{ basename($property->cover_image_path) }}
                                             </a>
@@ -645,7 +645,7 @@
                                         <div x-data="{ marked: false }" x-show="! marked" class="relative">
                                             <input type="checkbox" name="remove_media[]" value="{{ $image->id }}"
                                                    x-model="marked" class="sr-only">
-                                            <img src="{{ $image->url ?: asset('storage/' . $image->path) }}" alt=""
+                                            <img src="{{ $image->url ?: \App\Support\FileStorage::url($image->path) }}" alt=""
                                                  class="w-full aspect-[4/3] object-cover rounded-lg border border-line">
                                             <button type="button" @click="marked = true"
                                                     class="absolute inset-x-1 bottom-1.5 text-[11px] font-medium

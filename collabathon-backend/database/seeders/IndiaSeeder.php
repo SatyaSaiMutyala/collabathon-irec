@@ -289,7 +289,7 @@ class IndiaSeeder extends Seeder
         }
     }
 
-    /** Downloads the given URL into storage/app/public and returns its relative path, or null on failure. */
+    /** Downloads the given URL into the uploads disk and returns its relative path, or null on failure. */
     private function downloadImage(string $url, string $storagePath): ?string
     {
         try {
@@ -299,7 +299,7 @@ class IndiaSeeder extends Seeder
                 return null;
             }
 
-            Storage::disk('public')->put($storagePath, $response->body());
+            \App\Support\FileStorage::diskForFolder(dirname($storagePath))->put($storagePath, $response->body());
 
             return $storagePath;
         } catch (\Throwable $e) {

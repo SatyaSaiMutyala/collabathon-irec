@@ -21,14 +21,19 @@ class OtpCode extends Model
     /** A code stops being guessable after this many wrong tries, not just after it expires. */
     public const MAX_ATTEMPTS = 5;
 
+    /** Four digits, leading zeros kept — 0000-9999 are all valid codes. Matches
+     * CODE_LENGTH in the app's OtpVerifyScreen; changing it needs a new build. */
+    private const CODE_LENGTH = 4;
+
     /**
-     * Every challenge gets this same code rather than a random one — same reasoning as
-     * {@see EmailOtpCode::FIXED_CODE}, and the same value, so a tester switching the
-     * admin's cp_login_method between email and mobile doesn't have to remember two
-     * different codes. There is no real SMS provider wired up (see OtpSender) to
-     * deliver a random one to anyway.
+     * A fresh random code per challenge, via random_int (CSPRNG) rather than rand() —
+     * this is an authentication credential, so a predictable sequence would be as good
+     * as no code at all. Padded so a value below 1000 is still four digits.
      */
-    private const FIXED_CODE = '8200';
+    private static function generateCode(): string
+    {
+        return str_pad((string) random_int(0, 10 ** self::CODE_LENGTH - 1), self::CODE_LENGTH, '0', STR_PAD_LEFT);
+    }
 
     protected function casts(): array
     {
@@ -47,7 +52,7 @@ class OtpCode extends Model
     {
         static::where('mobile', $mobile)->whereNull('consumed_at')->delete();
 
-        $code = self::FIXED_CODE;
+        $code = self::generateCode();
 
         return static::create([
             'mobile' => $mobile,
