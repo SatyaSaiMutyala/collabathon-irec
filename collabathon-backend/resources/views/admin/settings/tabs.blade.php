@@ -1108,7 +1108,7 @@ $openTab = in_array(request()->query('tab'), array_column($tabs, 'key'), true)
                     </li>
                     <li class="flex gap-2">
                         <span class="text-primary">&bull;</span>
-                        <span><strong class="text-ink">Aadhaar</strong> — offline XML/QR verification only, not live UIDAI OTP e-KYC (that route is restricted to banks/telecom — see docs/KYC_VERIFICATION_PROVIDER_SETUP.md).</span>
+                        <span><strong class="text-ink">Aadhaar</strong> — live UIDAI verification through DigiLocker: the channel partner signs in with their own Aadhaar-linked mobile and OTP, and the verified record comes straight back. Replaces the earlier offline XML/QR upload route, which Surepass never enabled on this account.</span>
                     </li>
                     <li class="flex gap-2">
                         <span class="text-primary">&bull;</span>
