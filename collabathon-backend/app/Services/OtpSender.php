@@ -79,7 +79,19 @@ class OtpSender
         ]);
 
         try {
+            /*
+             * force_ip_resolve => v4 is deliberate, not a default worth inheriting.
+             *
+             * MSG91 authkeys can carry an IP whitelist, and an entry there is a single
+             * literal address. On a dual-stack host curl prefers IPv6, so MSG91 saw this
+             * server's IPv6 rather than the IPv4 that was whitelisted and refused every
+             * request with 401/apiError 418 — an auth error that looks nothing like an
+             * IP problem. Residential and cloud IPv6 also rotates far more often than a
+             * v4 address or an Elastic IP, so pinning to v4 keeps the whitelist entry
+             * stable and the failure mode predictable.
+             */
             $response = Http::withHeaders(['authkey' => WhatsAppSettings::activeToken()])
+                ->withOptions(['force_ip_resolve' => 'v4'])
                 ->timeout(10)
                 ->post(WhatsAppSettings::API_URL, [
                     'integrated_number' => WhatsAppSettings::integratedNumber(),
