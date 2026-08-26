@@ -91,13 +91,21 @@ const STATUS_CONFIG = {
 };
 
 /**
- * Derives a role-aware notification feed from already-fetched lead state (no separate
- * mock notification list to keep in sync — /api/v1/leads already returns each role's
- * own view of the same leads, see leadsSlice.js).
+ * Merges the two halves of the notification feed:
+ *
+ *  - lead activity, derived from already-fetched lead state (no separate mock list to
+ *    keep in sync — /api/v1/leads already returns each role's own view of the same
+ *    leads, see leadsSlice.js);
+ *  - admin broadcasts, fetched from /api/v1/notifications.
+ *
+ * The second half can't be derived from anything on the device: a push that was never
+ * opened leaves no trace, so before it was stored server-side an admin broadcast
+ * arrived in the shade and then vanished, and this screen showed only lead rows.
  */
 export function useNotifications() {
   const role = useAppSelector(state => state.auth.role);
   const leads = useAppSelector(state => state.leads.notifications.items);
+  const announcements = useAppSelector(state => state.notifications.announcements);
   const readIds = useAppSelector(state => state.notifications.readIds);
 
   const config = STATUS_CONFIG[role] ?? {};
@@ -121,6 +129,22 @@ export function useNotifications() {
       };
     })
     .filter(Boolean);
+
+  announcements.forEach(announcement => {
+    items.push({
+      // Prefixed so it can never collide with a `lead-…` id in readIds.
+      id: `announcement-${announcement.id}`,
+      icon: 'megaphone',
+      tone: 'primary',
+      title: announcement.title,
+      message: announcement.body,
+      date: announcement.created_at,
+      imageUrl: announcement.image_url,
+      // Opens NotificationDetail, where the full image and untruncated body live.
+      // No propertyId: a broadcast isn't about a listing.
+      announcementId: announcement.id,
+    });
+  });
 
   items.sort((a, b) => new Date(b.date) - new Date(a.date));
 

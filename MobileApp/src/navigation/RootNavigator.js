@@ -17,6 +17,7 @@ import MapPickerScreen from '../screens/broker/MapPickerScreen';
 import PropertyLeadsScreen from '../screens/developer/PropertyLeadsScreen';
 import BrokerDetailScreen from '../screens/developer/BrokerDetailScreen';
 import NotificationsScreen from '../screens/shared/NotificationsScreen';
+import NotificationDetailScreen from '../screens/shared/NotificationDetailScreen';
 import ProjectTermsScreen from '../screens/shared/ProjectTermsScreen';
 
 const BrokerStack = createNativeStackNavigator();
@@ -38,6 +39,11 @@ const BrokerRootStack = () => (
     <BrokerStack.Screen
       name="Notifications"
       component={NotificationsScreen}
+      options={{animation: 'slide_from_right'}}
+    />
+    <BrokerStack.Screen
+      name="NotificationDetail"
+      component={NotificationDetailScreen}
       options={{animation: 'slide_from_right'}}
     />
     <BrokerStack.Screen
@@ -73,6 +79,11 @@ const DeveloperRootStack = () => (
       component={NotificationsScreen}
       options={{animation: 'slide_from_right'}}
     />
+    <DeveloperStack.Screen
+      name="NotificationDetail"
+      component={NotificationDetailScreen}
+      options={{animation: 'slide_from_right'}}
+    />
     {/* Registered on both stacks: PropertyDetailBody is shared, so the terms button
         has to resolve whichever role opened the project. */}
     <DeveloperStack.Screen
@@ -104,9 +115,14 @@ const PUSH_ROUTES = {
   // response itself routes to.
   broker_approved: () => ['Login'],
   broker_rejected: () => ['Login'],
-  // No entity to deep-link to — just surface the full text where the rest of the
-  // notification history already lives.
-  announcement: () => ['Notifications'],
+  // Straight to the broadcast that was tapped, so the full image and text are the
+  // first thing seen. Falls back to the list for a push sent before the payload
+  // carried an id — those are already installed on devices, and dropping the user on
+  // the history is better than a detail screen with nothing to show.
+  announcement: data =>
+    data.announcement_id
+      ? ['NotificationDetail', {announcementId: Number(data.announcement_id)}]
+      : ['Notifications'],
 };
 
 /**

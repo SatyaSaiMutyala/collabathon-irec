@@ -1,7 +1,6 @@
 import React, {useCallback, useEffect} from 'react';
-import {useAppTheme} from '../../theme';
 import {
-  AppText,
+  BackHeader,
   BrokerLeadCard,
   BrokerLeadCardSkeleton,
   PaginatedList,
@@ -15,7 +14,6 @@ import {fetchLeads, fetchNextLeads} from '../../store/slices/leadsSlice';
  * that is what the server is asked for — a bare view is not a request.
  */
 const RequestBrokersScreen = ({navigation}) => {
-  const {spacing} = useAppTheme();
   const dispatch = useAppDispatch();
   const list = useAppSelector(state => state.leads.list);
 
@@ -39,9 +37,7 @@ const RequestBrokersScreen = ({navigation}) => {
 
   return (
     <ScreenContainer edges={['top']}>
-      <AppText variant="h1" style={{marginTop: spacing.sm, marginBottom: spacing.lg}}>
-        Requests
-      </AppText>
+      <BackHeader navigation={navigation} title="Requests" fallbackRoute="DashboardTab" />
 
       <PaginatedList
         list={list}

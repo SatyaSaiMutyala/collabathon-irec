@@ -1,11 +1,12 @@
 import React, {useState} from 'react';
-import {Alert, Image, Modal, Pressable, TouchableOpacity, View} from 'react-native';
+import {Alert, Modal, Pressable, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {launchCamera, launchImageLibrary} from 'react-native-image-picker';
 import ImagePicker from 'react-native-image-crop-picker';
 import {moderateScale} from '../theme/scaling';
 import {useAppTheme} from '../theme';
 import ActionSheet from './ActionSheet';
+import RemoteImage from './RemoteImage';
 import AppText from './AppText';
 
 /** A profile photo is displayed in a square avatar everywhere, so it is cropped square. */
@@ -133,13 +134,19 @@ const ImageViewer = ({uri, label, visible, onClose}) => {
           </TouchableOpacity>
         </View>
 
-        {!!uri && (
-          <Image
-            source={{uri}}
-            style={{flex: 1, width: '100%'}}
-            resizeMode="contain"
-          />
-        )}
+        <RemoteImage
+          uri={uri}
+          style={{flex: 1, width: '100%'}}
+          resizeMode="contain"
+          fallback={
+            <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
+              <Icon name="document-outline" size={moderateScale(48)} color={colors.white} />
+              <AppText variant="caption" color={colors.white} style={{marginTop: moderateScale(8)}}>
+                Preview unavailable
+              </AppText>
+            </View>
+          }
+        />
 
         <AppText
           variant="caption"
@@ -206,10 +213,23 @@ export const AttachBox = ({
       {uri ? (
         <View>
           <TouchableOpacity activeOpacity={0.9} onPress={() => setIsViewing(true)}>
-            <Image
-              source={{uri}}
+            <RemoteImage
+              uri={uri}
               style={{width: '100%', height: moderateScale(height), borderRadius: radius.md}}
               resizeMode="cover"
+              fallback={
+                <View
+                  style={{
+                    width: '100%',
+                    height: moderateScale(height),
+                    borderRadius: radius.md,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: colors.surface,
+                  }}>
+                  <Icon name="document-outline" size={moderateScale(22)} color={colors.textMuted} />
+                </View>
+              }
             />
           </TouchableOpacity>
 

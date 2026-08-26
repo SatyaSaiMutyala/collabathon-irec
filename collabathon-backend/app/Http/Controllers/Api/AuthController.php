@@ -20,6 +20,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -614,7 +615,14 @@ class AuthController extends Controller
         ]);
 
         $otp = EmailOtpCode::issueFor($data['email']);
-        $this->deliverEmailOtp($data['email'], $otp->rawCode());
+
+        // Same contract as sendOtp: the code is never returned to the caller, so a send
+        // that did not happen has to be reported rather than answered with "OTP sent."
+        if (! $this->deliverEmailOtp($data['email'], $otp->rawCode())) {
+            return response()->json([
+                'message' => 'Could not send the verification code. Please try again in a moment.',
+            ], 502);
+        }
 
         return response()->json([
             'message' => 'OTP sent.',
@@ -637,13 +645,44 @@ class AuthController extends Controller
      * lands in `failed_jobs` instead of this method's own try/catch, same as any
      * other queued job in this app.
      */
-    private function deliverEmailOtp(string $email, string $code): void
+    /**
+     * Sends the code, or reports that it could not be sent.
+     *
+     * Two things were wrong here and both produced the same symptom — the API answering
+     * "OTP sent." while nothing ever reached the inbox:
+     *
+     *  - MailSettings::apply() was never called, so the admin panel's Mailjet
+     *    credentials were checked (isConfigured) but never actually installed. The send
+     *    fell through to whatever MAIL_MAILER happened to be, which on a dev box is
+     *    `log` — the message went into laravel.log.
+     *  - queue() defers to a worker in a separate process, which boots from .env and
+     *    never sees a per-request Config::set anyway. With no worker running the job
+     *    simply sat in the jobs table forever.
+     *
+     * send(), not queue(): matches every other mailer in this codebase (see
+     * ApprovalController::notifyApproved and PasswordResetController::deliver), removes
+     * the worker as a dependency for a message the user is actively waiting on, and is
+     * what makes the return value mean anything.
+     *
+     * @return bool Whether the code was actually handed to a mailer.
+     */
+    private function deliverEmailOtp(string $email, string $code): bool
     {
-        if (! MailSettings::isConfigured()) {
-            return;
+        if (! MailSettings::apply()) {
+            Log::warning('Email OTP not sent — no mailer configured.', ['email' => $email]);
+
+            return false;
         }
 
-        Mail::to($email)->queue(new EmailOtpMail($code));
+        try {
+            Mail::to($email)->send(new EmailOtpMail($code));
+
+            return true;
+        } catch (Throwable $e) {
+            Log::error('Email OTP send failed', ['email' => $email, 'error' => $e->getMessage()]);
+
+            return false;
+        }
     }
 
     /**

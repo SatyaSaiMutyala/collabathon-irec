@@ -1064,15 +1064,6 @@ const CompleteProfileScreen = ({navigation, route}) => {
     !!form.aadhaarCard.trim() ||
     !!form.reraNumber.trim();
 
-  /** Passed as each step's SectionHeader `right` — sits beside that step's own title rather than the app bar. */
-  const startOverAction = hasFormData ? (
-    <TouchableOpacity onPress={handleStartOver} disabled={isSubmitting} hitSlop={8}>
-      <AppText variant="bodyMedium" color={isSubmitting ? colors.textMuted : colors.danger}>
-        Start Over
-      </AppText>
-    </TouchableOpacity>
-  ) : null;
-
   /**
    * The progress bar's 3-colour states — driven by what the server actually holds
    * (`registrationStep`/`draftProfile`), not by `currentStep` (which just tracks
@@ -1210,7 +1201,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
 
         {currentStep === 1 && (
           <>
-            <SectionHeader step={1} title="Personal info" right={startOverAction} />
+            <SectionHeader step={1} title="Personal info" />
             <View style={{marginTop: spacing.md}}>
               <View style={{flexDirection: 'row'}}>
                 <View style={{flex: 1, marginRight: spacing.xs}}>
@@ -1310,7 +1301,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
 
         {currentStep === 2 && (
           <>
-            <SectionHeader step={2} title="Professional info" right={startOverAction} />
+            <SectionHeader step={2} title="Professional info" />
             <View style={{marginTop: spacing.md}}>
               <View style={{marginBottom: spacing.sm}}>
                 <Checkbox
@@ -1517,7 +1508,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
 
         {currentStep === 3 && (
           <>
-            <SectionHeader step={3} title="More Business info" right={startOverAction} />
+            <SectionHeader step={3} title="More Business info" />
             <View style={{marginTop: spacing.md}}>
               <Input
                 ref={registerRef('panCard')}
@@ -1581,7 +1572,13 @@ const CompleteProfileScreen = ({navigation, route}) => {
                     variant="caption"
                     color={colors.textSecondary}
                     style={styles.label}>
-                    Aadhaar verification *
+                    {/* Only an individual is actually gated on this — validateStep and
+                        the server both skip Aadhaar for a company (its PAN/RERA carry
+                        that weight instead). The asterisk used to be hard-coded here,
+                        so a company was told the step was mandatory while the form
+                        would happily submit without it. Matches the wording on the
+                        Aadhaar card field below. */}
+                    {form.isCompany ? 'Aadhaar verification (optional for a company)' : 'Aadhaar verification *'}
                   </AppText>
                   <TouchableOpacity
                     activeOpacity={0.85}
@@ -1802,16 +1799,18 @@ const CompleteProfileScreen = ({navigation, route}) => {
           />
         </View>
 
-        {currentStep === 1 && (
+        {/* The only Start Over in the wizard now — the per-step header copies were
+            removed, so this shows on every step rather than just step 1, and it
+            clears the form in place (handleStartOver) instead of leaving the screen.
+            `hasFormData` is the same gate the header button used: an untouched form
+            has nothing worth offering to clear. */}
+        {hasFormData && (
           <View style={styles.footerRow}>
             <AppText variant="body" color={colors.textSecondary}>
-              {/* "Wrong number" only makes sense on the mobile-OTP path — an
-                  email-verified broker never proved a number at all, so the thing
-                  they'd actually want to redo is the email. */}
-              {isMobileLocked ? 'Wrong number?' : 'Wrong email?'}{' '}
+              Want to clear everything?{' '}
             </AppText>
-            <TouchableOpacity onPress={handleBack} hitSlop={8}>
-              <AppText variant="bodyMedium" color={colors.primary}>
+            <TouchableOpacity onPress={handleStartOver} disabled={isSubmitting} hitSlop={8}>
+              <AppText variant="bodyMedium" color={isSubmitting ? colors.textMuted : colors.danger}>
                 Start over
               </AppText>
             </TouchableOpacity>

@@ -5,6 +5,7 @@ import {moderateScale} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
 import {
   AppText,
+  BackHeader,
   Badge,
   Button,
   Chip,
@@ -215,19 +216,23 @@ const MyPropertiesScreen = ({navigation}) => {
 
   return (
     <ScreenContainer edges={['top']}>
-      <View style={styles.heading(spacing)}>
-        <AppText variant="h1">My Listings</AppText>
-        <TouchableOpacity onPress={openDrawer} hitSlop={10} style={styles.filterButton}>
-          <Icon name="options-outline" size={moderateScale(20)} color={colors.textPrimary} />
-          {activeCount > 0 && (
-            <View style={[styles.badge, {backgroundColor: colors.primary}]}>
-              <AppText variant="caption" color={colors.textInverse} style={styles.badgeText}>
-                {activeCount}
-              </AppText>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
+      <BackHeader
+        navigation={navigation}
+        title="My Listings"
+        fallbackRoute="DashboardTab"
+        right={
+          <TouchableOpacity onPress={openDrawer} hitSlop={10} style={styles.filterButton}>
+            <Icon name="options-outline" size={moderateScale(20)} color={colors.textPrimary} />
+            {activeCount > 0 && (
+              <View style={[styles.badge, {backgroundColor: colors.primary}]}>
+                <AppText variant="caption" color={colors.textInverse} style={styles.badgeText}>
+                  {activeCount}
+                </AppText>
+              </View>
+            )}
+          </TouchableOpacity>
+        }
+      />
 
       <Input
         placeholder="Search listing, locality or city"

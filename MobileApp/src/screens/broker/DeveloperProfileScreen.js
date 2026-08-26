@@ -162,7 +162,7 @@ const DeveloperProfileScreen = ({route, navigation}) => {
                       // spots that both said something about this developer.
                       render: () => (
                         <>
-                          <Badge label="Active" tone="success" />
+                          <Badge label="Active" tone="success" align="center" />
                           {!!developer.created_at && (
                             <AppText
                               variant="caption"

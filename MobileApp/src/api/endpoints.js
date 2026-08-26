@@ -55,6 +55,14 @@ export const configApi = {
   fetch: () => client.get('/config'),
 };
 
+export const notificationsApi = {
+  /**
+   * Admin broadcasts sent to this caller's audience — the half of the Notifications
+   * screen that isn't derived from leads. Unpaginated and already capped server-side.
+   */
+  fetch: () => client.get('/notifications'),
+};
+
 export const authApi = {
   /**
    * Step 1 (Personal info) of the 3-step registration wizard — creates the draft

@@ -1,7 +1,6 @@
 import React, {useCallback} from 'react';
 import {useFocusEffect} from '@react-navigation/native';
-import {useAppTheme} from '../../theme';
-import {AppText, LeadCard, PaginatedList, LeadCardSkeleton, ScreenContainer} from '../../components';
+import {BackHeader, LeadCard, PaginatedList, LeadCardSkeleton, ScreenContainer} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {fetchLeads, fetchNextLeads} from '../../store/slices/leadsSlice';
 
@@ -16,7 +15,6 @@ import {fetchLeads, fetchNextLeads} from '../../store/slices/leadsSlice';
  * leadsSlice's `accepted`.
  */
 const RequestsScreen = ({navigation}) => {
-  const {spacing} = useAppTheme();
   const dispatch = useAppDispatch();
   const list = useAppSelector(state => state.leads.list);
 
@@ -42,9 +40,7 @@ const RequestsScreen = ({navigation}) => {
 
   return (
     <ScreenContainer edges={['top']}>
-      <AppText variant="h1" style={{marginTop: spacing.sm, marginBottom: spacing.lg}}>
-        Requests
-      </AppText>
+      <BackHeader navigation={navigation} title="Requests" fallbackRoute="HomeTab" />
 
       <PaginatedList
         renderSkeleton={() => <LeadCardSkeleton />}

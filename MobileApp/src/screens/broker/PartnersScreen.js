@@ -5,6 +5,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
 import {
+  BackHeader,
   AppText,
   LeadCard,
   PaginatedList,
@@ -54,12 +55,16 @@ const PartnersScreen = ({navigation}) => {
 
   return (
     <ScreenContainer edges={['top']}>
-      <View style={styles.heading(spacing)}>
-        <AppText variant="h1">Partners</AppText>
-        <AppText variant="caption" color={colors.textMuted}>
-          {list.total} {list.total === 1 ? 'project' : 'projects'}
-        </AppText>
-      </View>
+      <BackHeader
+        navigation={navigation}
+        title="Partners"
+        fallbackRoute="HomeTab"
+        right={
+          <AppText variant="caption" color={colors.textMuted}>
+            {list.total} {list.total === 1 ? 'project' : 'projects'}
+          </AppText>
+        }
+      />
 
       <PaginatedList
         renderSkeleton={() => <LeadCardSkeleton />}

@@ -41,6 +41,11 @@ const MapPickerScreen = ({navigation}) => {
   const [results, setResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
+  // What the dropped pin actually resolves to, shown above Confirm. Reverse geocoding
+  // used to happen only inside handleConfirm, so until the button was pressed the
+  // screen said nothing at all about what had been picked.
+  const [picked, setPicked] = useState(null);
+  const [isResolving, setIsResolving] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
 
   const debouncedQuery = useDebouncedValue(query, 400);
@@ -115,13 +120,51 @@ const MapPickerScreen = ({navigation}) => {
     );
   };
 
+  /**
+   * Resolves the pin to a place name as soon as it moves, rather than at confirm time.
+   *
+   * `cancelled` guards the order: tapping around the map fires several of these, and
+   * without it a slow lookup for an earlier pin could land after a faster one for the
+   * current pin and overwrite it with the wrong place.
+   */
+  useEffect(() => {
+    if (!marker) {
+      setPicked(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setIsResolving(true);
+    setPicked(null);
+
+    reverseGeocode(marker.latitude, marker.longitude)
+      .then(place => {
+        if (!cancelled) {
+          setPicked(place);
+        }
+      })
+      // A failed lookup is not a failed selection — the coordinates below still
+      // identify the spot, and handleConfirm retries the lookup itself.
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) {
+          setIsResolving(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [marker]);
+
   const handleConfirm = async () => {
     if (!marker) {
       return;
     }
     setIsConfirming(true);
     try {
-      const {city, label} = await reverseGeocode(marker.latitude, marker.longitude);
+      // Already resolved while the pin sat there — only look it up again if that failed.
+      const {city, label} = picked ?? (await reverseGeocode(marker.latitude, marker.longitude));
       onSelectRef.current?.({city, label, latitude: marker.latitude, longitude: marker.longitude});
       navigation.goBack();
     } catch {
@@ -266,6 +309,39 @@ const MapPickerScreen = ({navigation}) => {
       </View>
 
       <View style={{padding: spacing.lg}}>
+        {/* What is actually being confirmed. Without this the button simply became
+            enabled and the user had to take it on trust that the right spot was
+            picked. */}
+        {!!marker && (
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              marginBottom: spacing.md,
+              padding: spacing.md,
+              borderRadius: radius.md,
+              backgroundColor: colors.surface,
+            }}>
+            <Icon name="location" size={moderateScale(18)} color={colors.primary} />
+
+            <View style={{flex: 1, marginLeft: spacing.sm}}>
+              <AppText variant="caption" color={colors.textMuted}>
+                Selected location
+              </AppText>
+
+              {isResolving ? (
+                <AppText variant="bodyMedium" color={colors.textMuted}>
+                  Finding address…
+                </AppText>
+              ) : (
+                <AppText variant="bodyMedium" color={colors.textPrimary} numberOfLines={2}>
+                  {picked?.label || 'Dropped pin'}
+                </AppText>
+              )}
+            </View>
+          </View>
+        )}
+
         <Button
           label="Confirm this location"
           onPress={handleConfirm}

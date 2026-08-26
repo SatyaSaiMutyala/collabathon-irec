@@ -26,7 +26,8 @@
         <x-panel title="Send a push notification"
                  subtitle="Reaches everyone in the audience who currently has the app installed"
                  padded class="xl:col-span-2">
-            <form method="POST" action="{{ route('admin.push-notifications.store') }}" class="space-y-3"
+            <form method="POST" action="{{ route('admin.push-notifications.store') }}"
+                  enctype="multipart/form-data" class="space-y-3"
                   x-on:submit.prevent="$dispatch('confirm-request', {
                       title: 'Send this to every device?',
                       message: 'Push notifications cannot be recalled once sent.',
@@ -46,6 +47,12 @@
                 <x-field label="Message" name="body" type="textarea" rows="2" :value="old('body')"
                          placeholder="Six new Dubai listings were added this week."
                          hint="Under 180 characters so it reads without expanding." />
+
+                {{-- FCM fetches this from Google's servers, not from the device, so the
+                     URL has to be publicly reachable — a LAN APP_URL sends fine and simply
+                     arrives without the picture. --}}
+                <x-file-field label="Image (optional)" name="image" accept="image/*"
+                              hint="PNG or JPG under 2 MB. Shown as a large picture on the device." />
 
                 <div class="flex items-center justify-between gap-3 pt-1">
                     <p class="text-[11.5px] text-ink-3">
@@ -103,4 +110,80 @@
             </x-panel>
         </div>
     </div>
+
+    {{-- ============================== History ==============================
+         Only manual sends appear here. Lifecycle pushes are not recorded: each one
+         already has a domain record behind it, and the app derives its own in-app list
+         from those. See the announcements migration. --}}
+    <x-panel title="Sent notifications" flush class="mt-4">
+        <x-slot:actions>
+            <span class="text-[11.5px] text-ink-3 nums">{{ $announcements->total() }} total</span>
+        </x-slot:actions>
+
+        <div class="overflow-x-auto scrollbar-slim">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b border-line-soft">
+                        <th scope="col" class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3">Notification</th>
+                        <th scope="col" class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3">Audience</th>
+                        <th scope="col" class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3">Delivered</th>
+                        <th scope="col" class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3">Sent by</th>
+                        <th scope="col" class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3">When</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-line-soft">
+                    @forelse($announcements as $announcement)
+                        <tr class="hover:bg-canvas transition-colors align-top">
+                            <td class="px-4 py-3">
+                                <div class="flex items-start gap-2.5 min-w-0">
+                                    @if($announcement->imageUrl())
+                                        <img src="{{ $announcement->imageUrl() }}" alt=""
+                                             class="w-10 h-10 rounded-lg object-cover border border-line-soft shrink-0">
+                                    @endif
+                                    <div class="min-w-0">
+                                        <p class="text-[13px] font-medium text-ink">{{ $announcement->title }}</p>
+                                        <p class="text-[12px] text-ink-2 mt-0.5 max-w-[46ch]">{{ $announcement->body }}</p>
+                                    </div>
+                                </div>
+                            </td>
+
+                            <td class="px-4 py-3">
+                                <x-badge tone="neutral" size="sm">{{ $announcement->audienceLabel() }}</x-badge>
+                            </td>
+
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                <span class="text-[13px] text-ink nums">{{ number_format($announcement->sent_count) }}</span>
+                                <span class="text-[11.5px] text-ink-3"> / {{ number_format($announcement->recipients) }}</span>
+                                @if($announcement->failed_count)
+                                    <p class="text-[11px] text-danger mt-0.5 nums">
+                                        {{ number_format($announcement->failed_count) }} failed
+                                    </p>
+                                @endif
+                            </td>
+
+                            <td class="px-4 py-3 text-[12.5px] text-ink-2 whitespace-nowrap">
+                                {{ $announcement->sender?->name ?? '—' }}
+                            </td>
+
+                            <td class="px-4 py-3 text-[12.5px] text-ink-3 nums whitespace-nowrap">
+                                {{ $announcement->created_at->format('d M Y, H:i') }}
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="5" class="px-4 py-8 text-[12.5px] text-ink-3 text-center">
+                                Nothing sent yet. Manual pushes you send appear here.
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+
+        @if($announcements->hasPages())
+            <div class="px-4 py-3 border-t border-line-soft">
+                <x-pagination :paginator="$announcements" label="notifications" />
+            </div>
+        @endif
+    </x-panel>
 </x-layouts.admin>

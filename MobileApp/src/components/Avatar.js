@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useEffect, useState} from 'react';
 import {Image, StyleSheet, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from '../theme/scaling';
@@ -14,6 +14,23 @@ const LOGO_RATIO = 2.5;
 
 const Avatar = ({uri, name, size = 'md', ringColor, showVerified, shape = 'circle'}) => {
   const {colors, avatarSize} = useAppTheme();
+
+  /**
+   * A URI that 404s, times out, or points at a host the device cannot reach used to
+   * render as an empty box — the fallback below only ever covered a MISSING uri, not a
+   * BROKEN one. Both now land on the same initials tile.
+   *
+   * Reset on every uri change: this component is recycled inside FlatLists, so without
+   * it one developer's dead logo would leave the next row's perfectly good image
+   * suppressed.
+   */
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [uri]);
+
+  const showImage = !!uri && !failed;
   // A raw number sizes the box directly (in points, before scaling) — an escape hatch
   // for the one caller that needs a height between two named tokens, without adding a
   // new token every other Avatar everywhere else would have to consider too.
@@ -37,7 +54,7 @@ const Avatar = ({uri, name, size = 'md', ringColor, showVerified, shape = 'circl
           borderColor: ringColor,
         },
       ]}>
-      {uri ? (
+      {showImage ? (
         shape === 'square' ? (
           // No padding here on purpose: a logo picked through the crop tool is already
           // cropped to this exact 5:2 ratio before it's saved, so `contain` alone fills
@@ -55,12 +72,18 @@ const Avatar = ({uri, name, size = 'md', ringColor, showVerified, shape = 'circl
               backgroundColor: colors.card,
               overflow: 'hidden',
             }}>
-            <Image source={{uri}} resizeMode="contain" style={{width: '100%', height: '100%'}} />
+            <Image
+              source={{uri}}
+              resizeMode="contain"
+              onError={() => setFailed(true)}
+              style={{width: '100%', height: '100%'}}
+            />
           </View>
         ) : (
           <Image
             source={{uri}}
             resizeMode="cover"
+            onError={() => setFailed(true)}
             style={{width, height: dim, borderRadius: radius}}
           />
         )

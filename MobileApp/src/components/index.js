@@ -15,6 +15,8 @@ export {default as DeveloperCard} from './DeveloperCard';
 export {default as LocationPickerSheet} from './LocationPickerSheet';
 export {default as StatRow} from './StatRow';
 export {default as SectionHeader} from './SectionHeader';
+export {default as BackHeader} from './BackHeader';
+export {default as RemoteImage} from './RemoteImage';
 export {default as Checkbox} from './Checkbox';
 export {AttachBox} from './AttachField';
 export {default as DocumentAttachBox} from './DocumentAttachBox';

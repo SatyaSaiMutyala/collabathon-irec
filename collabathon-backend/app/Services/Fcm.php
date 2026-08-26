@@ -40,7 +40,7 @@ class Fcm
      * @param  array<string,string>  $data  string values only — FCM rejects anything else
      * @return array{sent:int, failed:int, invalid:array<int,string>}
      */
-    public function send(array $tokens, string $title, string $body, array $data = []): array
+    public function send(array $tokens, string $title, string $body, array $data = [], ?string $image = null): array
     {
         $tokens = array_values(array_unique(array_filter($tokens)));
 
@@ -80,7 +80,7 @@ class Fcm
         foreach ($tokens as $token) {
             $response = Http::withToken($accessToken)
                 ->timeout(8)
-                ->post($endpoint, ['message' => $this->message($token, $title, $body, $data)]);
+                ->post($endpoint, ['message' => $this->message($token, $title, $body, $data, $image)]);
 
             if ($response->successful()) {
                 $sent++;
@@ -112,14 +112,26 @@ class Fcm
     }
 
     /** @return array<string,mixed> */
-    private function message(string $token, string $title, string $body, array $data): array
+    private function message(string $token, string $title, string $body, array $data, ?string $image = null): array
     {
-        return [
+        /*
+         * An image has to be declared per-platform as well as at the top level.
+         *
+         * The top-level `notification.image` is what most clients read, but Android only
+         * renders the big-picture style from `android.notification.image`, and iOS needs
+         * `apns.fcm_options.image`. Setting one and not the others gives a banner with no
+         * picture on the platform that was missed.
+         *
+         * The URL must be publicly reachable: FCM fetches it from Google's own servers,
+         * not from the device, so a localhost or LAN address silently yields a
+         * text-only notification.
+         */
+        $message = [
             'token' => $token,
 
             // The cross-platform `notification` block is what makes the OS draw the
             // banner while the app is backgrounded, without any JS running.
-            'notification' => ['title' => $title, 'body' => $body],
+            'notification' => array_filter(['title' => $title, 'body' => $body, 'image' => $image]),
 
             // FCM requires every data value to be a string; an int here is a 400.
             'data' => array_map(static fn ($value) => (string) $value, $data),
@@ -133,6 +145,13 @@ class Fcm
                 'payload' => ['aps' => ['sound' => 'default', 'content-available' => 1]],
             ],
         ];
+
+        if ($image) {
+            $message['android']['notification']['image'] = $image;
+            $message['apns']['fcm_options']['image'] = $image;
+        }
+
+        return $message;
     }
 
     /** Mints (and caches) an OAuth2 access token from the service account's JWT. */

@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\DigilockerController;
 use App\Http\Controllers\Api\KycController;
 use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\MyPropertyController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PartnerController;
 use App\Http\Controllers\Api\PropertyController;
 use App\Http\Controllers\Api\UploadController;
@@ -110,6 +111,12 @@ Route::prefix('v1')->group(function () {
         // Push registration. Sent right after sign-in and cleared on sign-out.
         Route::post('auth/device-token', [AuthController::class, 'registerDevice']);
         Route::delete('auth/device-token', [AuthController::class, 'forgetDevice']);
+
+        // Admin broadcasts, for the Notifications screen. The lead-derived half of
+        // that feed is built client-side from /leads; this is the half that has to
+        // come from the server, because nothing on the device records a push that
+        // was never opened.
+        Route::get('notifications', NotificationController::class);
 
         // Catalogue
         Route::get('developers', [DeveloperController::class, 'index']);

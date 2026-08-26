@@ -4,6 +4,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
 import {
+  BackHeader,
   AppText,
   Button,
   Chip,
@@ -132,19 +133,23 @@ const PartnersScreen = ({navigation}) => {
 
   return (
     <ScreenContainer edges={['top']}>
-      <View style={styles.heading(spacing)}>
-        <AppText variant="h1">Partners</AppText>
-        <TouchableOpacity onPress={openDrawer} hitSlop={10} style={styles.filterButton}>
-          <Icon name="options-outline" size={moderateScale(20)} color={colors.textPrimary} />
-          {activeCount > 0 && (
-            <View style={[styles.badge, {backgroundColor: colors.primary}]}>
-              <AppText variant="caption" color={colors.textInverse} style={styles.badgeText}>
-                {activeCount}
-              </AppText>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
+      <BackHeader
+        navigation={navigation}
+        title="Partners"
+        fallbackRoute="DashboardTab"
+        right={
+          <TouchableOpacity onPress={openDrawer} hitSlop={10} style={styles.filterButton}>
+            <Icon name="options-outline" size={moderateScale(20)} color={colors.textPrimary} />
+            {activeCount > 0 && (
+              <View style={[styles.badge, {backgroundColor: colors.primary}]}>
+                <AppText variant="caption" color={colors.textInverse} style={styles.badgeText}>
+                  {activeCount}
+                </AppText>
+              </View>
+            )}
+          </TouchableOpacity>
+        }
+      />
 
       <Input
         placeholder="Search name, company or RERA"

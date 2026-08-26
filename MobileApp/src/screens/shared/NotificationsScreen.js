@@ -7,11 +7,12 @@ import {
   AppText,
   EmptyState,
   NotificationRowSkeleton,
+  RemoteImage,
   ScreenContainer,
   SkeletonList,
 } from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
-import {markAllRead} from '../../store/slices/notificationsSlice';
+import {fetchAnnouncements, markAllRead} from '../../store/slices/notificationsSlice';
 import {fetchNotificationLeads} from '../../store/slices/leadsSlice';
 import {useNotifications} from '../../hooks/useNotifications';
 
@@ -32,7 +33,7 @@ const TONE_ICON_COLOR = {
 };
 
 const NotificationRow = ({item, onPress}) => {
-  const {colors, spacing, roundedRadius} = useAppTheme();
+  const {colors, spacing, radius, roundedRadius} = useAppTheme();
   const Container = onPress ? TouchableOpacity : View;
 
   return (
@@ -79,9 +80,39 @@ const NotificationRow = ({item, onPress}) => {
             {item.timeAgo}
           </AppText>
         </View>
-        <AppText variant="caption" color={colors.textSecondary} style={{marginTop: moderateScale(3)}}>
+        {/* Clamped to two lines: this is a feed, and a long broadcast would otherwise
+            push every row after it off the screen. The full text is on the detail
+            screen this row opens. */}
+        <AppText
+          variant="caption"
+          color={colors.textSecondary}
+          style={{marginTop: moderateScale(3)}}
+          numberOfLines={2}>
           {item.message}
         </AppText>
+
+        {/* Inside the text column, below the message — not a trailing sibling of the
+            row. As its own column it took width from the title row above, so a row with
+            an image pulled its timestamp inwards and the times stopped lining up down
+            the list.
+
+            aspectRatio rather than a fixed height, so the banner scales with the screen
+            instead of being tall on a small phone and squat on a large one. `cover`
+            crops it to that band; the detail screen this row opens shows the whole
+            image uncropped. Nothing renders when there is no image or the URL fails. */}
+        {item.imageUrl ? (
+          <RemoteImage
+            uri={item.imageUrl}
+            resizeMode="cover"
+            style={{
+              width: '100%',
+              aspectRatio: 21 / 9,
+              borderRadius: radius.md,
+              marginTop: spacing.sm,
+              backgroundColor: colors.surface,
+            }}
+          />
+        ) : null}
       </View>
     </Container>
   );
@@ -106,6 +137,12 @@ const NotificationsScreen = ({navigation}) => {
   // a property, so those land on the property itself — same place RequestsScreen and
   // PartnersScreen already navigate to for the same lead.
   const handlePress = item => {
+    // A broadcast has no entity behind it, so it opens its own full-text screen
+    // rather than a listing.
+    if (item.announcementId) {
+      navigation.navigate('NotificationDetail', {announcementId: item.announcementId});
+      return;
+    }
     if (!item.propertyId) {
       return;
     }
@@ -118,6 +155,7 @@ const NotificationsScreen = ({navigation}) => {
 
   useEffect(() => {
     dispatch(fetchNotificationLeads());
+    dispatch(fetchAnnouncements());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -148,7 +186,15 @@ const NotificationsScreen = ({navigation}) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{paddingBottom: spacing.xxl}}
         renderItem={({item}) => (
-          <NotificationRow item={item} onPress={() => handlePress(item)} />
+          // NotificationRow renders a plain View rather than a touchable when there is
+          // nowhere to go, so a row with neither destination doesn't offer press
+          // feedback that leads nowhere.
+          <NotificationRow
+            item={item}
+            onPress={
+              item.announcementId || item.propertyId ? () => handlePress(item) : undefined
+            }
+          />
         )}
         ListEmptyComponent={
           <EmptyState

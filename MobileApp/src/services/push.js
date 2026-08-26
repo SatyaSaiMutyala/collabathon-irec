@@ -10,7 +10,7 @@ import {
   requestPermission,
   setBackgroundMessageHandler,
 } from '@react-native-firebase/messaging';
-import notifee, {AndroidImportance, EventType} from '@notifee/react-native';
+import notifee, {AndroidImportance, AndroidStyle, EventType} from '@notifee/react-native';
 import {pushApi} from '../api/endpoints';
 
 /**
@@ -137,11 +137,31 @@ export function attachPushHandlers(onOpen) {
   //    notifee draws it — otherwise a message arriving mid-session is invisible.
   const unsubscribeForeground = onMessage(app, async message => {
     await ensureChannel();
+
+    /*
+     * FCM's own `notification.image` is only drawn by the OS while the app is
+     * backgrounded — in the foreground notifee draws the notification, and it has to be
+     * told about the picture separately or an announcement with an image arrives as
+     * plain text mid-session.
+     *
+     * The server echoes the URL into `data.image` for exactly this (see
+     * PushNotifier::custom); `notification.android.imageUrl` is the same value on the
+     * platforms that populate it.
+     */
+    const image = message.data?.image ?? message.notification?.android?.imageUrl ?? null;
+
     await notifee.displayNotification({
       title: message.notification?.title,
       body: message.notification?.body,
       data: message.data ?? {},
-      android: {channelId: CHANNEL_ID, pressAction: {id: 'default'}},
+      android: {
+        channelId: CHANNEL_ID,
+        pressAction: {id: 'default'},
+        // largeIcon is the thumbnail in the collapsed row; BigPicture is what expands.
+        ...(image
+          ? {largeIcon: image, style: {type: AndroidStyle.BIGPICTURE, picture: image}}
+          : {}),
+      },
     });
   });
 

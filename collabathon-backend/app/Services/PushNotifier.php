@@ -158,13 +158,29 @@ class PushNotifier
     // ------------------------------------------------------------------ manual
 
     /** The admin panel's free-text send. Recipients are already resolved by the caller. */
-    public function custom(Collection $users, string $title, string $body): array
-    {
+    public function custom(
+        Collection $users,
+        string $title,
+        string $body,
+        ?string $image = null,
+        ?int $announcementId = null,
+    ): array {
         return $this->dispatch(
             $this->tokensFor($users->pluck('id')->all()),
             $title,
             $body,
-            ['type' => 'announcement'],
+            array_filter([
+                'type' => 'announcement',
+                // Echoed in the data payload too, so the app's own foreground renderer
+                // can show the picture — FCM only draws it itself while the app is
+                // backgrounded.
+                'image' => $image,
+                // Lets a tapped push open that one broadcast in full, rather than
+                // dropping the user on the notification list to find it again. A string
+                // because every FCM data value is one — the app casts it back.
+                'announcement_id' => $announcementId === null ? null : (string) $announcementId,
+            ]),
+            $image,
         );
     }
 
@@ -210,9 +226,9 @@ class PushNotifier
      * has to remember. An uninstalled app leaves its token behind forever otherwise, and
      * every later push pays for it.
      */
-    private function dispatch(array $tokens, string $title, string $body, array $data): array
+    private function dispatch(array $tokens, string $title, string $body, array $data, ?string $image = null): array
     {
-        $result = $this->fcm->send($tokens, $title, $body, $data);
+        $result = $this->fcm->send($tokens, $title, $body, $data, $image);
 
         if ($result['invalid'] !== []) {
             DeviceToken::whereIn('token', $result['invalid'])->delete();

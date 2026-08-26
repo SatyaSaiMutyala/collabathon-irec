@@ -1,7 +1,9 @@
 import React, {useState} from 'react';
-import {FlatList, Image, View} from 'react-native';
+import {FlatList, View} from 'react-native';
+import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from '../theme/scaling';
 import {useAppTheme} from '../theme';
+import RemoteImage from './RemoteImage';
 
 // 'cover', not 'contain': this is a fixed-height, full-width banner/card (see
 // PropertyHero/PropertyCard) and any empty letterbox space reads as broken. The admin
@@ -42,7 +44,23 @@ const SwipeableImages = ({images, height, dotsPosition = 'bottom', showDots = tr
           onScroll={handleScroll}
           scrollEventThrottle={16}
           renderItem={({item}) => (
-            <Image source={{uri: item}} style={{width, height}} resizeMode="cover" />
+            <RemoteImage
+              uri={item}
+              style={{width, height}}
+              resizeMode="cover"
+              fallback={
+                <View
+                  style={{
+                    width,
+                    height,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: colors.surface,
+                  }}>
+                  <Icon name="image-outline" size={moderateScale(28)} color={colors.textMuted} />
+                </View>
+              }
+            />
           )}
         />
       )}

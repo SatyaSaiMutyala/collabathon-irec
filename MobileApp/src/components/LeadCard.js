@@ -1,11 +1,12 @@
 import React from 'react';
-import {Image, StyleSheet, TouchableOpacity, View} from 'react-native';
+import {StyleSheet, TouchableOpacity, View} from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from '../theme/scaling';
 import {useAppTheme} from '../theme';
 import AppText from './AppText';
 import Avatar from './Avatar';
+import RemoteImage from './RemoteImage';
 
 const STATUS = {
   interested: {label: 'AWAITING RESPONSE', tone: 'warning'},
@@ -92,7 +93,15 @@ const LeadCard = ({lead, onPress, footer}) => {
       <View>
         {hasCover && (
           <View style={[styles.cover, {backgroundColor: colors.surface}]}>
-            <Image source={{uri: property.cover_image_url}} style={StyleSheet.absoluteFillObject} />
+            <RemoteImage
+              uri={property.cover_image_url}
+              style={StyleSheet.absoluteFillObject}
+              fallback={
+                <View style={[StyleSheet.absoluteFillObject, styles.coverFallback]}>
+                  <Icon name="business-outline" size={moderateScale(26)} color={colors.textMuted} />
+                </View>
+              }
+            />
             {/* Anchors the image to the body below instead of ending on a hard seam. */}
             <LinearGradient
               colors={['transparent', colors.overlaySoft]}
@@ -201,6 +210,10 @@ const styles = {
   },
   cover: {
     height: COVER_HEIGHT,
+  },
+  coverFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   eyebrow: {
     flexDirection: 'row',

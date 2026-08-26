@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Announcement;
 use App\Models\User;
 use App\Services\PushNotifier;
+use App\Support\FileStorage;
 use App\Support\FirebaseCredentials;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -53,6 +55,9 @@ class AnnouncementController extends Controller
         return view('admin.push-notifications', [
             'firebaseConfigured' => FirebaseCredentials::isConfigured(),
             'reachable' => $reachable,
+            // Recent history. Paginated rather than a flat take() so the page stays
+            // usable once there are months of these.
+            'announcements' => Announcement::with('sender:id,name')->latest()->paginate(10),
         ]);
     }
 
@@ -75,9 +80,14 @@ class AnnouncementController extends Controller
             'audience' => ['required', 'in:brokers,developers,everyone'],
             'title' => ['required', 'string', 'max:60'],
             'body' => ['required', 'string', 'max:180'],
+            // 2 MB: FCM fetches this itself and gives up on anything slow, and Android
+            // downscales it to the notification shade anyway.
+            'image' => ['nullable', 'image', 'max:2048'],
         ], [
             'title.max' => 'Keep the title under 60 characters — Android truncates past that.',
             'body.max' => 'Keep the message under 180 characters so it is readable unexpanded.',
+            'image.image' => 'The attachment has to be an image — PNG or JPG.',
+            'image.max' => 'Keep the image under 2 MB so it actually loads on the device.',
         ]);
 
         $roles = match ($data['audience']) {
@@ -110,7 +120,34 @@ class AnnouncementController extends Controller
             return $this->respond($request, 'Nobody in that audience has the app installed yet.', 'warning');
         }
 
-        $result = $push->custom($recipients, $data['title'], $data['body']);
+        /*
+         * Stored before the send, so the record exists even if FCM throws — an
+         * announcement that failed is still one an admin needs to see they attempted.
+         * The counts are filled in immediately afterwards.
+         */
+        $announcement = Announcement::create([
+            'title' => $data['title'],
+            'body' => $data['body'],
+            'image_path' => $request->hasFile('image')
+                ? FileStorage::put($request->file('image'), 'announcements')
+                : null,
+            'audience' => $data['audience'],
+            'sent_by' => $request->user()->id,
+            'recipients' => $recipients->count(),
+        ]);
+
+        $result = $push->custom(
+            $recipients,
+            $data['title'],
+            $data['body'],
+            $announcement->imageUrl(),
+            $announcement->id,
+        );
+
+        $announcement->update([
+            'sent_count' => $result['sent'],
+            'failed_count' => $result['failed'],
+        ]);
 
         return $this->respond($request, sprintf(
             'Sent to %d device%s.%s',

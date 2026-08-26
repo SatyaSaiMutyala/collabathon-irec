@@ -1,9 +1,10 @@
 import React from 'react';
-import {Image, TouchableOpacity, View} from 'react-native';
+import {TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from '../theme/scaling';
 import {useAppTheme} from '../theme';
 import AppText from './AppText';
+import RemoteImage from './RemoteImage';
 
 const THUMB = moderateScale(46);
 
@@ -40,13 +41,15 @@ const ProjectMiniCard = ({project, meta, onPress}) => {
     <Wrapper
       {...(onPress ? {activeOpacity: 0.85, onPress} : {})}
       style={[styles.card, {borderColor: colors.border, backgroundColor: colors.card}]}>
-      {project.cover_image_url ? (
-        <Image source={{uri: project.cover_image_url}} style={styles.thumb} />
-      ) : (
-        <View style={[styles.thumb, styles.thumbFallback, {backgroundColor: colors.surface}]}>
-          <Icon name="business-outline" size={moderateScale(18)} color={colors.textMuted} />
-        </View>
-      )}
+      <RemoteImage
+        uri={project.cover_image_url}
+        style={styles.thumb}
+        fallback={
+          <View style={[styles.thumb, styles.thumbFallback, {backgroundColor: colors.surface}]}>
+            <Icon name="business-outline" size={moderateScale(18)} color={colors.textMuted} />
+          </View>
+        }
+      />
 
       <View style={{flex: 1, marginLeft: spacing.sm}}>
         <AppText variant="bodyMedium" numberOfLines={1}>
