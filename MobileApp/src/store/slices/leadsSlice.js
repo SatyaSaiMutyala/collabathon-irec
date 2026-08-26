@@ -5,6 +5,7 @@ import {
   canLoadMore,
   initialListState,
   listFulfilled,
+  listInvalidated,
   listPending,
   listRejected,
 } from '../paginated';
@@ -164,6 +165,17 @@ const leadsSlice = createSlice({
       state.respondStatus = 'idle';
       state.respondError = null;
     },
+    /**
+     * Dispatched by Requests/Partners as they lose focus. Both tabs stay mounted, so
+     * without this the next visit opens on last visit's empty state before the refetch
+     * has started — see `listInvalidated`.
+     */
+    invalidateList: state => {
+      listInvalidated(state.list);
+    },
+    invalidateAccepted: state => {
+      listInvalidated(state.accepted);
+    },
   },
 
   extraReducers: builder => {
@@ -246,7 +258,8 @@ const leadsSlice = createSlice({
   },
 });
 
-export const {setFilters, clearRespondState} = leadsSlice.actions;
+export const {setFilters, clearRespondState, invalidateList, invalidateAccepted} =
+  leadsSlice.actions;
 
 export const selectLeads = state => state.leads.list.items;
 export const selectAcceptedLeads = state => state.leads.accepted;

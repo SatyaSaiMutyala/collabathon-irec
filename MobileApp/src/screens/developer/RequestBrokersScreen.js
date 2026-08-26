@@ -7,7 +7,8 @@ import {
   ScreenContainer,
 } from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
-import {fetchLeads, fetchNextLeads} from '../../store/slices/leadsSlice';
+import {fetchLeads, fetchNextLeads, invalidateList} from '../../store/slices/leadsSlice';
+import {useRefreshOnFocus} from '../../hooks/useRefreshOnFocus';
 
 /**
  * The developer's inbox. Only leads that reached "interested" are actionable, so
@@ -21,15 +22,20 @@ const RequestBrokersScreen = ({navigation}) => {
     dispatch(fetchLeads({page: 1, status: 'interested'}));
   }, [dispatch]);
 
-  // On focus, not on mount. `leads.list` is shared with PropertyLeads, which refills it
-  // scoped to one listing — and tab screens stay mounted, so a mount-only fetch would
-  // leave this inbox showing that listing's brokers after coming back from it.
-  // On mount, not on focus. Nothing else writes to this list any more, so refetching
-  // every time the screen comes back would only throw away the scroll position the user
-  // had when they tapped through to a detail screen. Pull-to-refresh is the way back.
+  // Opening fetch on mount; every later focus refreshes on top of it.
+  //
+  // Mount-only was the previous choice, to protect the scroll position when coming back
+  // from a broker's detail screen — but responding to a request is exactly what happens
+  // on that detail screen, so the inbox was guaranteed to be wrong on return and only a
+  // manual pull would fix it. The scroll position survives anyway: page 1 replaces the
+  // items in place and the FlatList is never remounted, so it keeps its offset.
   useEffect(() => {
     loadFirstPage();
   }, [loadFirstPage]);
+
+  const invalidate = useCallback(() => dispatch(invalidateList()), [dispatch]);
+
+  useRefreshOnFocus(loadFirstPage, invalidate);
 
   const handleEndReached = useCallback(() => {
     dispatch(fetchNextLeads());

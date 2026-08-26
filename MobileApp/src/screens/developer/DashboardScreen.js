@@ -16,6 +16,7 @@ import {
   DashboardSkeleton,
 } from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
+import {useRefreshOnFocus} from '../../hooks/useRefreshOnFocus';
 import {fetchDashboard} from '../../store/slices/dashboardSlice';
 // The developer's own inventory, not the public view of themselves — the dashboard
 // must surface projects still awaiting their acceptance, and the public endpoint
@@ -55,6 +56,29 @@ const DashboardScreen = ({navigation}) => {
     load();
   }, [load]);
 
+  // The figures here are downstream of every action taken on the other tabs — accepting
+  // a request changes the counts and the inventory summary — so they are re-asked for on
+  // every return rather than only at mount. The board keeps its current numbers on
+  // screen while that happens; see the skeleton guard below.
+  useRefreshOnFocus(load);
+
+  // The spinner follows the user's own pull, never the focus refresh above — bound to
+  // `status` it would drop in and retract on every return to this tab, which is the same
+  // involuntary jump PaginatedList had. Released when the fetch settles either way, so a
+  // failed refresh does not leave it spinning.
+  const [isUserRefreshing, setIsUserRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(() => {
+    setIsUserRefreshing(true);
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    if (isUserRefreshing && status !== 'loading') {
+      setIsUserRefreshing(false);
+    }
+  }, [isUserRefreshing, status]);
+
   const series =
     trendRange === 'week' ? stats?.weekly_views : stats?.monthly_views;
   const trendData = series?.values ?? [];
@@ -81,8 +105,8 @@ const DashboardScreen = ({navigation}) => {
         contentContainerStyle={{paddingBottom: spacing.xxl}}
         refreshControl={
           <RefreshControl
-            refreshing={status === 'loading'}
-            onRefresh={load}
+            refreshing={isUserRefreshing}
+            onRefresh={handleRefresh}
             tintColor={colors.primary}
           />
         }>

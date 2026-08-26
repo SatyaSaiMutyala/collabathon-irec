@@ -8,11 +8,11 @@ import {PERMISSIONS, RESULTS, request} from 'react-native-permissions';
  */
 const PERMISSIONS_TO_PRIME = Platform.select({
   ios: [PERMISSIONS.IOS.CAMERA, PERMISSIONS.IOS.PHOTO_LIBRARY, PERMISSIONS.IOS.LOCATION_WHEN_IN_USE],
-  android: [
-    PERMISSIONS.ANDROID.CAMERA,
-    PERMISSIONS.ANDROID.READ_MEDIA_IMAGES,
-    PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION,
-  ],
+  // No READ_MEDIA_IMAGES on Android: gallery selection goes through the system photo
+  // picker, which needs no permission, and requesting one the manifest no longer declares
+  // would prompt for access the app cannot be granted. iOS keeps PHOTO_LIBRARY because
+  // its picker is reached through a different API and Play's policy does not apply there.
+  android: [PERMISSIONS.ANDROID.CAMERA, PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION],
   default: [],
 });
 

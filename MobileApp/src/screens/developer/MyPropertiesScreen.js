@@ -17,11 +17,13 @@ import {
   ScreenContainer,
 } from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
+import {useRefreshOnFocus} from '../../hooks/useRefreshOnFocus';
 import {
   fetchMyProperties,
   fetchMyPropertiesSummary,
   fetchMyPropertyFilters,
   fetchNextMyProperties,
+  invalidateMyProperties,
   selectMyProperties,
   selectMyPropertiesSummary,
   selectMyPropertyOptions,
@@ -153,6 +155,15 @@ const MyPropertiesScreen = ({navigation}) => {
     dispatch(fetchMyProperties({page: 1, ...params}));
     dispatch(fetchMyPropertiesSummary());
   }, [dispatch, params]);
+
+  // Also on every return to the tab, not just on a pull. Accepting a request moves that
+  // listing out of the "Awaiting you" queue, so coming back from the Requests tab to a
+  // board that still shows it there — and a pending count that still includes it — was
+  // the stalest screen in the app. Re-uses the same loader as pull-to-refresh, so the
+  // current search and filters are preserved rather than reset.
+  const invalidate = useCallback(() => dispatch(invalidateMyProperties()), [dispatch]);
+
+  useRefreshOnFocus(reload, invalidate);
 
   const handleEndReached = useCallback(() => {
     dispatch(fetchNextMyProperties());

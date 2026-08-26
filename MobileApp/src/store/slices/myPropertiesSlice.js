@@ -6,6 +6,7 @@ import {
   canLoadMore,
   initialListState,
   listFulfilled,
+  listInvalidated,
   listPending,
   listRejected,
 } from '../paginated';
@@ -119,6 +120,10 @@ const myPropertiesSlice = createSlice({
       state.respondStatus = 'idle';
       state.respondError = null;
     },
+    /** Dispatched as the Listings tab loses focus — see `listInvalidated`. */
+    invalidateMyProperties: state => {
+      listInvalidated(state.list);
+    },
   },
 
   extraReducers: builder => {
@@ -195,7 +200,8 @@ const myPropertiesSlice = createSlice({
   },
 });
 
-export const {setFilters, clearRespondState} = myPropertiesSlice.actions;
+export const {setFilters, clearRespondState, invalidateMyProperties} =
+  myPropertiesSlice.actions;
 
 export const selectMyProperties = state => state.myProperties.list;
 export const selectMyPropertyById = (state, id) => state.myProperties.detail.byId[id];

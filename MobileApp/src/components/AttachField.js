@@ -85,6 +85,13 @@ function pickFromCamera(onPicked, crop) {
   runCrop(ImagePicker.openCamera(CROP_OPTIONS), onPicked);
 }
 
+/**
+ * The crop path hands the picked image straight to the cropper, which does its own
+ * resize and compression per CROP_OPTIONS — asking the picker to resize first would
+ * put the same photo through two lossy passes.
+ */
+const CROP_SOURCE_PICKER_OPTIONS = {mediaType: 'photo'};
+
 function pickFromLibrary(onPicked, crop) {
   if (!crop) {
     launchImageLibrary(NON_CROP_PICKER_OPTIONS, response => {
@@ -95,7 +102,19 @@ function pickFromLibrary(onPicked, crop) {
     });
     return;
   }
-  runCrop(ImagePicker.openPicker(CROP_OPTIONS), onPicked);
+
+  // Selection goes through launchImageLibrary (the system photo picker) rather than the
+  // crop library's own openPicker. openPicker browses MediaStore directly, which is what
+  // required READ_MEDIA_IMAGES and got the app rejected under Play's Photo and Video
+  // Permissions policy. The photo picker grants access to the single chosen image with no
+  // permission at all, and openCropper takes that URI — so cropping still works exactly
+  // as before, only the way the image is chosen changed.
+  launchImageLibrary(CROP_SOURCE_PICKER_OPTIONS, response => {
+    const uri = response?.assets?.[0]?.uri;
+    if (uri) {
+      runCrop(ImagePicker.openCropper({...CROP_OPTIONS, path: uri}), onPicked);
+    }
+  });
 }
 
 /**

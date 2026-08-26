@@ -16,9 +16,11 @@ import {
   ScreenContainer,
 } from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
+import {useRefreshOnFocus} from '../../hooks/useRefreshOnFocus';
 import {
   fetchNextPartners,
   fetchPartnerFilters,
+  invalidatePartners,
   fetchPartners,
   selectPartnerOptions,
   selectPartnersList,
@@ -89,6 +91,13 @@ const PartnersScreen = ({navigation}) => {
   const reload = useCallback(() => {
     dispatch(fetchPartners({page: 1, ...params}));
   }, [dispatch, params]);
+
+  // A partner only appears here once a request is accepted, and that happens on another
+  // tab — so this list is refreshed on every return rather than waiting for a pull.
+  // Same loader as pull-to-refresh, so the active search and filters are kept.
+  const invalidate = useCallback(() => dispatch(invalidatePartners()), [dispatch]);
+
+  useRefreshOnFocus(reload, invalidate);
 
   const handleEndReached = useCallback(() => {
     dispatch(fetchNextPartners());

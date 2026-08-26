@@ -2,7 +2,7 @@ import React, {useCallback} from 'react';
 import {useFocusEffect} from '@react-navigation/native';
 import {BackHeader, LeadCard, PaginatedList, LeadCardSkeleton, ScreenContainer} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
-import {fetchLeads, fetchNextLeads} from '../../store/slices/leadsSlice';
+import {fetchLeads, fetchNextLeads, invalidateList} from '../../store/slices/leadsSlice';
 
 /**
  * The requests this broker has sent — projects they marked Interested and are waiting on.
@@ -31,7 +31,17 @@ const RequestsScreen = ({navigation}) => {
   useFocusEffect(
     useCallback(() => {
       loadFirstPage();
-    }, [loadFirstPage]),
+
+      // Marked stale on the way out. This tab stays mounted, so without this the next
+      // visit opens on whatever was painted last — for a broker with no requests, the
+      // "No requests yet" panel, shown before the refetch has even been dispatched and
+      // then replaced once it answers. Going back to a first-load state means the
+      // skeleton is what shows while the list is fetched, and the verdict only appears
+      // once it is actually the verdict.
+      return () => {
+        dispatch(invalidateList());
+      };
+    }, [loadFirstPage, dispatch]),
   );
 
   const handleEndReached = useCallback(() => {

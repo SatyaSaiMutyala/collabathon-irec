@@ -5,6 +5,7 @@ import {
   canLoadMore,
   initialListState,
   listFulfilled,
+  listInvalidated,
   listPending,
   listRejected,
 } from '../paginated';
@@ -97,6 +98,10 @@ const partnersSlice = createSlice({
     clearPartners: state => {
       state.list = initialListState();
     },
+    /** Dispatched as the Partners tab loses focus — see `listInvalidated`. */
+    invalidatePartners: state => {
+      listInvalidated(state.list);
+    },
   },
 
   extraReducers: builder => {
@@ -144,7 +149,7 @@ const partnersSlice = createSlice({
   },
 });
 
-export const {clearPartners} = partnersSlice.actions;
+export const {clearPartners, invalidatePartners} = partnersSlice.actions;
 
 export const selectPartners = state => state.partners.list.items;
 export const selectPartnersList = state => state.partners.list;

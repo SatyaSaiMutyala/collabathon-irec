@@ -49,6 +49,26 @@ const PaginatedList = React.forwardRef(({
   const isLoadingMore = list.status === 'loadingMore';
   const hasFailed = list.status === 'failed' && list.items.length === 0;
 
+  // The spinner tracks the user's own pull, not the store's status. Every tab screen
+  // reloads page 1 when it regains focus, and driving RefreshControl from the status
+  // meant that reload yanked the spinner down and back on every tab switch. Only a
+  // real pull sets this, so a background refresh now passes unseen.
+  const [isUserRefreshing, setIsUserRefreshing] = React.useState(false);
+
+  const handleRefresh = React.useCallback(() => {
+    setIsUserRefreshing(true);
+    onRefresh?.();
+  }, [onRefresh]);
+
+  // Released when the fetch settles — succeeded or failed. Keyed off the status leaving
+  // its in-flight values rather than off `succeeded` alone, so a failed refresh still
+  // retracts the spinner instead of leaving it spinning forever.
+  React.useEffect(() => {
+    if (isUserRefreshing && list.status !== 'loading' && list.status !== 'refreshing') {
+      setIsUserRefreshing(false);
+    }
+  }, [isUserRefreshing, list.status]);
+
   if (hasFailed) {
     return (
       <View style={{flex: 1, justifyContent: 'center'}}>
@@ -95,13 +115,14 @@ const PaginatedList = React.forwardRef(({
         list.items.length === 0 && !showSkeleton && {flexGrow: 1, justifyContent: 'center'},
         contentContainerStyle,
       ]}
-      // Refreshing is only true on an explicit page-1 reload, never on load-more,
-      // otherwise the spinner flashes every time the user reaches the bottom.
+      // Refreshing follows the user's own gesture only — never a focus reload and never
+      // load-more, either of which would flash the spinner at a moment the user did not
+      // ask for it.
       refreshControl={
         onRefresh ? (
           <RefreshControl
-            refreshing={list.status === 'loading' && list.items.length > 0}
-            onRefresh={onRefresh}
+            refreshing={isUserRefreshing}
+            onRefresh={handleRefresh}
             tintColor={colors.primary}
           />
         ) : undefined

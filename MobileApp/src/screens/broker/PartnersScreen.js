@@ -16,6 +16,7 @@ import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {
   fetchAcceptedLeads,
   fetchNextAcceptedLeads,
+  invalidateAccepted,
   selectAcceptedLeads,
 } from '../../store/slices/leadsSlice';
 
@@ -46,7 +47,13 @@ const PartnersScreen = ({navigation}) => {
   useFocusEffect(
     useCallback(() => {
       loadFirstPage();
-    }, [loadFirstPage]),
+
+      // Same reasoning as Requests: this tab stays mounted, so returning to it would
+      // otherwise open on last visit's empty panel before the refetch had started.
+      return () => {
+        dispatch(invalidateAccepted());
+      };
+    }, [loadFirstPage, dispatch]),
   );
 
   const handleEndReached = useCallback(() => {

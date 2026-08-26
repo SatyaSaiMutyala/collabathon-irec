@@ -12,15 +12,26 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
-    <!--
-      Attachment fields (photo, PAN/Aadhaar/RERA/cheque scans) need both. READ_MEDIA_IMAGES
-      is the Android 13+ (API 33) replacement for gallery access; READ_EXTERNAL_STORAGE is
-      capped at API 32 since Android ignores it (and would warn) on newer OS versions where
-      the granular permission above is what actually gates access.
-    -->
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+
+    <!--
+      No gallery permission by design — do not add one back.
+
+      Google Play's Photo and Video Permissions policy only allows READ_MEDIA_IMAGES /
+      READ_MEDIA_VIDEO when the system photo picker cannot deliver core functionality, and
+      it rejected the release that declared them. Attachment fields (photo, PAN/Aadhaar/
+      RERA/cheque scans) now select through launchImageLibrary, which is the system photo
+      picker (PickVisualMedia): the user picks one image and the app receives read access
+      to just that URI, with no permission requested. The cropper is handed that URI rather
+      than browsing MediaStore itself, and the terms PDF is written by Android's
+      DownloadManager on the app's behalf — so nothing here needs broad storage access.
+
+      tools:node="remove" strips these if a dependency's manifest reintroduces them: Play
+      reviews the merged manifest, not this file.
+    -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
 
     <!--
       Android 11 (API 30) package visibility. Without this, Linking.canOpenURL() returns
