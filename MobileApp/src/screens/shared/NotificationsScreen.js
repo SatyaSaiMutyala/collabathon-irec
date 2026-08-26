@@ -184,7 +184,14 @@ const NotificationsScreen = ({navigation}) => {
         data={notifications}
         keyExtractor={item => item.id}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{paddingBottom: spacing.xxl}}
+        contentContainerStyle={[
+          {paddingBottom: spacing.xxl},
+          // flexGrow only while genuinely empty — otherwise a short real list would
+          // get centred vertically too, instead of anchored to the top. This is what
+          // lets EmptyState centre itself in the space below the header rather than
+          // sitting docked right under it with everything below left empty.
+          notifications.length === 0 && {flexGrow: 1, justifyContent: 'center'},
+        ]}
         renderItem={({item}) => (
           // NotificationRow renders a plain View rather than a touchable when there is
           // nowhere to go, so a row with neither destination doesn't offer press
@@ -201,6 +208,7 @@ const NotificationsScreen = ({navigation}) => {
             icon="notifications-off-outline"
             title="No notifications"
             message="Approvals, new requests and developer decisions land here."
+            style={{marginTop: 0}}
           />
         }
       />

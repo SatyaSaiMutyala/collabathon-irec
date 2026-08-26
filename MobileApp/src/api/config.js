@@ -20,7 +20,7 @@ import {Platform} from 'react-native';
 // still works even when the tunnel keeps dying. Machine-specific — update this (or
 // set back to null to use the adb-reverse/loopback path) whenever the Mac's Wi-Fi
 // IP changes.
-const LAN_HOST = '192.168.1.35';
+const LAN_HOST = '192.168.1.3';
 
 const DEV_HOST =
   LAN_HOST ??
@@ -46,12 +46,12 @@ const DEV_PORT = 8001;
 // root, which Laravel answers with a 404 the client reports as "cannot reach the server".
 // PRODUCTION — the live domain. Uncomment this (and comment the local-dev line below)
 // for any build that ships, App Store submissions included.
-// export const API_BASE_URL = 'https://collabathon.in/api/v1';
+export const API_BASE_URL = 'https://collabathon.in/api/v1';
 // export const API_BASE_URL = 'https://brown-hedgehog-768805.hostingersite.com/api/v1';
 
 // LOCAL DEV — `php artisan serve --port=8001`, reached through the adb tunnel. Swap
 // this back in (and comment the production line above) to point at this machine instead.
-export const API_BASE_URL = `http://${DEV_HOST}:${DEV_PORT}/api/v1`;
+// export const API_BASE_URL = `http://${DEV_HOST}:${DEV_PORT}/api/v1`;
 
 /** Matches the server-side cap in HandlesListQueries. */
 export const DEFAULT_PAGE_SIZE = 20;

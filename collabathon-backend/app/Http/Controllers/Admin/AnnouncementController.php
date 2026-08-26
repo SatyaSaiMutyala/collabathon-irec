@@ -79,13 +79,18 @@ class AnnouncementController extends Controller
         $data = $request->validate([
             'audience' => ['required', 'in:brokers,developers,everyone'],
             'title' => ['required', 'string', 'max:60'],
-            'body' => ['required', 'string', 'max:180'],
+            // Not capped for the notification shade any more — the in-app Notifications
+            // list already clamps this to 2 lines and the detail screen shows it in
+            // full (see the note on the widen-body-column migration), so this only
+            // needs a ceiling generous enough for a real description while still
+            // keeping the FCM payload well under its own size limit.
+            'body' => ['required', 'string', 'max:2000'],
             // 2 MB: FCM fetches this itself and gives up on anything slow, and Android
             // downscales it to the notification shade anyway.
             'image' => ['nullable', 'image', 'max:2048'],
         ], [
             'title.max' => 'Keep the title under 60 characters — Android truncates past that.',
-            'body.max' => 'Keep the message under 180 characters so it is readable unexpanded.',
+            'body.max' => 'Keep the message under 2000 characters.',
             'image.image' => 'The attachment has to be an image — PNG or JPG.',
             'image.max' => 'Keep the image under 2 MB so it actually loads on the device.',
         ]);

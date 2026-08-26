@@ -107,14 +107,15 @@ const PUSH_ROUTES = {
   request_declined: () => ['Main', {screen: 'RequestsTab'}],
   broker_registered: () => ['Main', {screen: 'RequestBrokersTab'}],
   property_assigned: () => ['Main', {screen: 'PropertiesTab'}],
-  // Both fire on an account that is still pending or was rejected — per
-  // AuthController::login, neither status ever gets a token, so there was never a
-  // device to register for push in the first place. Mapped anyway so a future change
-  // that starts registering tokens before approval doesn't land on a silent gap; today
-  // this is dead in practice. 'Login' is the same screen the pending/rejected sign-in
-  // response itself routes to.
-  broker_approved: () => ['Login'],
-  broker_rejected: () => ['Login'],
+  // Not dead code: the 3-step registration wizard issues a real Sanctum token from
+  // step 1 onward (see AuthController::startRegistration), which stays live straight
+  // through `pending`, so a broker waiting on a decision is a genuine signed-in
+  // session that can register a device and receive this. 'Welcome' — not 'Login',
+  // which is the *developer's* email+password screen and something a broker never
+  // sees at all — is the broker's own entry point, the same place a normal
+  // pending/rejected sign-in response already lands them.
+  broker_approved: () => ['Welcome'],
+  broker_rejected: () => ['Welcome'],
   // Straight to the broadcast that was tapped, so the full image and text are the
   // first thing seen. Falls back to the list for a push sent before the payload
   // carried an id — those are already installed on devices, and dropping the user on

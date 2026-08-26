@@ -44,9 +44,9 @@
                          placeholder="New projects are live"
                          hint="Under 60 characters — Android truncates past that." />
 
-                <x-field label="Message" name="body" type="textarea" rows="2" :value="old('body')"
+                <x-field label="Message" name="body" type="textarea" rows="5" :value="old('body')"
                          placeholder="Six new Dubai listings were added this week."
-                         hint="Under 180 characters so it reads without expanding." />
+                         hint="Shown in full on the notification's detail screen — the list itself only shows the first couple of lines." />
 
                 {{-- FCM fetches this from Google's servers, not from the device, so the
                      URL has to be publicly reachable — a LAN APP_URL sends fine and simply
