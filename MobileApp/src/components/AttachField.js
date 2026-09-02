@@ -111,9 +111,20 @@ function pickFromLibrary(onPicked, crop) {
   // as before, only the way the image is chosen changed.
   launchImageLibrary(CROP_SOURCE_PICKER_OPTIONS, response => {
     const uri = response?.assets?.[0]?.uri;
-    if (uri) {
-      runCrop(ImagePicker.openCropper({...CROP_OPTIONS, path: uri}), onPicked);
+    if (!uri) {
+      return;
     }
+
+    // The callback above fires the instant a photo is picked, while PHPickerViewController
+    // (the native picker behind launchImageLibrary on iOS) is still mid-dismiss — its view
+    // hasn't actually left the window hierarchy yet. Presenting the cropper synchronously
+    // here races that teardown: iOS refuses to present one view controller on top of another
+    // whose view isn't in the hierarchy, so openCropper silently fails and it looks like the
+    // whole picker "just closed". Same class of race ActionSheet already works around when
+    // it hands off to a native picker — a short delay lets the dismiss actually finish first.
+    setTimeout(() => {
+      runCrop(ImagePicker.openCropper({...CROP_OPTIONS, path: uri}), onPicked);
+    }, 500);
   });
 }
 
