@@ -263,7 +263,6 @@ class DatabaseSeeder extends Seeder
                 'is_company' => true,
                 'company_name' => $company,
                 'rera_number' => $rera,
-                'rera_certificate_expiry' => now()->addYear()->toDateString(),
                 'city' => $city,
                 'state' => 'UAE',
                 'segments' => $segments,

@@ -161,4 +161,28 @@ class AnnouncementController extends Controller
             $result['failed'] > 0 ? " {$result['failed']} could not be delivered." : '',
         ));
     }
+
+    /**
+     * Removes one broadcast from the history.
+     *
+     * This deletes the *record*, not the notification: the push reached its devices the
+     * moment it was sent and nothing here can recall it. What it does change is the
+     * in-app Notifications feed, which serves this same table — so a deleted broadcast
+     * also stops appearing there (see Api\NotificationController).
+     */
+    public function destroy(Request $request, Announcement $announcement): RedirectResponse|JsonResponse
+    {
+        $this->authorize('edit-module', 'push-notifications');
+
+        $title = $announcement->title;
+        $image = $announcement->image_path;
+
+        $announcement->delete();
+
+        // After the row is gone, so a failed delete never leaves a history entry
+        // pointing at an image that is no longer there.
+        FileStorage::delete($image);
+
+        return $this->respond($request, "\"{$title}\" was removed from the history.", 'warning');
+    }
 }

@@ -74,7 +74,6 @@ class PartnerResource extends JsonResource
             'company_name' => $profile?->company_name,
             'is_company' => (bool) $profile?->is_company,
             'rera_number' => $profile?->rera_number,
-            'rera_certificate_expiry' => $profile?->rera_certificate_expiry?->toDateString(),
             'gst_number' => $profile?->gst_number,
             'years_of_experience' => $profile?->years_of_experience,
             'team_size' => $profile?->team_size,

@@ -7,11 +7,6 @@
         default => 'danger',
     };
 
-    $resetPayload = \Illuminate\Support\Js::from([
-        'name' => $broker->name,
-        'action' => route('admin.approvals.password', $broker),
-    ]);
-
     // A failed edit redirects back here, so the dialog reopens with what was typed
     // rather than silently discarding it — same convention as developers/show.blade.php.
     $editReopen = $errors->any() && old('_form') === 'cp-edit';
@@ -143,26 +138,33 @@
     — `id="approval-detail"` is what app.js's `#approval-detail` fetch mechanism targets
     (see the note there). ApprovalController::show()'s ajax() branch renders this exact
     partial with no surrounding layout, so a fetch-and-swap can never drift from a real
-    page load. Reset password is deliberately NOT part of that contract: its dialog is a
-    layout-level component shared with Team/Developers (`<x-reset-password-dialog />` in
-    layouts/admin.blade.php), outside this element entirely, and its success flow reveals
-    a generated password through session-flashed `credentials` — changing that to a fetch
-    would mean reworking how every page using it reveals a password, not just this one.
+    page load.
 --}}
 <div id="approval-detail">
 
-    <a href="{{ route('admin.approvals') }}"
+    {{-- Points at the list this registration actually belongs to — see ApprovalController::originList(). --}}
+    <a href="{{ $origin['url'] }}"
        class="inline-flex items-center gap-1.5 text-[12.5px] text-ink-2 hover:text-ink transition-colors mb-4">
         <x-icon name="chevron-left" class="w-4 h-4" />
-        Back to channel partner approvals
+        {{ $origin['label'] }}
     </a>
 
     {{-- ============================== Header ============================== --}}
     <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div class="flex items-start gap-3.5 flex-1 min-w-[260px]">
             @if($profile?->photo_path)
-                <img src="{{ \App\Support\FileStorage::url($profile->photo_path) }}" alt=""
-                     class="w-14 h-14 rounded-xl object-cover border border-line-soft shrink-0">
+                {{-- Opens the full-size photo in a new tab, the same as a gallery
+                     thumbnail on a listing. A 56px crop is too small to check a face
+                     against the PAN or Aadhaar scan beside it, which is the one thing
+                     an admin is looking at this photo to do. --}}
+                <a href="{{ \App\Support\FileStorage::url($profile->photo_path) }}"
+                   target="_blank" rel="noopener"
+                   title="Open full-size photo"
+                   class="block w-14 h-14 rounded-xl overflow-hidden border border-line-soft shrink-0 hover:opacity-90 transition-opacity">
+                    <img src="{{ \App\Support\FileStorage::url($profile->photo_path) }}"
+                         alt="{{ $broker->name }}"
+                         class="w-full h-full object-cover">
+                </a>
             @else
                 <x-avatar :name="$broker->name" :src="$profile?->photo_path" size="lg" class="w-14 h-14 shrink-0" />
             @endif
@@ -194,13 +196,6 @@
         <div class="flex flex-wrap items-center gap-2.5 shrink-0">
             <x-button variant="gold" icon="cog" tag="button" type="button" x-on:click="$dispatch('open-cp-edit')">
                 Edit
-            </x-button>
-
-            {{-- Offered at every status: a broker who cannot sign in to be approved is
-                 as stuck as one who forgot their password after approval. --}}
-            <x-button variant="subtle" icon="lock" tag="button" type="button"
-                      x-on:click="$dispatch('reset-password', {{ $resetPayload }})">
-                Reset password
             </x-button>
 
             @if($broker->status !== \App\Models\User::STATUS_REJECTED)
@@ -355,19 +350,6 @@
                     @endforeach
                 </ul>
 
-                @if($profile?->rera_certificate_expiry)
-                    <div class="px-5 py-3 border-t border-line-soft flex items-center justify-between gap-3">
-                        <span class="text-[12.5px] text-ink-3">RERA expiry</span>
-                        <span @class([
-                            'text-[12.5px] nums font-medium',
-                            'text-danger' => $profile->rera_certificate_expiry->isPast(),
-                            'text-ink' => ! $profile->rera_certificate_expiry->isPast(),
-                        ])>
-                            {{ $profile->rera_certificate_expiry->format('d M Y') }}
-                            @if($profile->rera_certificate_expiry->isPast()) · expired @endif
-                        </span>
-                    </div>
-                @endif
             </x-panel>
 
             {{-- ---------------------------- Declaration ---------------------------- --}}
@@ -425,7 +407,7 @@
          a brand-new record, this one edits an existing one and needs :value/:current on
          every field, close enough in shape but not close enough to be worth the
          indirection of a shared partial. Status and verification stay off this form —
-         those are Approve/Reject/Reset password's job, not an edit's. --}}
+         those are Approve/Reject's job, not an edit's. --}}
     <div x-data="{ open: @js($editReopen) }"
          x-on:open-cp-edit.window="open = true"
          x-show="open" x-cloak

@@ -238,6 +238,7 @@
             <x-th hide="lg">Signed in on</x-th>
             <x-th>Status</x-th>
             <x-th align="right">Listings</x-th>
+            <x-th align="right"><span class="sr-only">Actions</span></x-th>
         </x-slot:head>
 
         @foreach($partners as $partner)
@@ -245,12 +246,12 @@
             {{-- Opens the same review page the approvals queue uses — an active partner's
                  paperwork is the same record, just at a later stage. --}}
             <tr class="hover:bg-canvas transition-colors cursor-pointer"
-                x-on:click="window.location = @js(route('admin.approvals.show', $partner))">
+                x-on:click="if (! $event.target.closest('[data-row-actions]')) window.location = @js(route('admin.approvals.show', [$partner, 'from' => 'cp']))">
                 <td class="px-4 py-3">
                     <div class="flex items-center gap-2.5 min-w-0">
                         <x-avatar :name="$partner->name" :src="$profile?->photo_path" size="md" />
                         <div class="min-w-0">
-                            <a href="{{ route('admin.approvals.show', $partner) }}"
+                            <a href="{{ route('admin.approvals.show', [$partner, 'from' => 'cp']) }}"
                                class="text-[13px] font-medium text-ink hover:underline truncate block">{{ $partner->name }}</a>
                             <p class="text-[11.5px] text-ink-3 truncate">
                                 {{ $profile?->company_name ?: 'Individual' }}
@@ -320,6 +321,30 @@
 
                 <td class="px-4 py-3 text-right">
                     <span class="text-[12.5px] text-ink-2 nums">{{ $partner->accepted_leads_count }}</span>
+                </td>
+
+                {{-- data-row-actions stops the row's click-through firing in here. --}}
+                <td class="px-4 py-3 text-right" data-row-actions>
+                    @php
+                        // The lead count is in the prompt rather than being a nasty
+                        // surprise — leads cascade on the broker, same as the documents.
+                        $deletePayload = \Illuminate\Support\Js::from([
+                            'title' => 'Delete this channel partner?',
+                            'message' => "{$partner->name}, their documents and "
+                                . $partner->accepted_leads_count . ' accepted lead'
+                                . ($partner->accepted_leads_count === 1 ? '' : 's')
+                                . ' will be permanently deleted. This cannot be undone.',
+                            'confirmLabel' => 'Delete channel partner',
+                            'tone' => 'danger',
+                        ]);
+                    @endphp
+
+                    <form method="POST" action="{{ route('admin.cp.destroy', $partner) }}"
+                          x-on:submit.prevent="$dispatch('confirm-request', { ...{{ $deletePayload }}, form: $el })">
+                        @csrf @method('DELETE')
+                        <x-button variant="danger-ghost" size="sm" icon="x" tag="button" type="submit"
+                                  aria-label="Delete {{ $partner->name }}" />
+                    </form>
                 </td>
             </tr>
         @endforeach

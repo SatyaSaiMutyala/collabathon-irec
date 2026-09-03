@@ -28,6 +28,7 @@
             <x-th>Progress</x-th>
             <x-th hide="md">Last active</x-th>
             <x-th align="right">Started</x-th>
+            <x-th align="right"><span class="sr-only">Actions</span></x-th>
         </x-slot:head>
 
         @foreach($drafts as $broker)
@@ -43,12 +44,12 @@
                 };
             @endphp
             <tr class="hover:bg-canvas transition-colors cursor-pointer"
-                x-on:click="if (! $event.target.closest('[data-row-actions]')) window.location = @js(route('admin.approvals.show', $broker))">
+                x-on:click="if (! $event.target.closest('[data-row-actions]')) window.location = @js(route('admin.approvals.show', [$broker, 'from' => 'drafts']))">
                 <td class="px-4 py-3">
                     <div class="flex items-center gap-2.5 min-w-0">
                         <x-avatar :name="$broker->name" :src="$profile?->photo_path" size="md" />
                         <div class="min-w-0">
-                            <a href="{{ route('admin.approvals.show', $broker) }}"
+                            <a href="{{ route('admin.approvals.show', [$broker, 'from' => 'drafts']) }}"
                                class="text-[13px] font-medium text-ink hover:underline truncate block">{{ $broker->name }}</a>
                             <p class="text-[11.5px] text-ink-3 truncate">{{ $profile?->company_name ?: $broker->email }}</p>
                         </div>
@@ -70,6 +71,28 @@
 
                 <td class="px-4 py-3 text-right">
                     <span class="text-[12.5px] text-ink-3 nums">{{ $broker->created_at->format('d M Y') }}</span>
+                </td>
+
+                {{-- data-row-actions stops the row's click-through firing in here. --}}
+                <td class="px-4 py-3 text-right" data-row-actions>
+                    @php
+                        // A draft never reached the queue, so there is nothing to reject —
+                        // deleting is the only way to clear an abandoned sign-up.
+                        $deletePayload = \Illuminate\Support\Js::from([
+                            'title' => 'Delete this draft?',
+                            'message' => "{$broker->name}'s unfinished registration and any "
+                                . 'documents already uploaded will be permanently deleted.',
+                            'confirmLabel' => 'Delete draft',
+                            'tone' => 'danger',
+                        ]);
+                    @endphp
+
+                    <form method="POST" action="{{ route('admin.approvals.destroy', $broker) }}"
+                          x-on:submit.prevent="$dispatch('confirm-request', { ...{{ $deletePayload }}, form: $el })">
+                        @csrf @method('DELETE')
+                        <x-button variant="danger-ghost" size="sm" icon="x" tag="button" type="submit"
+                                  aria-label="Delete {{ $broker->name }}'s draft" />
+                    </form>
                 </td>
             </tr>
         @endforeach

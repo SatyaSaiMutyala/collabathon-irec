@@ -13,6 +13,7 @@ use App\Models\FormField;
 use App\Models\MeasurementUnit;
 use App\Models\ProjectType;
 use App\Models\Property;
+use App\Services\PropertyDeleter;
 use App\Services\PushNotifier;
 use App\Models\PropertyDetail;
 use App\Models\PropertyMedia;
@@ -640,16 +641,19 @@ class PropertyController extends Controller
      * it. This removes the listing from every admin list and from broker view, and leaves
      * the row recoverable.
      */
-    public function destroy(Property $property): RedirectResponse
+    /**
+     * The detail row, unit types, media and leads all cascade on properties.id; the
+     * files they named do not, which is what PropertyDeleter is for.
+     */
+    public function destroy(Property $property, PropertyDeleter $deleter): RedirectResponse
     {
         $this->authorize('edit-module', 'properties');
 
-        $name = $property->name;
-        $property->delete();
+        $name = $deleter->delete($property);
 
         return redirect()
             ->route('admin.properties')
-            ->with('success', "\"{$name}\" deleted.");
+            ->with('success', "\"{$name}\" and all of its files were deleted.");
     }
 
     // ------------------------------------------------------------------ edit support

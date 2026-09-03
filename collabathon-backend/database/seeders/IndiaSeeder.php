@@ -250,7 +250,6 @@ class IndiaSeeder extends Seeder
                     'is_company' => true,
                     'company_name' => $company,
                     'rera_number' => 'RERA/' . Str::upper(Str::substr($state, 0, 3)) . '/AGT/' . rand(10000, 99999),
-                    'rera_certificate_expiry' => now()->addYear()->toDateString(),
                     'city' => $city,
                     'state' => $state,
                     'segments' => $segments,

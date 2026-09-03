@@ -7,6 +7,7 @@ use App\Http\Concerns\HandlesListQueries;
 use App\Http\Controllers\Controller;
 use App\Models\Developer;
 use App\Models\User;
+use App\Services\PropertyDeleter;
 use App\Support\CsvReader;
 use App\Support\SocialPlatforms;
 use Illuminate\Http\RedirectResponse;
@@ -597,12 +598,18 @@ class DeveloperController extends Controller
      * on developers.id — and the login account is removed alongside it. The confirm
      * dialog spells out those counts before this is ever reached.
      */
-    public function destroy(Developer $developer): RedirectResponse
+    public function destroy(Developer $developer, PropertyDeleter $deleter): RedirectResponse
     {
         $this->authorize('edit-module', 'developers');
 
         $name = $developer->company_name;
         $logo = $developer->logo_path;
+
+        // Collected before the delete: properties.developer_id cascades, so once the
+        // developer is gone there is no row left naming its listings' logos, covers,
+        // brochures, floor plans or legal documents — and they would sit in the bucket
+        // forever. The rows are cascaded by the database; only their files need us.
+        $listings = $developer->properties()->with(['detail', 'unitTypes', 'media'])->get();
 
         DB::transaction(function () use ($developer) {
             $user = $developer->user;
@@ -614,6 +621,8 @@ class DeveloperController extends Controller
             $user?->tokens()->delete();
             $user?->delete();
         });
+
+        $deleter->deleteFilesFor($listings);
 
         if ($logo) {
             \App\Support\FileStorage::delete($logo);

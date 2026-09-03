@@ -138,7 +138,7 @@ class PartnerController extends Controller
      * columns are never loaded on a developer-facing request. See Api\LeadController.
      */
     private const PROFILE_COLUMNS = [
-        'id', 'user_id', 'company_name', 'is_company', 'rera_number', 'rera_certificate_expiry',
+        'id', 'user_id', 'company_name', 'is_company', 'rera_number',
         'gst_number', 'years_of_experience', 'team_size', 'city', 'state', 'segments', 'zones',
         'operates_multiple_states', 'project_contributions', 'submitted_at', 'photo_path',
         'alternate_mobile', 'company_website', 'instagram', 'facebook', 'youtube', 'twitter',

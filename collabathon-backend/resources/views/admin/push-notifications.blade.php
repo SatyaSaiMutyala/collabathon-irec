@@ -129,6 +129,7 @@
                         <th scope="col" class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3">Delivered</th>
                         <th scope="col" class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3">Sent by</th>
                         <th scope="col" class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3">When</th>
+                        <th scope="col" class="px-4 py-2.5"><span class="sr-only">Actions</span></th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-line-soft">
@@ -168,10 +169,32 @@
                             <td class="px-4 py-3 text-[12.5px] text-ink-3 nums whitespace-nowrap">
                                 {{ $announcement->created_at->format('d M Y, H:i') }}
                             </td>
+
+                            <td class="px-4 py-3 text-right">
+                                @php
+                                    // Says plainly what deleting can and cannot undo: the push
+                                    // has already been delivered and nothing here recalls it.
+                                    $deletePayload = \Illuminate\Support\Js::from([
+                                        'title' => 'Delete this notification?',
+                                        'message' => "\"{$announcement->title}\" will be removed from this "
+                                            . 'history and from the in-app Notifications screen. Devices that '
+                                            . 'already received the push keep it.',
+                                        'confirmLabel' => 'Delete notification',
+                                        'tone' => 'danger',
+                                    ]);
+                                @endphp
+
+                                <form method="POST" action="{{ route('admin.push-notifications.destroy', $announcement) }}"
+                                      x-on:submit.prevent="$dispatch('confirm-request', { ...{{ $deletePayload }}, form: $el })">
+                                    @csrf @method('DELETE')
+                                    <x-button variant="danger-ghost" size="sm" icon="x" tag="button" type="submit"
+                                              aria-label="Delete {{ $announcement->title }}" />
+                                </form>
+                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="px-4 py-8 text-[12.5px] text-ink-3 text-center">
+                            <td colspan="6" class="px-4 py-8 text-[12.5px] text-ink-3 text-center">
                                 Nothing sent yet. Manual pushes you send appear here.
                             </td>
                         </tr>

@@ -91,7 +91,7 @@ class UserResource extends JsonResource
             'instagram', 'facebook', 'youtube', 'twitter', 'linkedin',
             'years_of_experience', 'team_size',
             'pan_card', 'pan_card_path', 'aadhaar_card', 'aadhaar_path',
-            'rera_number', 'rera_certificate_path', 'rera_certificate_expiry',
+            'rera_number', 'rera_certificate_path',
             'gst_number', 'gst_path', 'cheque_details', 'cheque_path',
             'state', 'city', 'segments', 'zones', 'operates_multiple_states',
             'project_contributions', 'signature_path',

@@ -118,8 +118,9 @@ Route::prefix('admin')
             ->middleware("can:view-module,'approvals'");
         Route::post('/approvals/{user}/approve', [ApprovalController::class, 'approve'])->name('approvals.approve');
         Route::post('/approvals/{user}/reject', [ApprovalController::class, 'reject'])->name('approvals.reject');
-        Route::post('/approvals/{user}/password', [ApprovalController::class, 'resetPassword'])
-            ->name('approvals.password');
+        // Same account the Channel Partners roster deletes — see BrokerAccountDeleter.
+        Route::delete('/approvals/{user}', [ApprovalController::class, 'destroy'])
+            ->name('approvals.destroy');
 
         Route::get('/cp', [ChannelPartnerController::class, 'index'])->name('cp')
             ->middleware("can:view-module,'cp'");
@@ -129,6 +130,7 @@ Route::prefix('admin')
             ->name('cp.bulk-import');
         Route::post('/cp', [ChannelPartnerController::class, 'store'])->name('cp.store');
         Route::patch('/cp/{user}', [ChannelPartnerController::class, 'update'])->name('cp.update');
+        Route::delete('/cp/{user}', [ChannelPartnerController::class, 'destroy'])->name('cp.destroy');
 
         // Address lookup behind the developer form's "find on map" control.
         Route::get('/geocode', GeocodeController::class)->name('geocode');
@@ -192,6 +194,10 @@ Route::prefix('admin')
         Route::get('/push-notifications', [AnnouncementController::class, 'index'])->name('push-notifications')
             ->middleware("can:view-module,'push-notifications'");
         Route::post('/push-notifications', [AnnouncementController::class, 'store'])->name('push-notifications.store');
+        // Removes the history row only. The push itself was delivered to devices the
+        // moment it was sent and cannot be recalled from there.
+        Route::delete('/push-notifications/{announcement}', [AnnouncementController::class, 'destroy'])
+            ->name('push-notifications.destroy');
 
         // Uploading a key that can send as the whole Firebase project is a super-admin
         // action; the controller re-checks, this keeps it off the route for everyone else.

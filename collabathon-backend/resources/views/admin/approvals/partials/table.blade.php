@@ -37,12 +37,12 @@
             {{-- The row opens the full registration. Clicks on the decision cell are
                  ignored so Approve/Review still work — a <tr> cannot hold an <a>. --}}
             <tr class="hover:bg-canvas transition-colors cursor-pointer"
-                x-on:click="if (! $event.target.closest('[data-row-actions]')) window.location = @js(route('admin.approvals.show', $broker))">
+                x-on:click="if (! $event.target.closest('[data-row-actions]')) window.location = @js(route('admin.approvals.show', [$broker, 'from' => 'approvals']))">
                 <td class="px-4 py-3">
                     <div class="flex items-center gap-2.5 min-w-0">
                         <x-avatar :name="$broker->name" :src="$broker->brokerProfile?->photo_path" size="md" />
                         <div class="min-w-0">
-                            <a href="{{ route('admin.approvals.show', $broker) }}"
+                            <a href="{{ route('admin.approvals.show', [$broker, 'from' => 'approvals']) }}"
                                class="text-[13px] font-medium text-ink hover:underline truncate block">{{ $broker->name }}</a>
                             <p class="text-[11.5px] text-ink-3 truncate">{{ $profile?->company_name ?: $broker->email }}</p>
                         </div>
@@ -76,7 +76,7 @@
                         {{-- The full registration is ~34 fields plus documents — too
                              much for a drawer, so review happens on its own page. --}}
                         <x-button variant="subtle" size="sm" tag="a"
-                                  href="{{ route('admin.approvals.show', $broker) }}">
+                                  href="{{ route('admin.approvals.show', [$broker, 'from' => 'approvals']) }}">
                             Review
                         </x-button>
 
@@ -84,6 +84,25 @@
                             @csrf
                             <x-button variant="success-ghost" size="sm" icon="check" tag="button" type="submit"
                                       aria-label="Approve {{ $broker->name }}" />
+                        </form>
+
+                        @php
+                            // Rejecting keeps the row in the queue forever; this is for the
+                            // abandoned and duplicate sign-ups that should simply be gone.
+                            $deletePayload = \Illuminate\Support\Js::from([
+                                'title' => 'Delete this registration?',
+                                'message' => "{$broker->name}'s account, documents and lead "
+                                    . 'history will be permanently deleted. This cannot be undone.',
+                                'confirmLabel' => 'Delete registration',
+                                'tone' => 'danger',
+                            ]);
+                        @endphp
+
+                        <form method="POST" action="{{ route('admin.approvals.destroy', $broker) }}"
+                              x-on:submit.prevent="$dispatch('confirm-request', { ...{{ $deletePayload }}, form: $el })">
+                            @csrf @method('DELETE')
+                            <x-button variant="danger-ghost" size="sm" icon="x" tag="button" type="submit"
+                                      aria-label="Delete {{ $broker->name }}" />
                         </form>
                     </div>
                 </td>

@@ -26,7 +26,6 @@ class BrokerResource extends JsonResource
                 'company_name' => $p->company_name,
                 'is_company' => (bool) $p->is_company,
                 'rera_number' => $p->rera_number,
-                'rera_certificate_expiry' => $p->rera_certificate_expiry?->toDateString(),
                 'pan_card' => $p->pan_card,
                 'gst_number' => $p->gst_number,
                 'city' => $p->city,

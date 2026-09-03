@@ -38,7 +38,7 @@ class ChannelPartnerBulkImportTest extends TestCase
     private function header(): string
     {
         return 'name,email,mobile,alternate_mobile,is_company,company_name,city,state,zones,segments,'
-            . 'rera_number,rera_certificate_expiry,years_of_experience,team_size,'
+            . 'rera_number,years_of_experience,team_size,'
             . 'pan_card,aadhaar_card,gst_number,residence_address,office_address,company_website,'
             . "instagram,facebook,youtube,twitter,linkedin,project_contributions,password\n";
     }
@@ -73,7 +73,7 @@ class ChannelPartnerBulkImportTest extends TestCase
 
         $csv = $this->header()
             . 'Rahul Verma,rahul@verma.test,+91 90000 00000,,yes,Verma Properties,Hyderabad,Telangana,'
-            . 'Kokapet|Gachibowli,Residential|Commercial,RERA/TEL/AGT/1,2028-03-31,6,4,'
+            . 'Kokapet|Gachibowli,Residential|Commercial,RERA/TEL/AGT/1,6,4,'
             . ",,,,,,,,,,,,\n";
 
         $this->actingAs($admin)

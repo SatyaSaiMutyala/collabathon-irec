@@ -40,6 +40,7 @@
             <x-th hide="xl">Reviewer</x-th>
             <x-th hide="xl">Reason</x-th>
             <x-th align="right">Outcome</x-th>
+            <x-th align="right"><span class="sr-only">Actions</span></x-th>
         </x-slot:head>
 
         @foreach($decisions as $decision)
@@ -47,14 +48,16 @@
                  still needs to be auditable after the fact. --}}
             <tr @class(['hover:bg-canvas transition-colors', 'cursor-pointer' => $decision->broker])
                 @if($decision->broker)
-                    x-on:click="window.location = @js(route('admin.approvals.show', $decision->broker))"
+                    {{-- Same guard the pending queue uses: without it a click on the
+                         delete button below would also navigate the row. --}}
+                    x-on:click="if (! $event.target.closest('[data-row-actions]')) window.location = @js(route('admin.approvals.show', [$decision->broker, 'from' => 'decided']))"
                 @endif>
                 <td class="px-4 py-3">
                     <div class="flex items-center gap-2.5 min-w-0">
                         <x-avatar :name="$decision->broker?->name ?? '—'" :src="$decision->broker?->brokerProfile?->photo_path" size="sm" />
                         <div class="min-w-0">
                             @if($decision->broker)
-                                <a href="{{ route('admin.approvals.show', $decision->broker) }}"
+                                <a href="{{ route('admin.approvals.show', [$decision->broker, 'from' => 'decided']) }}"
                                    class="text-[13px] font-medium text-ink hover:underline truncate block">{{ $decision->broker->name }}</a>
                                 <p class="text-[11.5px] text-ink-3 truncate">{{ $decision->broker->email }}</p>
                             @else
@@ -79,6 +82,30 @@
                     <x-badge :tone="$decision->decision === 'approved' ? 'success' : 'danger'" size="sm" dot>
                         {{ ucfirst($decision->decision) }}
                     </x-badge>
+                </td>
+
+                <td class="px-4 py-3 text-right" data-row-actions>
+                    {{-- A rejected registration is reachable from nowhere else — it has
+                         left the pending queue and never enters the partner roster — so
+                         without this there is no way to purge one. --}}
+                    @if($decision->broker)
+                        @php
+                            $deletePayload = \Illuminate\Support\Js::from([
+                                'title' => 'Delete this channel partner?',
+                                'message' => "{$decision->broker->name}'s account, documents and "
+                                    . 'this decision record will be permanently deleted.',
+                                'confirmLabel' => 'Delete channel partner',
+                                'tone' => 'danger',
+                            ]);
+                        @endphp
+
+                        <form method="POST" action="{{ route('admin.approvals.destroy', $decision->broker) }}"
+                              x-on:submit.prevent="$dispatch('confirm-request', { ...{{ $deletePayload }}, form: $el })">
+                            @csrf @method('DELETE')
+                            <x-button variant="danger-ghost" size="sm" icon="x" tag="button" type="submit"
+                                      aria-label="Delete {{ $decision->broker->name }}" />
+                        </form>
+                    @endif
                 </td>
             </tr>
         @endforeach

@@ -8,6 +8,7 @@ use App\Mail\BrokerApprovedMail;
 use App\Models\ApprovalDecision;
 use App\Models\User;
 use App\Services\AadhaarXmlReader;
+use App\Services\BrokerAccountDeleter;
 use App\Services\PushNotifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -17,7 +18,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 /**
@@ -183,7 +183,11 @@ class ApprovalController extends Controller
             'approvalDecisions' => fn ($q) => $q->with('decider:id,name')->latest(),
         ]);
 
-        $data = ['broker' => $user, 'profile' => $user->brokerProfile];
+        $data = [
+            'broker' => $user,
+            'profile' => $user->brokerProfile,
+            'origin' => $this->originList($user, $request),
+        ];
 
         // Approve/Reject/Edit refresh this whole block in place instead of navigating
         // away — see the note above index() and the matching `#approval-detail`
@@ -191,6 +195,51 @@ class ApprovalController extends Controller
         return $request->ajax()
             ? view('admin.approvals.partials.detail', $data)
             : view('admin.approvals.show', $data);
+    }
+
+    /**
+     * Which list this registration belongs to — the page's back link and the sidebar
+     * item that should read as current.
+     *
+     * This one route serves every broker, not just pending ones, so "approvals" is the
+     * wrong answer for most of them. An already-approved partner opened from the
+     * Channel Partners roster was still lighting up Pending Approvals in the sidebar
+     * and offering "Back to channel partner approvals", which sent the admin somewhere
+     * they had not been and where that partner does not appear.
+     *
+     * Status is what decides it, so every entry point gets the right answer without
+     * having to annotate its links — the roster, the dashboard, CP Interest, the bulk
+     * import result and the activity feed all reach this page.
+     *
+     * `?from=` overrides that, and the approvals-side tables pass it. Approving from
+     * the queue swaps this partial in place (app.js refetches the current URL, so the
+     * parameter survives), which flips the broker to `active` — without the override
+     * the back link would quietly retarget mid-review while the sidebar, which is not
+     * re-rendered, still said Pending Approvals.
+     */
+    private function originList(User $user, Request $request): array
+    {
+        $lists = [
+            'cp' => ['key' => 'cp', 'url' => route('admin.cp'), 'label' => 'Back to channel partners'],
+            'approvals' => ['key' => 'approvals', 'url' => route('admin.approvals'), 'label' => 'Back to channel partner approvals'],
+            'decided' => ['key' => 'approvals', 'url' => route('admin.approvals.decided'), 'label' => 'Back to decided registrations'],
+            'drafts' => ['key' => 'approvals', 'url' => route('admin.approvals.drafts'), 'label' => 'Back to draft registrations'],
+        ];
+
+        $from = (string) $request->query('from');
+
+        if (isset($lists[$from])) {
+            return $lists[$from];
+        }
+
+        return $lists[match ($user->status) {
+            // Inactive is a broker who deleted their own account — still on the roster,
+            // same as ChannelPartnerController::index keeps them there.
+            User::STATUS_ACTIVE, User::STATUS_INACTIVE, User::STATUS_PAUSED => 'cp',
+            User::STATUS_REJECTED => 'decided',
+            User::STATUS_DRAFT => 'drafts',
+            default => 'approvals',
+        }];
     }
 
     /**
@@ -264,55 +313,6 @@ class ApprovalController extends Controller
         return $this->approvalResponse($request, $full, $tone);
     }
 
-    /**
-     * Issue a new password for a broker's login.
-     *
-     * Same shape as the developer and team equivalents: a blank field means "generate
-     * one", and the plaintext is flashed once to x-credentials-dialog so the admin can
-     * hand it over. It is never stored anywhere in the clear.
-     *
-     * Existing Sanctum tokens are revoked with it. A password reset that leaves the old
-     * mobile session signed in has not actually locked anyone out — which is the usual
-     * reason for doing this in the first place.
-     */
-    public function resetPassword(Request $request, User $user, PushNotifier $push): RedirectResponse
-    {
-        $this->authorize('edit-module', 'approvals');
-        $this->guardIsBroker($user);
-
-        $data = $request->validate([
-            'password' => ['nullable', 'string', 'min:8', 'max:72'],
-        ], [
-            'password.min' => 'The password must be at least 8 characters, or leave it blank to generate one.',
-            'password.max' => 'The password cannot be longer than 72 characters.',
-        ]);
-
-        // `nullable` means validate() drops the key when it was not submitted at all.
-        $password = ($data['password'] ?? '') ?: Str::password(14, symbols: false);
-
-        DB::transaction(function () use ($user, $password) {
-            $user->update(['password' => $password]);
-            $user->tokens()->delete();
-        });
-
-        // The broker is told directly as well as the admin — an issued password that only
-        // exists in a dialog on someone else's screen has to be relayed by hand.
-        $emailed = $this->notifyApproved($user, $password);
-
-        // Best-effort: their tokens were just revoked, so this only lands if the device
-        // still holds a live FCM registration — which is exactly the case worth warning.
-        $push->passwordReset($user);
-
-        return back()
-            ->with('success', "New password issued for {$user->name}."
-                . ($emailed ? " Emailed to {$user->email}." : ' Email could not be sent — share it manually.'))
-            ->with('credentials', [
-                'name' => $user->name,
-                'email' => $user->email,
-                'password' => $password,
-            ]);
-    }
-
     public function reject(Request $request, User $user, PushNotifier $push): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'approvals');
@@ -373,7 +373,7 @@ class ApprovalController extends Controller
      * succeeded. The outcome is reported in the flash message instead, so nobody is left
      * assuming an email went out when it did not.
      */
-    private function notifyApproved(User $user, ?string $password = null): bool
+    private function notifyApproved(User $user): bool
     {
         if (! MailSettings::apply()) {
             return false;
@@ -381,7 +381,7 @@ class ApprovalController extends Controller
 
         try {
             $user->loadMissing('brokerProfile');
-            Mail::to($user->email)->send(new BrokerApprovedMail($user, $password));
+            Mail::to($user->email)->send(new BrokerApprovedMail($user));
 
             return true;
         } catch (\Throwable $e) {
@@ -392,6 +392,23 @@ class ApprovalController extends Controller
 
             return false;
         }
+    }
+
+    /**
+     * Permanently deletes a registration — the abandoned drafts and duplicate sign-ups
+     * that rejecting only hides, since a rejected row stays in the queue forever.
+     *
+     * `back()` rather than a fixed route: this is reachable from the pending queue,
+     * Drafts and Decided, and each should return where it was.
+     */
+    public function destroy(User $user, BrokerAccountDeleter $deleter): RedirectResponse
+    {
+        $this->authorize('edit-module', 'approvals');
+        $this->guardIsBroker($user);
+
+        $name = $deleter->delete($user);
+
+        return back()->with('warning', "{$name}'s registration and documents were permanently deleted.");
     }
 
     /**

@@ -40,7 +40,7 @@ class DashboardController extends Controller
         }
 
         ['developers' => $developers, 'brokers' => $brokers, 'properties' => $properties,
-            'pending' => $pending, 'matches' => $matches, 'actions' => $actions] = $this->counts();
+            'pending' => $pending, 'matches' => $matches, 'drafts' => $drafts] = $this->counts();
 
         return view('admin.dashboard', [
             // Every tile drills into a row list scoped to that number, expanded inline
@@ -52,25 +52,29 @@ class DashboardController extends Controller
                 ['key' => 'developers', 'icon' => 'building', 'label' => self::KPI_LABELS['developers'], 'value' => $developers,
                     'color' => 'info', 'route' => route('admin.dashboard', ['panel' => 'developers']) . '#panel',
                     'spark' => $this->weeklySeries(Developer::query())],
-                ['key' => 'brokers', 'icon' => 'users', 'label' => 'Active brokers', 'value' => $brokers,
-                    'color' => 'primary', 'route' => route('admin.dashboard', ['panel' => 'brokers']) . '#panel',
-                    'spark' => $this->weeklySeries(User::role(User::ROLE_BROKER)->status(User::STATUS_ACTIVE))],
                 ['key' => 'properties', 'icon' => 'list', 'label' => 'Listings', 'value' => $properties,
                     // Not chart-2 (a burnt sienna) — it sat right next to 'primary' (a
                     // burnt orange) and the two badges were indistinguishable. See the
                     // palette note in stat-card.blade.php.
                     'color' => 'danger', 'route' => route('admin.dashboard', ['panel' => 'properties']) . '#panel',
                     'spark' => $this->weeklySeries(Property::query())],
+                ['key' => 'matches', 'icon' => 'chart', 'label' => 'Confirmed matches', 'value' => $matches,
+                    'color' => 'success', 'route' => route('admin.dashboard', ['panel' => 'matches']) . '#panel',
+                    'spark' => $this->weeklySeries(Lead::where('status', Lead::STATUS_ACCEPTED))],
                 ['key' => 'pending', 'icon' => 'clock', 'label' => 'Pending approvals', 'value' => $pending,
                     'goodWhenUp' => false, 'color' => 'warning',
                     'route' => route('admin.dashboard', ['panel' => 'pending']) . '#panel',
                     'spark' => $this->weeklySeries(User::role(User::ROLE_BROKER)->status(User::STATUS_PENDING))],
-                ['key' => 'matches', 'icon' => 'chart', 'label' => 'Confirmed matches', 'value' => $matches,
-                    'color' => 'success', 'route' => route('admin.dashboard', ['panel' => 'matches']) . '#panel',
-                    'spark' => $this->weeklySeries(Lead::where('status', Lead::STATUS_ACCEPTED))],
-                ['key' => 'actions', 'icon' => 'chart', 'label' => 'Total actions', 'value' => $actions,
-                    'color' => 'neutral', 'route' => route('admin.dashboard', ['panel' => 'actions']) . '#panel',
-                    'spark' => $this->activityWeeklySeries()],
+                ['key' => 'brokers', 'icon' => 'users', 'label' => 'Active channel partners', 'value' => $brokers,
+                    'color' => 'primary', 'route' => route('admin.dashboard', ['panel' => 'brokers']) . '#panel',
+                    'spark' => $this->weeklySeries(User::role(User::ROLE_BROKER)->status(User::STATUS_ACTIVE))],
+                // Registrations that were started and abandoned. `goodWhenUp` is false for
+                // the same reason Pending approvals sets it: a rising number here is people
+                // dropping out of sign-up, not progress.
+                ['key' => 'drafts', 'icon' => 'clock', 'label' => 'Registration incomplete', 'value' => $drafts,
+                    'goodWhenUp' => false, 'color' => 'neutral',
+                    'route' => route('admin.dashboard', ['panel' => 'drafts']) . '#panel',
+                    'spark' => $this->weeklySeries(User::role(User::ROLE_BROKER)->status(User::STATUS_DRAFT))],
             ],
 
             'trend' => $this->engagementTrend(),
@@ -98,16 +102,16 @@ class DashboardController extends Controller
         return view('admin.partials.dashboard-panel', ['panel' => $this->panel($request)]);
     }
 
-    private const PANELS = ['developers', 'brokers', 'properties', 'pending', 'matches', 'actions'];
+    private const PANELS = ['developers', 'brokers', 'properties', 'pending', 'matches', 'drafts'];
 
     /** What each KPI tile is called, in the order the row renders them. */
     private const KPI_LABELS = [
         'developers' => 'Developers',
-        'brokers' => 'Active brokers',
+        'brokers' => 'Active channel partners',
         'properties' => 'Listings',
         'pending' => 'Pending approvals',
         'matches' => 'Confirmed matches',
-        'actions' => 'Total actions',
+        'drafts' => 'Registration incomplete',
     ];
 
     /**
@@ -125,9 +129,11 @@ class DashboardController extends Controller
             'properties' => Property::count(),
             'pending' => User::role(User::ROLE_BROKER)->status(User::STATUS_PENDING)->count(),
             'matches' => Lead::where('status', Lead::STATUS_ACCEPTED)->count(),
-            // Same definition ActivityController::index() paginates — counted from the
-            // identical query so this tile and that page's total can never disagree.
-            'actions' => ActivityController::baseQuery()->count(),
+            // Channel partners who began the 3-step sign-up and never submitted it —
+            // `draft` is the status startRegistration() creates and only a real step-3
+            // submit moves off (see AuthController), so this is exactly "started, not
+            // finished" rather than anything an admin has yet to action.
+            'drafts' => User::role(User::ROLE_BROKER)->status(User::STATUS_DRAFT)->count(),
         ];
     }
 
@@ -307,9 +313,9 @@ class DashboardController extends Controller
                 'searchPlaceholder' => 'Search by company, contact or email…',
             ],
             'brokers' => [
-                'key' => 'brokers', 'title' => 'Active brokers', 'color' => 'primary',
+                'key' => 'brokers', 'title' => 'Active channel partners', 'color' => 'primary',
                 'subtitle' => 'Channel partners already through approval.',
-                'label' => 'brokers', 'fullRoute' => route('admin.cp'),
+                'label' => 'channel partners', 'fullRoute' => route('admin.cp'),
                 'searchPlaceholder' => 'Search by name, company or email…',
             ],
             'properties' => [
@@ -324,16 +330,20 @@ class DashboardController extends Controller
                 'label' => 'registrations', 'fullRoute' => route('admin.approvals'),
                 'searchPlaceholder' => 'Search by name, company or email…',
             ],
-            // "Confirmed matches" and "Total actions" are the same feed, one type-filtered.
-            'matches', 'actions' => [
-                'key' => 'activity',
-                'title' => $panel === 'matches' ? 'Confirmed matches' : 'Total actions',
-                'color' => $panel === 'matches' ? 'success' : null,
-                'subtitle' => $panel === 'matches'
-                    ? 'Every interest a developer has accepted.'
-                    : 'Every recorded action across the platform.',
-                'label' => $panel === 'matches' ? 'matches' : 'actions',
-                'fullRoute' => route('admin.activity', $panel === 'matches' ? ['type' => 'lead_accepted'] : []),
+            // `key` is what the panel view switches on to pick a row layout, not the panel
+            // slug — 'pending' renders the channel-partner row (avatar, company, city),
+            // which is exactly what a half-finished registration is.
+            'drafts' => [
+                'key' => 'pending', 'title' => 'Registration incomplete', 'color' => 'neutral',
+                'subtitle' => 'Channel partners who started signing up and never submitted.',
+                'label' => 'registrations', 'fullRoute' => route('admin.approvals'),
+                'searchPlaceholder' => 'Search by name, company or email…',
+            ],
+            'matches' => [
+                'key' => 'activity', 'title' => 'Confirmed matches', 'color' => 'success',
+                'subtitle' => 'Every interest a developer has accepted.',
+                'label' => 'matches',
+                'fullRoute' => route('admin.activity', ['type' => 'lead_accepted']),
                 'searchPlaceholder' => 'Search by person or project…',
             ],
         };
@@ -384,8 +394,17 @@ class DashboardController extends Controller
                         ->where('company_name', 'like', "{$search}%"))))
                 ->latest(),
 
-            'matches', 'actions' => ActivityController::baseQuery()
-                ->when($panel === 'matches', fn ($q) => $q->where('type', 'lead_accepted'))
+            'drafts' => User::role(User::ROLE_BROKER)->status(User::STATUS_DRAFT)
+                ->with('brokerProfile:id,user_id,company_name,city,photo_path')
+                ->when($search !== '', fn ($q) => $q->where(fn ($w) => $w
+                    ->where('name', 'like', "{$search}%")
+                    ->orWhere('email', 'like', "{$search}%")
+                    ->orWhereHas('brokerProfile', fn ($p) => $p
+                        ->where('company_name', 'like', "{$search}%"))))
+                ->latest(),
+
+            'matches' => ActivityController::baseQuery()
+                ->where('type', 'lead_accepted')
                 ->when($search !== '', fn ($q) => $q->where(fn ($qq) => $qq
                     ->where('actor_name', 'like', "%{$search}%")
                     ->orWhere('subject_name', 'like', "%{$search}%")))
@@ -411,36 +430,6 @@ class DashboardController extends Controller
 
         // Anything created before the window is the baseline for week 1.
         $baseline = (clone $query)->where('created_at', '<', $start)->count();
-
-        $series = [];
-        $running = $baseline;
-
-        for ($i = 0; $i < 12; $i++) {
-            $week = $start->copy()->addWeeks($i);
-            $key = (int) $week->format('oW');
-            $running += (int) ($rows[$key] ?? 0);
-            $series[] = $running;
-        }
-
-        return $series;
-    }
-
-    /**
-     * Same shape as {@see weeklySeries()}, for the one tile whose source isn't a
-     * single Eloquent builder: the activity union groups on `occurred_at` (the column
-     * every branch of that query already produces) instead of `created_at`.
-     */
-    private function activityWeeklySeries(): array
-    {
-        $start = Carbon::now()->startOfWeek()->subWeeks(11);
-
-        $rows = ActivityController::baseQuery()
-            ->where('occurred_at', '>=', $start)
-            ->selectRaw('YEARWEEK(occurred_at, 3) as yw, COUNT(*) as c')
-            ->groupBy('yw')
-            ->pluck('c', 'yw');
-
-        $baseline = ActivityController::baseQuery()->where('occurred_at', '<', $start)->count();
 
         $series = [];
         $running = $baseline;

@@ -9,6 +9,7 @@ use App\Models\ApprovalDecision;
 use App\Models\BrokerProfile;
 use App\Models\Lead;
 use App\Models\User;
+use App\Services\BrokerAccountDeleter;
 use App\Support\CsvReader;
 use App\Support\SocialPlatforms;
 use Illuminate\Http\JsonResponse;
@@ -153,7 +154,6 @@ class ChannelPartnerController extends Controller
             ],
             'KYC & compliance' => [
                 'rera_number' => ['RERA number', fn (User $p) => $p->brokerProfile?->rera_number],
-                'rera_certificate_expiry' => ['RERA expiry', fn (User $p) => $p->brokerProfile?->rera_certificate_expiry?->format('Y-m-d')],
                 'pan_card' => ['PAN', fn (User $p) => $p->brokerProfile?->pan_card],
                 'aadhaar_card' => ['Aadhaar', fn (User $p) => $p->brokerProfile?->aadhaar_card],
                 'aadhaar_verified' => ['Aadhaar verified', fn (User $p) => $this->yesNo($p->brokerProfile?->aadhaar_verified)],
@@ -186,7 +186,7 @@ class ChannelPartnerController extends Controller
             'Standard' => ['reg_id', 'name', 'email', 'mobile', 'city', 'state', 'status', 'joined'],
             'Contact' => ['name', 'email', 'mobile', 'alternate_mobile', 'residence_address'],
             'Business' => ['name', 'type', 'company_name', 'segments', 'zones', 'years_of_experience', 'team_size'],
-            'KYC' => ['name', 'rera_number', 'rera_certificate_expiry', 'pan_card', 'aadhaar_card', 'aadhaar_verified', 'gst_number'],
+            'KYC' => ['name', 'rera_number', 'pan_card', 'aadhaar_card', 'aadhaar_verified', 'gst_number'],
         ];
     }
 
@@ -465,6 +465,27 @@ class ChannelPartnerController extends Controller
     }
 
     /**
+     * Permanently deletes a channel partner — the account, their profile, documents and
+     * lead history.
+     *
+     * Not the same thing as `STATUS_INACTIVE`, which is the partner deleting themselves
+     * from the app and deliberately stays on this roster (visibly inactive) so an admin
+     * can still see they existed. This removes the record outright, and shares its
+     * implementation with the Approvals queue — see BrokerAccountDeleter.
+     */
+    public function destroy(User $user, BrokerAccountDeleter $deleter): RedirectResponse
+    {
+        $this->authorize('edit-module', 'cp');
+        abort_unless($user->isBroker(), 404);
+
+        $name = $deleter->delete($user);
+
+        return redirect()
+            ->route('admin.cp')
+            ->with('warning', "{$name} and all of their documents were permanently deleted.");
+    }
+
+    /**
      * A starter CSV — the exact column names {@see bulkImport()} reads, with one sample
      * row so "what goes in this column" never has to be guessed from a blank sheet.
      *
@@ -480,7 +501,7 @@ class ChannelPartnerController extends Controller
         $columns = [
             'name', 'email', 'mobile', 'alternate_mobile', 'is_company', 'company_name',
             'city', 'state', 'zones', 'segments',
-            'rera_number', 'rera_certificate_expiry', 'years_of_experience', 'team_size',
+            'rera_number', 'years_of_experience', 'team_size',
             'pan_card', 'aadhaar_card', 'gst_number',
             'residence_address', 'office_address', 'company_website',
             'instagram', 'facebook', 'youtube', 'twitter', 'linkedin',
@@ -582,7 +603,6 @@ class ChannelPartnerController extends Controller
                 'zones' => self::toList($row['zones'] ?? ''),
                 'segments' => self::toList($row['segments'] ?? ''),
                 'rera_number' => self::text($row['rera_number'] ?? null),
-                'rera_certificate_expiry' => self::text($row['rera_certificate_expiry'] ?? null),
                 'years_of_experience' => self::text($row['years_of_experience'] ?? null),
                 'team_size' => self::text($row['team_size'] ?? null),
                 'pan_card' => self::text($row['pan_card'] ?? null),
@@ -634,7 +654,6 @@ class ChannelPartnerController extends Controller
                 'segments' => ['array'],
                 'segments.*' => ['string', 'max:64'],
                 'rera_number' => ['nullable', 'string', 'max:64'],
-                'rera_certificate_expiry' => ['nullable', 'date'],
                 'years_of_experience' => ['nullable', 'integer', 'min:0', 'max:80'],
                 'team_size' => ['nullable', 'integer', 'min:0', 'max:10000'],
                 'pan_card' => ['nullable', 'string', 'max:32'],
@@ -658,7 +677,6 @@ class ChannelPartnerController extends Controller
                 'mobile.digits' => 'The mobile number must be 10 digits (a +91 or 0 prefix is fine — it is stripped).',
                 'mobile.unique' => 'Another account already uses this mobile number.',
                 'alternate_mobile.digits' => 'The alternate_mobile must be 10 digits, or left blank.',
-                'rera_certificate_expiry.date' => 'The rera_certificate_expiry must be a date like 2028-03-31.',
                 'years_of_experience.integer' => 'The years_of_experience must be a plain number like 6, or left blank.',
                 'team_size.integer' => 'The team_size must be a plain number like 4, or left blank.',
                 'password.min' => 'A password in the sheet must be at least 8 characters — '
@@ -688,7 +706,7 @@ class ChannelPartnerController extends Controller
                     'office_address', 'company_website',
                     ...array_keys(SocialPlatforms::ALL),
                     'years_of_experience', 'team_size', 'pan_card', 'aadhaar_card',
-                    'rera_number', 'rera_certificate_expiry', 'gst_number',
+                    'rera_number', 'gst_number',
                     'state', 'city', 'segments', 'zones', 'project_contributions',
                 ])->merge([
                     'user_id' => $user->id,
@@ -749,7 +767,7 @@ class ChannelPartnerController extends Controller
     /**
      * Field names as validation messages should print them: the CSV column, verbatim.
      *
-     * Laravel would render `rera_certificate_expiry` as "rera certificate expiry", which
+     * Laravel would render `years_of_experience` as "years of experience", which
      * reads better in a sentence but is not something you can search the header row for.
      *
      * @return array<string,string>
@@ -759,7 +777,7 @@ class ChannelPartnerController extends Controller
         $columns = [
             'name', 'email', 'mobile', 'alternate_mobile', 'is_company', 'company_name',
             'city', 'state', 'zones', 'segments',
-            'rera_number', 'rera_certificate_expiry', 'years_of_experience', 'team_size',
+            'rera_number', 'years_of_experience', 'team_size',
             'pan_card', 'aadhaar_card', 'gst_number',
             'residence_address', 'office_address', 'company_website',
             ...array_keys(SocialPlatforms::ALL),

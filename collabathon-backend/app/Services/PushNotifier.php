@@ -69,16 +69,6 @@ class PushNotifier
         );
     }
 
-    public function passwordReset(User $user): void
-    {
-        $this->toUser(
-            $user,
-            'Your password was changed',
-            'An admin issued a new password for your account. You have been signed out.',
-            ['type' => 'password_reset'],
-        );
-    }
-
     // ------------------------------------------------------------------ lead lifecycle
 
     /** A broker asked about a listing — the developer who owns it is told. */
