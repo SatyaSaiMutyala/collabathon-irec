@@ -59,6 +59,10 @@ class ChannelPartnerController extends Controller
         // inflate "Active partners" or offer a filter that returns a dead account.
         $partners = User::role(User::ROLE_BROKER)
             ->whereIn('status', [User::STATUS_ACTIVE, User::STATUS_INACTIVE])
+            // Admin-trashed (see destroy() below) is a stronger, independent signal from
+            // `status` — a trashed row belongs on Trash, not here, regardless of whether
+            // it was active or self-deleted-inactive at the moment it was trashed.
+            ->whereNull('users.deleted_at')
             ->select('users.*')
             // Joined rather than filtered through whereHas so city and name can both be
             // sorted on, and so a broker with no profile row never disappears silently.
@@ -78,11 +82,11 @@ class ChannelPartnerController extends Controller
                 ->where('status', Lead::STATUS_ACCEPTED)])
             ->when($request->query('search'), function ($q, $term) {
                 $q->where(fn ($w) => $w
-                    ->where('users.name', 'like', $term . '%')
-                    ->orWhere('users.email', 'like', $term . '%')
-                    ->orWhere('users.mobile', 'like', $term . '%')
-                    ->orWhere('broker_profiles.company_name', 'like', $term . '%')
-                    ->orWhere('broker_profiles.rera_number', 'like', $term . '%'));
+                    ->where('users.name', 'like', '%' . $term . '%')
+                    ->orWhere('users.email', 'like', '%' . $term . '%')
+                    ->orWhere('users.mobile', 'like', '%' . $term . '%')
+                    ->orWhere('broker_profiles.company_name', 'like', '%' . $term . '%')
+                    ->orWhere('broker_profiles.rera_number', 'like', '%' . $term . '%'));
             })
             ->when($request->query('city'), fn ($q, $v) => $q->where('broker_profiles.city', $v))
             ->when($request->query('state'), fn ($q, $v) => $q->where('broker_profiles.state', $v))
@@ -90,7 +94,17 @@ class ChannelPartnerController extends Controller
             ->when($request->query('segment'), fn ($q, $v) => $q
                 ->whereJsonContains('broker_profiles.segments', $v))
             ->when($request->query('type'), fn ($q, $v) => $q
-                ->where('broker_profiles.is_company', $v === 'company'));
+                ->where('broker_profiles.is_company', $v === 'company'))
+            ->when($request->query('member_type'), fn ($q, $v) => $q
+                ->where('broker_profiles.member_type', $v))
+            // Behind the "Active partners" stat card — the roster otherwise includes
+            // inactive (self-deleted) brokers too, which is why that number can be
+            // lower than the page's own total row count.
+            ->when($request->query('status') === 'active', fn ($q) => $q
+                ->where('users.status', User::STATUS_ACTIVE))
+            // Behind the "Joined (30d)" stat card — the same window stats() uses below.
+            ->when($request->query('joined') === '30d', fn ($q) => $q
+                ->where('users.created_at', '>=', now()->subDays(30)));
 
         $partners = $this->applySort($partners, $request, self::SORTABLE);
 
@@ -232,6 +246,7 @@ class ChannelPartnerController extends Controller
             // own photo upload.
             'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'is_company' => ['nullable', 'boolean'],
+            'member_type' => ['nullable', Rule::in(BrokerProfile::MEMBER_TYPES)],
             'company_name' => ['nullable', 'string', 'max:255'],
             'office_address' => ['nullable', 'string', 'max:1000'],
             'company_website' => ['nullable', 'string', 'max:255'],
@@ -296,7 +311,7 @@ class ChannelPartnerController extends Controller
             ]);
 
             BrokerProfile::create(collect($clean)->only([
-                'alternate_mobile', 'residence_address', 'photo_path', 'is_company', 'company_name',
+                'alternate_mobile', 'residence_address', 'photo_path', 'is_company', 'member_type', 'company_name',
                 'office_address', 'company_website',
                 ...array_keys(SocialPlatforms::ALL),
                 'years_of_experience', 'team_size',
@@ -357,6 +372,7 @@ class ChannelPartnerController extends Controller
             'residence_address' => ['nullable', 'string', 'max:1000'],
             'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'is_company' => ['nullable', 'boolean'],
+            'member_type' => ['nullable', Rule::in(BrokerProfile::MEMBER_TYPES)],
             'company_name' => ['nullable', 'string', 'max:255'],
             'office_address' => ['nullable', 'string', 'max:1000'],
             'company_website' => ['nullable', 'string', 'max:255'],
@@ -428,7 +444,7 @@ class ChannelPartnerController extends Controller
             ]);
 
             $attributes = collect($clean)->only([
-                'alternate_mobile', 'residence_address', 'photo_path', 'is_company', 'company_name',
+                'alternate_mobile', 'residence_address', 'photo_path', 'is_company', 'member_type', 'company_name',
                 'office_address', 'company_website',
                 ...array_keys(SocialPlatforms::ALL),
                 'years_of_experience', 'team_size',
@@ -465,15 +481,50 @@ class ChannelPartnerController extends Controller
     }
 
     /**
-     * Permanently deletes a channel partner — the account, their profile, documents and
-     * lead history.
+     * Moves a channel partner to Trash — reversible, see restore(). Only `deleted_at`
+     * is set; `status`, the profile and every document are left exactly as they are.
      *
-     * Not the same thing as `STATUS_INACTIVE`, which is the partner deleting themselves
-     * from the app and deliberately stays on this roster (visibly inactive) so an admin
-     * can still see they existed. This removes the record outright, and shares its
+     * Not the same thing as `STATUS_INACTIVE`, which is the partner deleting
+     * themselves from the app and deliberately stays visible on this roster (marked
+     * inactive) so an admin can still see they existed. This is the admin's own
+     * action, and it does the opposite — hides the row until restored or permanently
+     * deleted from Trash. See forceDelete() for the irreversible version this used to
+     * be, which still shares its implementation with the Approvals queue via
+     * BrokerAccountDeleter.
+     */
+    public function destroy(User $user): RedirectResponse
+    {
+        $this->authorize('edit-module', 'cp');
+        abort_unless($user->isBroker(), 404);
+
+        $name = $user->name;
+        $user->tokens()->delete();
+        $user->forceFill(['deleted_at' => now()])->save();
+
+        return redirect()
+            ->route('admin.cp')
+            ->with('warning', "{$name} was moved to Trash.");
+    }
+
+    /** Undoes destroy() — the partner and their profile come back exactly as they were. */
+    public function restore(User $user): RedirectResponse
+    {
+        $this->authorize('edit-module', 'cp');
+        abort_unless($user->isBroker(), 404);
+
+        $user->forceFill(['deleted_at' => null])->save();
+
+        return redirect()
+            ->route('admin.trash')
+            ->with('success', "{$user->name} was restored.");
+    }
+
+    /**
+     * The irreversible version of destroy() — only reachable from Trash. Permanently
+     * deletes the account, their profile, documents and lead history. Shares its
      * implementation with the Approvals queue — see BrokerAccountDeleter.
      */
-    public function destroy(User $user, BrokerAccountDeleter $deleter): RedirectResponse
+    public function forceDelete(User $user, BrokerAccountDeleter $deleter): RedirectResponse
     {
         $this->authorize('edit-module', 'cp');
         abort_unless($user->isBroker(), 404);
@@ -481,7 +532,7 @@ class ChannelPartnerController extends Controller
         $name = $deleter->delete($user);
 
         return redirect()
-            ->route('admin.cp')
+            ->route('admin.trash')
             ->with('warning', "{$name} and all of their documents were permanently deleted.");
     }
 
@@ -857,6 +908,7 @@ class ChannelPartnerController extends Controller
             ->join('users', 'users.id', '=', 'broker_profiles.user_id')
             ->where('users.role', User::ROLE_BROKER)
             ->where('users.status', User::STATUS_ACTIVE)
+            ->whereNull('users.deleted_at')
             ->whereNotNull("broker_profiles.{$column}")
             ->where("broker_profiles.{$column}", '!=', '')
             ->distinct()
@@ -872,6 +924,7 @@ class ChannelPartnerController extends Controller
             ->join('users', 'users.id', '=', 'broker_profiles.user_id')
             ->where('users.role', User::ROLE_BROKER)
             ->where('users.status', User::STATUS_ACTIVE)
+            ->whereNull('users.deleted_at')
             ->whereNotNull('broker_profiles.segments')
             ->limit(self::MAX_OPTIONS * 10)
             ->pluck('broker_profiles.segments')
@@ -885,7 +938,7 @@ class ChannelPartnerController extends Controller
 
     private function stats(): array
     {
-        $active = User::role(User::ROLE_BROKER)->status(User::STATUS_ACTIVE);
+        $active = User::role(User::ROLE_BROKER)->status(User::STATUS_ACTIVE)->whereNull('deleted_at');
 
         return [
             'total' => (clone $active)->count(),

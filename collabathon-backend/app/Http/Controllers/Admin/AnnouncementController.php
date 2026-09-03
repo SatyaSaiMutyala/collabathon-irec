@@ -170,19 +170,47 @@ class AnnouncementController extends Controller
      * in-app Notifications feed, which serves this same table — so a deleted broadcast
      * also stops appearing there (see Api\NotificationController).
      */
+    /**
+     * Moves the announcement to Trash — reversible, see restore(). The image is left
+     * alone; only forceDelete() (the irreversible version, reachable from Trash)
+     * actually removes it.
+     */
     public function destroy(Request $request, Announcement $announcement): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'push-notifications');
 
         $title = $announcement->title;
+        $announcement->delete();
+
+        return $this->respond($request, "\"{$title}\" was moved to Trash.", 'warning');
+    }
+
+    /** Undoes destroy(). */
+    public function restore(int $announcement): RedirectResponse
+    {
+        $this->authorize('edit-module', 'push-notifications');
+
+        $announcement = Announcement::onlyTrashed()->findOrFail($announcement);
+        $announcement->restore();
+
+        return redirect()->route('admin.trash')->with('success', "\"{$announcement->title}\" was restored.");
+    }
+
+    /** The irreversible version of destroy() — only reachable from Trash. */
+    public function forceDelete(int $announcement): RedirectResponse
+    {
+        $this->authorize('edit-module', 'push-notifications');
+
+        $announcement = Announcement::onlyTrashed()->findOrFail($announcement);
+        $title = $announcement->title;
         $image = $announcement->image_path;
 
-        $announcement->delete();
+        $announcement->forceDelete();
 
         // After the row is gone, so a failed delete never leaves a history entry
         // pointing at an image that is no longer there.
         FileStorage::delete($image);
 
-        return $this->respond($request, "\"{$title}\" was removed from the history.", 'warning');
+        return redirect()->route('admin.trash')->with('warning', "\"{$title}\" was permanently deleted.");
     }
 }

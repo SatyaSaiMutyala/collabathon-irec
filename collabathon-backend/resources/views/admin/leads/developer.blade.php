@@ -26,11 +26,29 @@
         </div>
     </div>
 
+    {{-- Same reasoning as the developer-roster tier: filters this developer's projects
+         down to those with at least one lead in that bucket. --}}
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-5">
-        <x-stat-card icon="sparkles" label="Requests received" :value="$requests" />
-        <x-stat-card icon="check" label="Accepted" :value="$accepted" />
-        <x-stat-card icon="clock" label="Pending" :value="$pending" />
-        <x-stat-card icon="x" label="Declined" :value="$declined" />
+        <a href="{{ request()->fullUrlWithQuery(['status' => 'requested', 'page' => null]) }}" class="block">
+            <x-stat-card icon="sparkles" label="Requests received" :value="$requests"
+                         :class="(request('status') === 'requested' ? 'border-primary-ring shadow-md ' : '')
+                             . 'hover:border-ink-3 transition-colors cursor-pointer'" />
+        </a>
+        <a href="{{ request()->fullUrlWithQuery(['status' => 'accepted', 'page' => null]) }}" class="block">
+            <x-stat-card icon="check" label="Accepted" :value="$accepted"
+                         :class="(request('status') === 'accepted' ? 'border-primary-ring shadow-md ' : '')
+                             . 'hover:border-ink-3 transition-colors cursor-pointer'" />
+        </a>
+        <a href="{{ request()->fullUrlWithQuery(['status' => 'interested', 'page' => null]) }}" class="block">
+            <x-stat-card icon="clock" label="Pending" :value="$pending"
+                         :class="(request('status') === 'interested' ? 'border-primary-ring shadow-md ' : '')
+                             . 'hover:border-ink-3 transition-colors cursor-pointer'" />
+        </a>
+        <a href="{{ request()->fullUrlWithQuery(['status' => 'declined', 'page' => null]) }}" class="block">
+            <x-stat-card icon="x" label="Declined" :value="$declined"
+                         :class="(request('status') === 'declined' ? 'border-primary-ring shadow-md ' : '')
+                             . 'hover:border-ink-3 transition-colors cursor-pointer'" />
+        </a>
     </div>
 
     <div x-data="{ open: false }" class="mb-5">

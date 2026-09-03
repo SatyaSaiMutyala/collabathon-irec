@@ -90,7 +90,7 @@
                     <form method="POST" action="{{ route('admin.approvals.destroy', $broker) }}"
                           x-on:submit.prevent="$dispatch('confirm-request', { ...{{ $deletePayload }}, form: $el })">
                         @csrf @method('DELETE')
-                        <x-button variant="danger-ghost" size="sm" icon="x" tag="button" type="submit"
+                        <x-button variant="danger-ghost" size="sm" icon="trash" tag="button" type="submit"
                                   aria-label="Delete {{ $broker->name }}'s draft" />
                     </form>
                 </td>

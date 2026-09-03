@@ -104,7 +104,7 @@
                 <form method="POST" action="{{ route('admin.developers.destroy', $developer) }}"
                       x-on:submit.prevent="$dispatch('confirm-request', { ...{{ $deletePayload }}, form: $el }); close()">
                     @csrf @method('DELETE')
-                    <x-dropdown-item icon="x" tone="danger" tag="button" type="submit">
+                    <x-dropdown-item icon="trash" tone="danger" tag="button" type="submit">
                         Delete developer
                     </x-dropdown-item>
                 </form>

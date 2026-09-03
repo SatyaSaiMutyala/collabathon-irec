@@ -22,11 +22,13 @@ $navGroups = [
         // next to it rather than buried as a tab on a page about outstanding work.
         ['key' => 'cp', 'icon' => 'users', 'label' => 'Channel Partners', 'route' => route('admin.cp')],
         ['key' => 'developers', 'icon' => 'building', 'label' => 'Developers', 'route' => route('admin.developers')],
+        ['key' => 'master_data', 'icon' => 'sparkles', 'label' => 'Master Data', 'route' => route('admin.master-data')],
         ['key' => 'properties', 'icon' => 'list', 'label' => 'Listings', 'route' => route('admin.properties')],
         ['key' => 'leads', 'icon' => 'chart', 'label' => 'CP Interest', 'route' => route('admin.leads')],
     ],
     'Configure' => [
         ['key' => 'settings', 'icon' => 'cog', 'label' => 'Settings', 'route' => route('admin.settings')],
+        ['key' => 'trash', 'icon' => 'trash', 'label' => 'Trash', 'route' => route('admin.trash')],
         ['key' => 'push-notifications', 'icon' => 'bell', 'label' => 'Push Notifications', 'route' => route('admin.push-notifications')],
     ],
 ];

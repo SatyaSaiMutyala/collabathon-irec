@@ -7,6 +7,7 @@ use App\Http\Concerns\HandlesListQueries;
 use App\Http\Controllers\Controller;
 use App\Models\Developer;
 use App\Models\User;
+use App\Services\DeveloperCredentialsNotifier;
 use App\Services\PropertyDeleter;
 use App\Support\CsvReader;
 use App\Support\SocialPlatforms;
@@ -47,10 +48,9 @@ class DeveloperController extends Controller
             ->with('user:id,email')
             ->withCount('properties')
             ->when($request->query('search'), function ($q, $term) {
-                // Prefix match so the company_name index is usable.
-                $q->where(fn ($w) => $w->where('company_name', 'like', $term . '%')
-                    ->orWhere('contact_person', 'like', $term . '%')
-                    ->orWhere('email', 'like', $term . '%'));
+                $q->where(fn ($w) => $w->where('company_name', 'like', '%' . $term . '%')
+                    ->orWhere('contact_person', 'like', '%' . $term . '%')
+                    ->orWhere('email', 'like', '%' . $term . '%'));
             })
             ->when($request->query('country'), fn ($q, $v) => $q->where('country', $v))
             ->when($request->query('city'), fn ($q, $v) => $q->where('city', $v))
@@ -192,7 +192,7 @@ class DeveloperController extends Controller
     }
 
     /** Creates the company record and its login account in one transaction. */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, DeveloperCredentialsNotifier $notifier): RedirectResponse
     {
         $this->authorize('edit-module', 'developers');
 
@@ -263,7 +263,7 @@ class DeveloperController extends Controller
         $password = ($data['password'] ?? '') ?: Str::password(14, symbols: false);
         unset($data['password']);   // lives on the user row, not the developer record
 
-        DB::transaction(function () use ($data, $password) {
+        $user = DB::transaction(function () use ($data, $password) {
             $user = User::create([
                 'name' => $data['contact_person'],
                 'email' => $data['email'],
@@ -275,13 +275,22 @@ class DeveloperController extends Controller
             ]);
 
             Developer::create($data + ['user_id' => $user->id]);
+
+            return $user;
         });
 
-        // The password rides in its own flash key so x-credentials-dialog can show it
-        // with the share options, rather than being spelled out in a toast.
+        // After the commit, never inside it — a slow mail/WhatsApp API call must not
+        // hold the transaction open, and a delivery failure must not roll back a
+        // developer account that was already created correctly. Same reasoning as
+        // ApprovalController::approve()'s own notifyApproved() call.
+        $delivery = $notifier->send($user, $password, $data['contact_person']);
+
+        // The password still rides in its own flash key so x-credentials-dialog can
+        // show it with the share options — delivery above is additive, not a
+        // replacement for the admin being able to see and copy it themselves.
         return redirect()
             ->route('admin.developers')
-            ->with('success', "{$data['company_name']} added.")
+            ->with('success', "{$data['company_name']} added.{$delivery['note']}")
             ->with('credentials', [
                 'name' => $data['contact_person'],
                 'email' => $data['email'],
@@ -594,13 +603,64 @@ class DeveloperController extends Controller
     }
 
     /**
-     * Deleting the company takes its listings and leads with it — both tables cascade
-     * on developers.id — and the login account is removed alongside it. The confirm
-     * dialog spells out those counts before this is ever reached.
+     * Moves the company to Trash — reversible, see restore(). Only this row's own
+     * `deleted_at` is set; the listing rows, files and login account are all left
+     * exactly as they are, since restoring should bring back a fully working developer,
+     * not one missing its logo or signed out of an account that no longer exists.
+     * See forceDelete() for the irreversible version this action used to be.
      */
-    public function destroy(Developer $developer, PropertyDeleter $deleter): RedirectResponse
+    public function destroy(Developer $developer): RedirectResponse
     {
         $this->authorize('edit-module', 'developers');
+
+        DB::transaction(function () use ($developer) {
+            $developer->delete();
+
+            // Deactivated alongside the company, the same way a broker's own
+            // self-delete works (see AuthController::deleteAccount) — every token
+            // revoked and sign-in refused, but the row itself survives for restore().
+            if ($user = $developer->user) {
+                $user->tokens()->delete();
+                $user->forceFill(['status' => User::STATUS_INACTIVE])->save();
+            }
+        });
+
+        return redirect()
+            ->route('admin.developers')
+            ->with('warning', "{$developer->company_name} was moved to Trash.");
+    }
+
+    /** Undoes destroy() — the company and its login account both come back active. */
+    public function restore(int $developer): RedirectResponse
+    {
+        $this->authorize('edit-module', 'developers');
+
+        $developer = Developer::onlyTrashed()->findOrFail($developer);
+
+        DB::transaction(function () use ($developer) {
+            $developer->restore();
+
+            if ($user = $developer->user) {
+                $user->forceFill(['status' => User::STATUS_ACTIVE])->save();
+            }
+        });
+
+        return redirect()
+            ->route('admin.trash')
+            ->with('success', "{$developer->company_name} was restored.");
+    }
+
+    /**
+     * The irreversible version of destroy() — only reachable from Trash. Deleting the
+     * company takes its listings and leads with it — both tables cascade on
+     * developers.id — and the login account is removed alongside it. The confirm
+     * dialog on Trash spells out those counts before this is ever reached.
+     */
+    public function forceDelete(int $developer, PropertyDeleter $deleter): RedirectResponse
+    {
+        $this->authorize('edit-module', 'developers');
+
+        $developer = Developer::onlyTrashed()->findOrFail($developer);
 
         $name = $developer->company_name;
         $logo = $developer->logo_path;
@@ -609,14 +669,16 @@ class DeveloperController extends Controller
         // developer is gone there is no row left naming its listings' logos, covers,
         // brochures, floor plans or legal documents — and they would sit in the bucket
         // forever. The rows are cascaded by the database; only their files need us.
-        $listings = $developer->properties()->with(['detail', 'unitTypes', 'media'])->get();
+        // `withTrashed()` because a listing may already be sitting in Trash on its own —
+        // the cascade removes it for real either way, so its files need cleaning up too.
+        $listings = $developer->properties()->withTrashed()->with(['detail', 'unitTypes', 'media'])->get();
 
         DB::transaction(function () use ($developer) {
             $user = $developer->user;
 
             // Developer first: developers.user_id is ON DELETE SET NULL, so removing the
             // user first would detach the row and orphan it instead of cascading.
-            $developer->delete();
+            $developer->forceDelete();
 
             $user?->tokens()->delete();
             $user?->delete();
@@ -629,7 +691,7 @@ class DeveloperController extends Controller
         }
 
         return redirect()
-            ->route('admin.developers')
-            ->with('warning', "{$name} and all of its listings were deleted.");
+            ->route('admin.trash')
+            ->with('warning', "{$name} and all of its listings were permanently deleted.");
     }
 }

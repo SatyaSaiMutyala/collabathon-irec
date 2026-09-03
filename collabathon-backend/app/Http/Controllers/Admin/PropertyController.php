@@ -645,15 +645,59 @@ class PropertyController extends Controller
      * The detail row, unit types, media and leads all cascade on properties.id; the
      * files they named do not, which is what PropertyDeleter is for.
      */
-    public function destroy(Property $property, PropertyDeleter $deleter): RedirectResponse
+    /**
+     * Moves the listing to Trash — reversible, see restore(). Only the row's own
+     * `deleted_at` is set here; its files are left exactly where they are, since
+     * restoring should bring back a fully working listing, not one missing its
+     * gallery and brochure. See forceDelete() for the irreversible version this
+     * action used to be.
+     */
+    public function destroy(Property $property): RedirectResponse
     {
         $this->authorize('edit-module', 'properties');
 
-        $name = $deleter->delete($property);
+        $name = $property->name;
+        $property->delete();
 
         return redirect()
             ->route('admin.properties')
-            ->with('success', "\"{$name}\" and all of its files were deleted.");
+            ->with('success', "\"{$name}\" was moved to Trash.");
+    }
+
+    /** Undoes destroy() — the listing and its files (never touched) are both back. */
+    public function restore(int $property): RedirectResponse
+    {
+        $this->authorize('edit-module', 'properties');
+
+        $property = Property::onlyTrashed()->findOrFail($property);
+        $property->restore();
+
+        return redirect()
+            ->route('admin.trash')
+            ->with('success', "\"{$property->name}\" was restored.");
+    }
+
+    /**
+     * The irreversible version of destroy() — only reachable from Trash. Deletes the
+     * row for good and every file it owned.
+     */
+    public function forceDelete(int $property, PropertyDeleter $deleter): RedirectResponse
+    {
+        $this->authorize('edit-module', 'properties');
+
+        $property = Property::onlyTrashed()->findOrFail($property);
+        $name = $property->name;
+        $paths = $deleter->filePathsFor($property);
+
+        $property->forceDelete();
+
+        foreach ($paths as $path) {
+            \App\Support\FileStorage::delete($path);
+        }
+
+        return redirect()
+            ->route('admin.trash')
+            ->with('warning', "\"{$name}\" and all of its files were permanently deleted.");
     }
 
     // ------------------------------------------------------------------ edit support

@@ -17,6 +17,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Support\MailSettings;
 use App\Support\GoogleMapsSettings;
+use App\Support\MasterDataSettings;
 use App\Support\SurepassSettings;
 use App\Support\WhatsAppSettings;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -171,6 +172,16 @@ class SettingsController extends Controller
                 'template_name' => WhatsAppSettings::templateName(),
                 'template_namespace' => WhatsAppSettings::templateNamespace(),
                 'template_language' => WhatsAppSettings::templateLanguage(),
+                'credentials_configured' => WhatsAppSettings::isCredentialsConfigured(),
+                'credentials_template_name' => WhatsAppSettings::credentialsTemplateName(),
+                'credentials_template_namespace' => WhatsAppSettings::credentialsTemplateNamespace(),
+                'credentials_template_language' => WhatsAppSettings::credentialsTemplateLanguage(),
+            ],
+            'masterData' => [
+                'configured' => MasterDataSettings::isConfigured(),
+                'has_key' => MasterDataSettings::isConfigured(),
+                'masked_key' => MasterDataSettings::masked(),
+                'base_url' => MasterDataSettings::baseUrl(),
             ],
         ];
 
@@ -321,6 +332,12 @@ class SettingsController extends Controller
             'whatsapp_template_name' => ['required', 'string', 'max:255'],
             'whatsapp_template_namespace' => ['nullable', 'string', 'max:255'],
             'whatsapp_template_language' => ['required', 'string', 'max:16'],
+            // Optional — this template usually doesn't exist yet at launch. Sending
+            // credentials over WhatsApp is simply skipped until it's approved and its
+            // name saved here; nothing else on this form depends on it.
+            'whatsapp_credentials_template_name' => ['nullable', 'string', 'max:255'],
+            'whatsapp_credentials_template_namespace' => ['nullable', 'string', 'max:255'],
+            'whatsapp_credentials_template_language' => ['nullable', 'string', 'max:16'],
         ], [
             'whatsapp_sandbox_token.required_if' => 'Enter the sandbox auth key before switching to it.',
             'whatsapp_production_token.required_if' => 'Enter the production auth key before switching to it.',
@@ -341,9 +358,38 @@ class SettingsController extends Controller
             trim($data['whatsapp_template_language']),
         );
 
+        WhatsAppSettings::putCredentialsConfig(
+            trim($data['whatsapp_credentials_template_name'] ?? ''),
+            filled($data['whatsapp_credentials_template_namespace'] ?? null) ? trim($data['whatsapp_credentials_template_namespace']) : null,
+            trim($data['whatsapp_credentials_template_language'] ?? ''),
+        );
+
         WhatsAppSettings::setEnvironment($data['whatsapp_environment']);
 
         return $this->settingsResponse($request, 'WhatsApp OTP settings saved.');
+    }
+
+    /**
+     * Save the Master Data (irecexpo.com) API key the Master Data page reads through —
+     * see {@see MasterDataSettings} and {@see \App\Services\MasterDataClient}. A blank
+     * key means "keep what is stored", same reasoning as updateWhatsApp()'s tokens.
+     */
+    public function updateMasterData(Request $request): RedirectResponse|JsonResponse
+    {
+        $this->authorize('edit-module', 'settings');
+
+        $data = $request->validate([
+            'master_data_base_url' => ['required', 'url', 'max:255'],
+            'master_data_api_key' => [MasterDataSettings::isConfigured() ? 'nullable' : 'required', 'string', 'max:255'],
+        ]);
+
+        MasterDataSettings::putBaseUrl(trim($data['master_data_base_url']));
+
+        if (filled($data['master_data_api_key'] ?? null)) {
+            MasterDataSettings::putApiKey(trim($data['master_data_api_key']));
+        }
+
+        return $this->settingsResponse($request, 'Master Data settings saved.');
     }
 
     /**

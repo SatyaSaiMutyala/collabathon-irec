@@ -5,13 +5,17 @@ namespace App\Http\Controllers\Api;
 use App\Http\Concerns\HandlesListQueries;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\LeadResource;
+use App\Mail\LeadInterestMail;
 use App\Models\Lead;
 use App\Models\Property;
 use App\Services\PushNotifier;
+use App\Support\MailSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 /**
  * Lead lifecycle. Scoping is by role, always derived from the token — never from a
@@ -153,12 +157,41 @@ class LeadController extends Controller
         // must not notify the developer again.
         if ($lead->wasChanged('status') || $lead->wasRecentlyCreated) {
             $push->requestReceived($lead);
+            $this->emailDeveloperOfInterest($lead);
         }
 
         return response()->json([
             'message' => 'Request sent. The developer sees your contact details once they accept.',
             'data' => new LeadResource($lead),
         ]);
+    }
+
+    /**
+     * Emails the developer alongside the push notification above, for a developer who
+     * isn't watching the app right then. Every failure path is swallowed on purpose —
+     * the broker's request is already recorded and must not fail on a mail hiccup.
+     */
+    private function emailDeveloperOfInterest(Lead $lead): void
+    {
+        if (! MailSettings::apply()) {
+            return;
+        }
+
+        $lead->loadMissing(['developer.user:id,email', 'broker:id,name', 'property:id,name']);
+        $developerEmail = $lead->developer?->email ?: $lead->developer?->user?->email;
+
+        if (! $developerEmail) {
+            return;
+        }
+
+        try {
+            Mail::to($developerEmail)->send(new LeadInterestMail($lead));
+        } catch (\Throwable $e) {
+            Log::error('Lead interest email failed', [
+                'lead_id' => $lead->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /** PATCH /api/leads/{lead} — developer accepts or declines an interested broker. */

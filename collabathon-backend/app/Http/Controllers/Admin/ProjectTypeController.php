@@ -88,6 +88,7 @@ class ProjectTypeController extends Controller
         return $this->backToPanel($request, "Project type “{$projectType->name}” updated.");
     }
 
+    /** Moves the project type to Trash — reversible, see restore(). */
     public function destroy(Request $request, ProjectType $projectType): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
@@ -106,6 +107,29 @@ class ProjectTypeController extends Controller
         $name = $projectType->name;
         $projectType->delete();
 
-        return $this->backToPanel($request, "Project type “{$name}” removed.", 'warning');
+        return $this->backToPanel($request, "Project type “{$name}” moved to Trash.", 'warning');
+    }
+
+    /** Undoes destroy(). */
+    public function restore(int $projectType): RedirectResponse
+    {
+        $this->authorize('edit-module', 'settings');
+
+        $projectType = ProjectType::onlyTrashed()->findOrFail($projectType);
+        $projectType->restore();
+
+        return redirect()->route('admin.trash')->with('success', "Project type “{$projectType->name}” was restored.");
+    }
+
+    /** The irreversible version of destroy() — only reachable from Trash. */
+    public function forceDelete(int $projectType): RedirectResponse
+    {
+        $this->authorize('edit-module', 'settings');
+
+        $projectType = ProjectType::onlyTrashed()->findOrFail($projectType);
+        $name = $projectType->name;
+        $projectType->forceDelete();
+
+        return redirect()->route('admin.trash')->with('warning', "Project type “{$name}” was permanently deleted.");
     }
 }

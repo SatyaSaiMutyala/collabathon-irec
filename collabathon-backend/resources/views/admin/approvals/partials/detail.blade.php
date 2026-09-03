@@ -193,7 +193,7 @@
              to be reversible. The wording changes so it is obvious an approved broker is
              being revoked, or a rejected one reinstated, rather than decided for the
              first time. --}}
-        <div class="flex flex-wrap items-center gap-2.5 shrink-0">
+        <div class="flex flex-wrap items-end gap-2.5 shrink-0">
             <x-button variant="gold" icon="cog" tag="button" type="button" x-on:click="$dispatch('open-cp-edit')">
                 Edit
             </x-button>
@@ -206,8 +206,17 @@
             @endif
 
             @if($broker->status !== \App\Models\User::STATUS_ACTIVE)
-                <form method="POST" action="{{ route('admin.approvals.approve', $broker) }}">
+                {{-- Member type rides in the same POST as the decision itself — required
+                     here rather than only on the profile edit form, so approval cannot
+                     go through without an admin having actually made that call. --}}
+                <form method="POST" action="{{ route('admin.approvals.approve', $broker) }}"
+                      class="flex flex-wrap items-end gap-2.5">
                     @csrf
+                    <x-select-field name="member_type" label="Member type" required
+                                     :options="\App\Models\BrokerProfile::MEMBER_TYPES"
+                                     :selected="$profile?->member_type" class="w-[150px]">
+                        <option value="">Select…</option>
+                    </x-select-field>
                     <x-button variant="primary" tag="button" type="submit" icon="check">
                         {{ $isPending ? 'Approve channel partner' : 'Re-approve channel partner' }}
                     </x-button>
@@ -291,6 +300,7 @@
             {{-- ---------------------------- Coverage ---------------------------- --}}
             <x-panel title="Coverage" flush>
                 <x-detail-grid :fields="[
+                    ['label' => 'Member type', 'value' => $profile?->member_type],
                     ['label' => 'State', 'value' => $profile?->state],
                     ['label' => 'City', 'value' => $profile?->city],
                     ['label' => 'Multiple states', 'value' => $profile?->operates_multiple_states ? 'Yes' : 'No'],
@@ -511,6 +521,14 @@
 
                 {{-- Location & coverage -------------------------------------------- --}}
                 <div class="border-t border-line-soft space-y-3 pt-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <x-select-field label="Member type" name="member_type"
+                                         :options="\App\Models\BrokerProfile::MEMBER_TYPES"
+                                         :selected="$profile?->member_type">
+                            <option value="">Not set</option>
+                        </x-select-field>
+                    </div>
+
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <x-field label="City" name="city" :value="$profile?->city" />
                         <x-field label="State" name="state" :value="$profile?->state" />

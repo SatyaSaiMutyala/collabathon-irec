@@ -36,10 +36,26 @@
     </div>
 
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-5">
+        {{-- "Requests received" sums three statuses (everything past a passive view) —
+             no single value in the status filter below matches that, so unlike the
+             other three it stays a plain read rather than a link with nowhere real
+             to land. --}}
         <x-stat-card icon="sparkles" label="Requests received" :value="$requests" />
-        <x-stat-card icon="check" label="Accepted" :value="$accepted" />
-        <x-stat-card icon="clock" label="Pending" :value="$pending" />
-        <x-stat-card icon="x" label="Declined" :value="$declined" />
+        <a href="{{ request()->fullUrlWithQuery(['status' => 'accepted', 'page' => null]) }}" class="block">
+            <x-stat-card icon="check" label="Accepted" :value="$accepted"
+                         :class="(request('status') === 'accepted' ? 'border-primary-ring shadow-md ' : '')
+                             . 'hover:border-ink-3 transition-colors cursor-pointer'" />
+        </a>
+        <a href="{{ request()->fullUrlWithQuery(['status' => 'interested', 'page' => null]) }}" class="block">
+            <x-stat-card icon="clock" label="Pending" :value="$pending"
+                         :class="(request('status') === 'interested' ? 'border-primary-ring shadow-md ' : '')
+                             . 'hover:border-ink-3 transition-colors cursor-pointer'" />
+        </a>
+        <a href="{{ request()->fullUrlWithQuery(['status' => 'declined', 'page' => null]) }}" class="block">
+            <x-stat-card icon="x" label="Declined" :value="$declined"
+                         :class="(request('status') === 'declined' ? 'border-primary-ring shadow-md ' : '')
+                             . 'hover:border-ink-3 transition-colors cursor-pointer'" />
+        </a>
     </div>
 
     <div x-data="{ open: false }" class="mb-5">

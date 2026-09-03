@@ -28,7 +28,7 @@ class TeamController extends Controller
 
     public function index(Request $request): View|\Illuminate\Http\Response
     {
-        $query = User::role(User::ROLE_ADMIN)->with('adminRole')->orderBy('name');
+        $query = User::role(User::ROLE_ADMIN)->whereNull('deleted_at')->with('adminRole')->orderBy('name');
 
         $data = [
             'members' => $this->paginate($query, $request),
@@ -181,6 +181,13 @@ class TeamController extends Controller
         return back()->with('success', "{$user->name} updated.");
     }
 
+    /**
+     * Moves the member to Trash — reversible, see restore(). `status`/`role_id` are
+     * left exactly as they are; only `deleted_at` is set, so a restore needs to
+     * remember nothing about what this account was before. Every token is revoked so
+     * a session already in flight is cut off immediately (`isActive()` checks
+     * `deleted_at` too, but that only stops the *next* request).
+     */
     public function destroy(User $user): RedirectResponse
     {
         abort_unless($user->isAdmin(), 404);
@@ -198,11 +205,38 @@ class TeamController extends Controller
         $name = $user->name;
 
         $user->tokens()->delete();
-        $user->delete();
+        $user->forceFill(['deleted_at' => now()])->save();
 
         return redirect()
             ->route('admin.team')
-            ->with('warning', "{$name} removed from the team.");
+            ->with('warning', "{$name} was moved to Trash.");
+    }
+
+    /** Undoes destroy() — the account comes back exactly as it was, role and all. */
+    public function restore(User $user): RedirectResponse
+    {
+        abort_unless($user->isAdmin(), 404);
+
+        $user->forceFill(['deleted_at' => null])->save();
+
+        return redirect()
+            ->route('admin.trash')
+            ->with('success', "{$user->name} was restored.");
+    }
+
+    /** The irreversible version of destroy() — only reachable from Trash. */
+    public function forceDelete(User $user): RedirectResponse
+    {
+        abort_unless($user->isAdmin(), 404);
+
+        $name = $user->name;
+
+        $user->tokens()->delete();
+        $user->delete();
+
+        return redirect()
+            ->route('admin.trash')
+            ->with('warning', "{$name} was permanently deleted.");
     }
 
     /**
@@ -230,6 +264,7 @@ class TeamController extends Controller
 
         $othersRemain = User::role(User::ROLE_ADMIN)
             ->status(User::STATUS_ACTIVE)
+            ->whereNull('deleted_at')
             ->whereKeyNot($user->id)
             ->whereHas('adminRole', fn ($q) => $q->where('is_system', true))
             ->exists();

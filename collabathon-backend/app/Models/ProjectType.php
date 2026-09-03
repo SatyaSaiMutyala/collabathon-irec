@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * An editable project type — the list the project intake form and the Projects filter
@@ -15,11 +16,14 @@ use Illuminate\Database\Eloquent\Model;
 #[Fillable(['name', 'requires_possession_date', 'is_active', 'sort_order'])]
 class ProjectType extends Model
 {
+    use SoftDeletes;
+
     protected function casts(): array
     {
         return [
             'requires_possession_date' => 'boolean',
             'is_active' => 'boolean',
+            'deleted_at' => 'datetime',
         ];
     }
 
