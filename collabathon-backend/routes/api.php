@@ -94,6 +94,11 @@ Route::prefix('v1')->group(function () {
         Route::patch('auth/register/step', [AuthController::class, 'saveRegistrationStep'])
             ->middleware('throttle:20,1');
 
+        // "Update Profile" on PendingApprovalScreen — a broker fixing something
+        // before an admin gets to it, not after. See AuthController::reopenRegistration.
+        Route::patch('auth/register/reopen', [AuthController::class, 'reopenRegistration'])
+            ->middleware('throttle:10,1');
+
         // One file per request — a step-3 attachment is stored the moment it's
         // picked, not carried along in the same request as the rest of the form.
         // See UploadController's own docblock. 30/min covers picking up to four

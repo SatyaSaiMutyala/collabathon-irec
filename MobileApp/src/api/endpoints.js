@@ -99,6 +99,13 @@ export const authApi = {
           timeout: UPLOAD_TIMEOUT_MS,
         })
       : client.patch('/auth/register/step', payload),
+  /**
+   * "Update Profile" from PendingApprovalScreen — drops a still-`pending` account
+   * back to `draft` so its own already-live session can go edit it again, rather
+   * than only ever being editable after an admin rejects it. Response shape matches
+   * `verifyOtp`/`verifyEmailOtp`'s own `'draft'` fork.
+   */
+  reopenRegistration: () => client.patch('/auth/register/reopen'),
   /** Shared sign-in for both mobile roles — see LoginScreen. */
   login: payload => client.post('/auth/login', payload),
   me: () => client.get('/auth/me'),

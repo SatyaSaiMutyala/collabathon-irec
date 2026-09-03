@@ -3,7 +3,7 @@ import {ActivityIndicator, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
-import {AppText, AuthHeader, OtpInput, ScreenContainer} from '../../components';
+import {AppText, AuthHeader, InfoDialog, OtpInput, ScreenContainer} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {sendOtp, verifyOtp} from '../../store/slices/authSlice';
 
@@ -52,6 +52,9 @@ const OtpVerifyScreen = ({navigation, route}) => {
 
   const [code, setCode] = useState('');
   const [cooldown, setCooldown] = useState(RESEND_COOLDOWN_S);
+  // A one-time heads-up for what just happened on the previous screen — shown once per
+  // visit rather than tied to sendOtp's own status, so a resend doesn't reopen it.
+  const [showSentNotice, setShowSentNotice] = useState(true);
   // The debugCode value already auto-filled, so a resend's fresh code triggers this
   // again but the same one never re-submits itself in a loop.
   const autoFilledRef = useRef(null);
@@ -191,6 +194,14 @@ const OtpVerifyScreen = ({navigation, route}) => {
           </TouchableOpacity>
         </View>
       </View>
+
+      <InfoDialog
+        visible={showSentNotice}
+        icon="logo-whatsapp"
+        title="Code sent"
+        message={`OTP is sent to your WhatsApp on ${mobile}.`}
+        onDismiss={() => setShowSentNotice(false)}
+      />
     </ScreenContainer>
   );
 };

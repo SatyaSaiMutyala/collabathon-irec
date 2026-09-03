@@ -9,6 +9,7 @@ use App\Models\BrokerProfile;
 use App\Models\DeviceToken;
 use App\Models\EmailOtpCode;
 use App\Models\OtpCode;
+use App\Models\Setting;
 use App\Models\Upload;
 use App\Models\User;
 use App\Services\AadhaarXmlReader;
@@ -180,15 +181,27 @@ class AuthController extends Controller
         // flag itself as a duplicate.
         $profileId = $user->brokerProfile->id;
 
+        // PAN/RERA/GST belong to step 3, `is_company` to step 2 — a step-3-only
+        // request never carries `is_company` at all, so the persisted value from
+        // step 2's own save is the fallback; a request that *does* carry it (editing
+        // step 2 again, or step 3 resending the whole form) takes precedence.
+        $isCompany = $request->has('is_company')
+            ? $request->boolean('is_company')
+            : (bool) $user->brokerProfile->is_company;
+
         $data = $request->validate([
             'step' => ['required', 'integer', 'in:1,2,3'],
             'save_draft' => ['required', 'boolean'],
 
             // Step 1 fields — only reachable by going Back after startRegistration
-            // already created the row. name/email/mobile are deliberately not
-            // editable here at all: email and mobile are what OTP verification
-            // actually proved belongs to this person, so this endpoint only ever
-            // touches the rest of step 1's fields.
+            // already created the row, or from PendingApprovalScreen's "Update
+            // Profile" (reopenRegistration), which lands back on step 1 on purpose.
+            // email/mobile stay off this list deliberately — they're what OTP
+            // verification actually proved belongs to this person, so changing either
+            // has to go through a fresh verification, not a plain field edit here.
+            // `name` (suffix + full name, joined) has no such proof behind it — it's
+            // exactly as editable as alternate_mobile/residence_address below.
+            'name' => ['nullable', 'string', 'max:255'],
             'alternate_mobile' => ['nullable', 'string', 'max:32'],
             'residence_address' => ['nullable', 'string'],
             'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
@@ -204,17 +217,25 @@ class AuthController extends Controller
             ...SocialPlatforms::rules(),
             'years_of_experience' => ['nullable', 'integer', 'min:0', 'max:80'],
             'team_size' => ['nullable', 'integer', 'min:0', 'max:10000'],
-            // One government-issued PAN/Aadhaar, or one RERA registration, belongs to
-            // one real person — enforced here so the same identity can't sit behind
-            // a second channel partner account. Own row excluded via $profileId
-            // (see above), same reasoning as email/mobile's own unique rules but
-            // scoped to broker_profiles rather than users.
-            'pan_card' => ['nullable', 'string', 'max:32', Rule::unique('broker_profiles', 'pan_card')->ignore($profileId)],
+            // A government-issued PAN or a personal RERA registration belongs to one
+            // real person — an individual can never share theirs (strict unique).
+            // Company documents are different: PAN, RERA, and GST filed under a
+            // company's own name legitimately belong to more than one person at that
+            // company, so registering as a company allows the same set of numbers on
+            // up to one *other* channel partner account (two total) rather than
+            // rejecting it outright. Own row excluded via $profileId either way, same
+            // reasoning as email/mobile's own unique rules but scoped to
+            // broker_profiles. See documentSharingRule() below.
+            'pan_card' => ['nullable', 'string', 'max:32', $this->documentSharingRule('pan_card', $isCompany, $profileId)],
             // Set by the app after KycController::verifyPan succeeded on the typed PAN
             // number — not re-checked here. Read-only informational for the admin,
             // not a permission.
             'pan_verified' => ['nullable', 'boolean'],
             'pan_verified_name' => ['nullable', 'string', 'max:255'],
+            // Aadhaar stays strictly unique regardless of is_company — it identifies
+            // the individual submitting it, a company registration or not (and is
+            // optional-not-required for a company in the first place; see
+            // validateStepIsComplete()).
             'aadhaar_card' => ['nullable', 'string', 'max:32', Rule::unique('broker_profiles', 'aadhaar_card')->ignore($profileId)],
             // Set by the app after DigilockerController::downloadAadhaar came back
             // verified — same trust boundary as pan_verified above. The earlier
@@ -224,8 +245,8 @@ class AuthController extends Controller
             // IS enabled, so this flag is back.
             'aadhaar_verified' => ['nullable', 'boolean'],
             'aadhaar_verified_name' => ['nullable', 'string', 'max:255'],
-            'rera_number' => ['nullable', 'string', 'max:64', Rule::unique('broker_profiles', 'rera_number')->ignore($profileId)],
-            'gst_number' => ['nullable', 'string', 'max:32'],
+            'rera_number' => ['nullable', 'string', 'max:64', $this->documentSharingRule('rera_number', $isCompany, $profileId)],
+            'gst_number' => ['nullable', 'string', 'max:32', $this->documentSharingRule('gst_number', $isCompany, $profileId)],
             // Set by the app after KycController::verifyGst succeeded on the typed
             // GSTIN — same trust boundary as pan_verified above.
             'gst_verified' => ['nullable', 'boolean'],
@@ -266,9 +287,10 @@ class AuthController extends Controller
                 ->mapWithKeys(fn ($column) => [$column => ['nullable', 'string']])
                 ->all(),
         ], [
-            'pan_card.unique' => 'This PAN number is already registered with another channel partner account.',
+            // pan_card/rera_number/gst_number no longer use Laravel's `unique` rule —
+            // documentSharingRule() is a closure that calls $fail() with its own
+            // message directly, so there's nothing to override here for those three.
             'aadhaar_card.unique' => 'This Aadhaar number is already registered with another channel partner account.',
-            'rera_number.unique' => 'This RERA number is already registered with another channel partner account.',
         ]);
 
         // A step's own required fields only matter when this is a real "Next"/final
@@ -292,6 +314,16 @@ class AuthController extends Controller
         }
 
         DB::transaction(function () use ($user, $data) {
+            // A `users` column, not `broker_profiles` — saved on $user directly, same
+            // transaction. `filled()`, not `array_key_exists()`: an empty string here
+            // would mean CompleteProfileScreen's own required-field check on step 1
+            // already failed and this is a Save Draft with nothing typed yet, which
+            // must never blank out a name that was already on the account.
+            if (filled($data['name'] ?? null)) {
+                $user->name = $data['name'];
+                $user->save();
+            }
+
             $profile = $user->brokerProfile;
 
             $profile->fill(collect($data)->only([
@@ -369,6 +401,39 @@ class AuthController extends Controller
     }
 
     /**
+     * PATCH /api/v1/auth/register/reopen — a broker's own "Update Profile" from
+     * PendingApprovalScreen, letting them go fix something (a document, a typo)
+     * before an admin ever gets to it, rather than only after a rejection.
+     *
+     * Deliberately the same state transition `pending` -> `draft` that already
+     * happens automatically when an admin rejects (see verifyOtp/verifyEmailOtp's
+     * `isRejected()` branch) — self-initiated here instead of admin-initiated, but
+     * everything downstream (UserResource's registration_step/draft_profile, this
+     * same saveRegistrationStep endpoint, step 3 flipping back to `pending` on
+     * resubmit) already works for a `draft` account with no changes needed. No new
+     * token: this account's existing pending-session token is already live (see the
+     * note on that in the plan), so there is nothing to reissue.
+     */
+    public function reopenRegistration(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! $user->isPending()) {
+            return response()->json([
+                'message' => 'This registration is not awaiting approval.',
+            ], 403);
+        }
+
+        $user->forceFill(['status' => User::STATUS_DRAFT])->save();
+        $this->loadProfile($user);
+
+        return response()->json([
+            'status' => 'draft',
+            'data' => new UserResource($user),
+        ]);
+    }
+
+    /**
      * Confirms a `*_path` this request is trying to link (from POST /uploads) was
      * actually uploaded by this same user, rather than trusting the string as-is —
      * a guessed or copied path from someone else's upload must not be linkable here.
@@ -386,6 +451,59 @@ class AuthController extends Controller
         }
 
         return $path;
+    }
+
+    /**
+     * PAN/RERA/GST uniqueness — with a company exception.
+     *
+     * An individual's PAN or RERA registration identifies that one person; the rule
+     * for them is the same one this replaced (`Rule::unique(...)->ignore($profileId)`,
+     * strict — the value may not already sit on any other account). A company's own
+     * documents are different: the same PAN/RERA/GST legitimately belongs to more than
+     * one person at that company (e.g. several reps each self-registering), so a
+     * company submission is allowed to match existing accounts up to a limit a super
+     * admin controls from Settings > Access > "Company document sharing" — 1 by
+     * default, meaning no sharing at all until that's deliberately raised.
+     *
+     * Deliberately not scoped to `where('is_company', true)` on the other side: an
+     * individual's value is already guaranteed unique by this same rule, so the only
+     * way the count below reaches the limit is genuine company submissions sharing one
+     * on purpose — no accidental collision with an individual's own document is
+     * possible.
+     */
+    /** What each column is actually called, for a message that reads like English. */
+    private const DOCUMENT_LABELS = [
+        'pan_card' => 'PAN number',
+        'rera_number' => 'RERA number',
+        'gst_number' => 'GST number',
+    ];
+
+    private function documentSharingRule(string $column, bool $isCompany, int $profileId): \Closure
+    {
+        $label = self::DOCUMENT_LABELS[$column] ?? 'value';
+
+        return function (string $attribute, $value, \Closure $fail) use ($column, $isCompany, $profileId, $label) {
+            if (blank($value)) {
+                return;
+            }
+
+            $existing = BrokerProfile::where($column, $value)->where('id', '!=', $profileId)->count();
+
+            if ($isCompany) {
+                $limit = (int) Setting::get('company_document_share_limit', 1);
+                // The count on hand is every *other* account already using this value;
+                // this submission would make it $existing + 1 in total, so the limit
+                // is what that total may not exceed.
+                if ($existing + 1 > $limit) {
+                    $fail("This {$label} is already used by the maximum of {$limit} channel partner account" . ($limit === 1 ? '' : 's') . '.');
+                }
+                return;
+            }
+
+            if ($existing > 0) {
+                $fail("This {$label} is already registered with another channel partner account.");
+            }
+        };
     }
 
     /**

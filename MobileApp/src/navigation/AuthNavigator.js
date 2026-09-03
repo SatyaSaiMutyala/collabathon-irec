@@ -8,6 +8,7 @@ import EmailOtpVerifyScreen from '../screens/auth/EmailOtpVerifyScreen';
 import CompleteProfileScreen from '../screens/auth/CompleteProfileScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
 import PendingApprovalScreen from '../screens/auth/PendingApprovalScreen';
+import RegistrationPreviewScreen from '../screens/auth/RegistrationPreviewScreen';
 import TermsScreen from '../screens/shared/TermsScreen';
 
 const Stack = createNativeStackNavigator();
@@ -43,6 +44,11 @@ const AuthNavigator = ({initialRouteName = 'Welcome'}) => (
     <Stack.Screen name="EmailOtpVerify" component={EmailOtpVerifyScreen} />
     <Stack.Screen name="CompleteProfile" component={CompleteProfileScreen} />
     <Stack.Screen name="PendingApproval" component={PendingApprovalScreen} />
+    <Stack.Screen
+      name="RegistrationPreview"
+      component={RegistrationPreviewScreen}
+      options={{animation: 'slide_from_right'}}
+    />
     <Stack.Screen name="Terms" component={TermsScreen} options={{animation: 'slide_from_bottom'}} />
 
     {/* Registered, not linked — see the note above. */}

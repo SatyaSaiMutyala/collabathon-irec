@@ -294,15 +294,25 @@ const CompleteProfileScreen = ({navigation, route}) => {
   // as a fresh vs. resumed session for prefill purposes.
   const isIdentityLocked = isMobileLocked || isEmailLocked;
 
-  const [currentStep, setCurrentStep] = useState(() => (isResuming ? registrationStep || 1 : 1));
+  // PendingApprovalScreen's "Update Profile" wants a full review from the top,
+  // not wherever `registration_step` (the *furthest* step ever reached — 3, for
+  // anyone who got as far as pending) happens to say — so it passes this to
+  // override the usual "resume where you left off" behaviour.
+  const startAtStep = route.params?.startAtStep;
+  const [currentStep, setCurrentStep] = useState(() =>
+    startAtStep ?? (isResuming ? registrationStep || 1 : 1),
+  );
   // RootNavigator can mount this screen from the *persisted* registrationStep
   // (loaded from storage) before the boot-time `fetchMe()` re-validation — fired
   // right alongside it, not awaited — actually resolves with the server's own
   // value. If that arrives a moment later with something further along, this
   // corrects the step once. It self-disables the instant the broker does
   // anything themselves (see the ref set in the handlers below), so it can
-  // never fight a deliberate Back navigation later in the same session.
-  const hasNavigatedRef = useRef(false);
+  // never fight a deliberate Back navigation later in the same session. Also
+  // pre-disabled by `startAtStep` above — otherwise this would immediately
+  // correct straight back to registrationStep, undoing the very override that
+  // was just asked for.
+  const hasNavigatedRef = useRef(!!startAtStep);
   const [form, setForm] = useState(() =>
     buildInitialForm({mobile: mobileParam, email: emailParam, identity: user, draft: draftProfile}),
   );
@@ -391,9 +401,17 @@ const CompleteProfileScreen = ({navigation, route}) => {
     }
   }, [isResuming, registrationStep, currentStep]);
 
-  const update = key => value => setForm(prev => ({...prev, [key]: value}));
+  // Clearing the field's own red error the moment it changes — rather than leaving it
+  // sitting there until the next Next/validateStep pass — is what makes fixing a field
+  // actually read as fixed. It comes back on its own if a later validation pass finds
+  // it's still wrong (or wrong again), same as it appeared the first time.
+  const update = key => value => {
+    setForm(prev => ({...prev, [key]: value}));
+    setErrors(prev => (prev[key] ? {...prev, [key]: undefined} : prev));
+  };
 
-  const toggleCheckbox = key => () =>
+  const toggleCheckbox = key => () => {
+    setErrors(prev => (prev[key] ? {...prev, [key]: undefined} : prev));
     setForm(prev => {
       const next = {...prev, [key]: !prev[key]};
       if (key === 'sameAsResidenceAddress' && next.sameAsResidenceAddress) {
@@ -401,6 +419,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
       }
       return next;
     });
+  };
 
   const toggleArrayValue = (key, value) => {
     setForm(prev => {
@@ -435,8 +454,17 @@ const CompleteProfileScreen = ({navigation, route}) => {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.emailId.trim())) {
         next.emailId = 'Enter a valid email';
       }
+      // The server has always required this (see startRegistration/saveRegistrationStep's
+      // `name` validation) — this just catches it here too, inline, before a submit
+      // round-trips to find out.
+      if (!form.fullNameAsRera.trim()) {
+        next.fullNameAsRera = 'Enter your full name';
+      }
       if (!form.residenceAddress.trim()) {
         next.residenceAddress = 'Enter your address of communication';
+      }
+      if (!form.photoAttachment) {
+        next.photoAttachment = 'Please upload a profile picture';
       }
     } else if (step === 2) {
       // Professional info — state/city/segments/zones/project contributions stay
@@ -554,6 +582,27 @@ const CompleteProfileScreen = ({navigation, route}) => {
    */
   const documentPart = attachment =>
     attachment && !isRemoteUri(attachment.uri) ? attachment : null;
+
+  /**
+   * The `*_path` half of a step-3 attachment — three real cases, not two:
+   *
+   *   - explicitly removed (`attachment === null`, the broker tapped the trash icon)
+   *     -> real `null`, so the server actually clears the column.
+   *   - freshly picked and already uploaded this session (`.path` set by
+   *     handleAttachmentPick) -> that real path, to link it.
+   *   - untouched, resumed from an earlier save (`remoteDocument()`'s shape — a URL
+   *     to display, no `.path`) -> `undefined`.
+   *
+   * `undefined` is not "the same as null" here: toFormData() already drops it, and
+   * this makes the plain-JSON PATCH path (taken whenever nothing *new* needs
+   * uploading this submission — the common case reviewing a resumed or rejected
+   * registration) drop the key too, since JSON.stringify omits undefined-valued
+   * keys but keeps explicit nulls. Sending an explicit null here — which is what
+   * `?? null` used to do — told the server to clear a column that was already
+   * correct, wiping out an already-uploaded PAN/RERA/GST/Aadhaar scan the moment a
+   * step was resubmitted without every attachment being re-picked.
+   */
+  const attachmentPathValue = attachment => (attachment === null ? null : attachment?.path);
 
   /**
    * A step-3 document's `onPick` — instead of just holding the picked file in form
@@ -844,13 +893,12 @@ const CompleteProfileScreen = ({navigation, route}) => {
       // Same idea as pan_verified above — off the typed GSTIN alone.
       gst_verified: gstVerification.status === 'verified',
       gst_verified_name: gstVerification.status === 'verified' ? gstVerification.name : null,
-      // Only present for a document picked *this* session — see handleAttachmentPick.
-      // A resumed draft's attachment has no `.path` (it was already linked on an
-      // earlier save), so this stays null and nothing is re-sent for it.
-      pan_card_path: form.panCardAttachment?.path ?? null,
-      aadhaar_path: form.aadhaarAttachment?.path ?? null,
-      rera_certificate_path: form.reraCertificateAttachment?.path ?? null,
-      gst_path: form.gstAttachment?.path ?? null,
+      // See attachmentPathValue() — real path (freshly picked), real null (removed),
+      // or omitted entirely (untouched, already linked on an earlier save).
+      pan_card_path: attachmentPathValue(form.panCardAttachment),
+      aadhaar_path: attachmentPathValue(form.aadhaarAttachment),
+      rera_certificate_path: attachmentPathValue(form.reraCertificateAttachment),
+      gst_path: attachmentPathValue(form.gstAttachment),
       pan_card_file: documentPart(form.panCardAttachment),
       aadhaar_file: documentPart(form.aadhaarAttachment),
       rera_certificate_file: documentPart(form.reraCertificateAttachment),
@@ -858,9 +906,14 @@ const CompleteProfileScreen = ({navigation, route}) => {
       // A path, not a file: uploaded ahead of this request via POST /uploads (see
       // persistStep), same as every other KYC document — this request itself carries
       // text only, which is what actually keeps a slow-connection submit reliable.
-      // null on a resumed draft that wasn't redrawn, which correctly sends nothing
-      // and leaves whatever signature is already on file untouched.
-      signature_path: signaturePath,
+      // `?? undefined`, not left as plain `null`: `signaturePath` stays `null` on a
+      // resumed draft that wasn't redrawn, and — same bug attachmentPathValue()
+      // above fixes for the documents — a literal `null` here doesn't mean "nothing
+      // to send", it means "clear this column", which wiped an already-captured
+      // signature the moment step 3 was resubmitted without redrawing it. undefined
+      // is what actually gets dropped (by JSON.stringify and by toFormData both),
+      // leaving whatever's already on file alone.
+      signature_path: signaturePath ?? undefined,
       confirm_accuracy: form.confirmAccuracy,
     };
   };
@@ -1221,6 +1274,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
                     placeholder="e.g. Ravi Teja"
                     value={form.fullNameAsRera}
                     onChangeText={update('fullNameAsRera')}
+                    error={errors.fullNameAsRera}
                   />
                 </View>
               </View>
@@ -1291,7 +1345,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
                   // than centre-cropped later on whatever the user happened to upload.
                   crop
                   label="Profile photo"
-                  placeholder="Tap to upload a passport-size photo"
+                  placeholder="Tap to upload a profile picture"
                   error={errors.photoAttachment}
                 />
               </View>
@@ -1694,6 +1748,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
                     value={form.gstNumber}
                     onChangeText={update('gstNumber')}
                     onBlur={handleGstBlur}
+                    error={errors.gstNumber}
                   />
                   {gstVerification.status === 'verifying' && (
                     <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm}}>

@@ -205,6 +205,10 @@ Route::prefix('admin')
             Route::post('/settings/firebase', [SettingsController::class, 'updateFirebase'])->name('settings.firebase');
             Route::delete('/settings/firebase', [SettingsController::class, 'forgetFirebase'])->name('settings.firebase.forget');
             Route::post('/settings/firebase/test', [SettingsController::class, 'testFirebase'])->name('settings.firebase.test');
+            // A business rule, not routine config — same super-admin bar as the
+            // Firebase key above. See AuthController::documentSharingRule().
+            Route::patch('/settings/document-sharing', [SettingsController::class, 'updateDocumentSharing'])
+                ->name('settings.document-sharing');
         });
         Route::patch('/settings/mail', [SettingsController::class, 'updateMail'])->name('settings.mail');
         Route::post('/settings/mail/test', [SettingsController::class, 'testMail'])->name('settings.mail.test');

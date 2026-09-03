@@ -38,8 +38,31 @@ const OtpInput = ({
     }
   };
 
+  // Plain `.focus()` is a no-op once the keyboard has been dismissed without the input
+  // itself losing focus — e.g. a "hide keyboard" affordance that only resigns the
+  // keyboard, not the responder, leaves the input still logically focused, so asking it
+  // to focus again does nothing and the keyboard stays down. Forcing a real blur first
+  // makes the following focus() a genuine state change, which is what actually brings
+  // the keyboard back — but the two calls can't be back-to-back: iOS's own keyboard
+  // dismiss animation takes ~250ms, and a focus() issued while it's still mid-flight is
+  // silently dropped rather than queued. A single animation frame (~16ms) isn't enough
+  // of a gap; this waits out the dismiss first.
+  const reopenKeyboard = () => {
+    inputRef.current?.blur();
+    setTimeout(() => inputRef.current?.focus(), 120);
+  };
+
   return (
-    <Pressable onPress={() => inputRef.current?.focus()} accessibilityRole="none">
+    <Pressable
+      onPress={reopenKeyboard}
+      // A native Android EditText can claim a touch itself — even one landing on a
+      // sibling — before RN's own gesture responder ever sees it, which is what made
+      // taps on the boxes silently do nothing (confirmed via device logs: no press,
+      // no touch, nothing). `box-only` makes the Pressable the sole eligible touch
+      // target anywhere in this subtree; every child, hidden input included, is
+      // untouchable regardless of its own pointerEvents.
+      pointerEvents="box-only"
+      accessibilityRole="none">
       <View style={styles.row}>
         {Array.from({length}).map((_, index) => {
           const filled = digits[index];
@@ -72,9 +95,14 @@ const OtpInput = ({
       </View>
 
       {/* Positioned over the boxes rather than off-screen: iOS's SMS-autofill QuickType
-          bar only offers to fill a field it considers on-screen and reachable. */}
+          bar only offers to fill a field it considers on-screen and reachable.
+          `pointerEvents="none"` here too, belt-and-braces alongside the Pressable's own
+          `box-only` above — every tap on this row is routed through `reopenKeyboard`,
+          never this input's own native tap-to-focus, which is a no-op once it's
+          already (still) focused and so never actually brings the keyboard back. */}
       <TextInput
         ref={inputRef}
+        pointerEvents="none"
         value={value}
         onChangeText={handleChangeText}
         keyboardType="number-pad"

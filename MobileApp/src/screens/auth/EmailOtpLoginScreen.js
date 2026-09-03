@@ -110,11 +110,17 @@ const EmailOtpLoginScreen = ({navigation}) => {
           }}
         />
 
+        {/* Nested `Text`, not a second touchable over the line — same reasoning as
+            Checkbox's linkLabel. */}
         <AppText
           variant="caption"
           color={colors.textMuted}
           style={{marginTop: spacing.md, textAlign: 'center'}}>
-          By continuing, you agree to HRA's Partner Network terms.
+          By continuing, you agree to HRA's Partner Network{' '}
+          <AppText variant="caption" color={colors.primary} onPress={() => navigation.navigate('Terms')}>
+            terms
+          </AppText>
+          .
         </AppText>
       </KeyboardAwareScrollView>
     </ScreenContainer>

@@ -3,7 +3,7 @@ import {ActivityIndicator, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
-import {AppText, AuthHeader, OtpInput, ScreenContainer} from '../../components';
+import {AppText, AuthHeader, InfoDialog, OtpInput, ScreenContainer} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {sendEmailOtp, verifyEmailOtp} from '../../store/slices/authSlice';
 
@@ -47,6 +47,9 @@ const EmailOtpVerifyScreen = ({navigation, route}) => {
 
   const [code, setCode] = useState('');
   const [cooldown, setCooldown] = useState(RESEND_COOLDOWN_S);
+  // A one-time heads-up for what just happened on the previous screen — shown once per
+  // visit rather than tied to sendEmailOtp's own status, so a resend doesn't reopen it.
+  const [showSentNotice, setShowSentNotice] = useState(true);
 
   useEffect(() => {
     if (cooldown <= 0) {
@@ -148,6 +151,14 @@ const EmailOtpVerifyScreen = ({navigation, route}) => {
           </TouchableOpacity>
         </View>
       </View>
+
+      <InfoDialog
+        visible={showSentNotice}
+        icon="mail-outline"
+        title="Code sent"
+        message={`We've sent a one-time code to ${email}.`}
+        onDismiss={() => setShowSentNotice(false)}
+      />
     </ScreenContainer>
   );
 };

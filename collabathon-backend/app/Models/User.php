@@ -156,6 +156,11 @@ class User extends Authenticatable
         return $this->status === self::STATUS_REJECTED;
     }
 
+    public function isPending(): bool
+    {
+        return $this->status === self::STATUS_PENDING;
+    }
+
     /**
      * Why the most recent decision on this account went against them — null if it
      * was never rejected, or if a later approval superseded that rejection (an old

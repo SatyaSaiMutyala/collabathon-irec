@@ -20,7 +20,7 @@ import {Platform} from 'react-native';
 // still works even when the tunnel keeps dying. Machine-specific — update this (or
 // set back to null to use the adb-reverse/loopback path) whenever the Mac's Wi-Fi
 // IP changes.
-const LAN_HOST = '192.168.1.3';
+const LAN_HOST = '192.168.0.40';
 
 const DEV_HOST =
   LAN_HOST ??
@@ -39,7 +39,7 @@ const DEV_HOST =
 // serves `pace-backend` on 8000 sometimes, which answers every Collabathon request with
 // its own sign-in page instead, so if that's running again switch this back to 8001 (and
 // serve Collabathon with `--port 8001` instead) to avoid the collision.
-const DEV_PORT = 8001;
+const DEV_PORT = 8000;
 
 // Every endpoint in api/endpoints.js is written relative — '/auth/login', '/leads' — so
 // the version prefix belongs here. Without it those resolve to /auth/login on the host

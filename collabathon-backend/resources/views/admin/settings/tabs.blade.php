@@ -1374,6 +1374,33 @@ $openTab = in_array(request()->query('tab'), array_column($tabs, 'key'), true)
                 </form>
             </x-panel>
 
+            {{-- Company document sharing -------------------------------------
+                 An individual's PAN/RERA/GST always has to be unique (enforced
+                 unconditionally in AuthController::documentSharingRule()) — this
+                 only controls the exception for a *company* registration, where the
+                 same PAN/RERA/GST legitimately belongs to more than one person at
+                 that company. --}}
+            @can('manage-team')
+            <x-panel title="Company document sharing"
+                     subtitle="How many channel partner accounts may register as a company using the same PAN, RERA, or GST number"
+                     padded class="xl:col-span-2">
+                <form method="POST" action="{{ route('admin.settings.document-sharing') }}" class="space-y-3">
+                    @csrf @method('PATCH')
+
+                    <div class="max-w-xs">
+                        <x-field label="Maximum accounts per document" name="document_share_limit"
+                                 type="number" min="1" max="50"
+                                 :value="old('document_share_limit', $documentShareLimit)"
+                                 hint="1 = no sharing at all — a company's documents must be as unique as an individual's, same as today." />
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2.5 pt-1">
+                        <x-button variant="gold" size="sm" tag="button" type="submit" icon="check">Save</x-button>
+                    </div>
+                </form>
+            </x-panel>
+            @endcan
+
             {{-- Firebase service account ----------------------------------- --}}
             @can('manage-team')
             <x-panel title="Push notifications"

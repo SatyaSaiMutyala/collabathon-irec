@@ -1,11 +1,12 @@
-import React from 'react';
-import {View} from 'react-native';
+import React, {useState} from 'react';
+import {TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from '../../theme/scaling';
 import {roundedRadius, useAppTheme} from '../../theme';
 import {AppText, Avatar, Badge, Button, Card, ScreenContainer} from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
-import {resetAuth} from '../../store/slices/authSlice';
+import {reopenRegistration, resetAuth} from '../../store/slices/authSlice';
+import {showSnackbar} from '../../store/slices/uiSlice';
 
 /**
  * Reached only by a broker whose step-3 submit just went through, or one who
@@ -21,6 +22,31 @@ const PendingApprovalScreen = ({navigation}) => {
   // The registered user as the API returned it — approval is an admin action,
   // so this screen can only report status, never grant it.
   const user = useAppSelector(state => state.auth.user);
+  const [isReopening, setIsReopening] = useState(false);
+
+  // Lets a broker go fix something (a document, a typo) before an admin ever gets
+  // to it, rather than only after a rejection — the same `pending` -> `draft` state
+  // AuthController::reopenRegistration puts the account back into, on the same
+  // live session step 1 already issued. No route params to pass: an empty-params
+  // CompleteProfileScreen resumes purely from Redux's draftProfile, exactly like a
+  // cold-relaunch-into-draft already does (see that screen's own docblock).
+  const handleUpdateProfile = async () => {
+    setIsReopening(true);
+    const result = await dispatch(reopenRegistration());
+    setIsReopening(false);
+
+    if (reopenRegistration.fulfilled.match(result)) {
+      navigation.replace('CompleteProfile', {startAtStep: 1});
+      return;
+    }
+
+    dispatch(
+      showSnackbar({
+        message: result.payload?.message ?? 'Could not reopen your registration. Please try again.',
+        tone: 'danger',
+      }),
+    );
+  };
 
   return (
     <ScreenContainer edges={['top', 'bottom']} scroll style={{justifyContent: 'center'}}>
@@ -53,36 +79,62 @@ const PendingApprovalScreen = ({navigation}) => {
       </View>
 
       {user && (
-        <Card style={{marginBottom: spacing.xl}}>
-          <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start'}}>
-            <View style={{flexDirection: 'row', alignItems: 'center', flex: 1}}>
-              <Avatar uri={user.avatar_url} name={user.name} size="md" />
-              <View style={{marginLeft: spacing.sm, flex: 1}}>
-                <AppText variant="h3" numberOfLines={1}>
-                  {user.name}
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => navigation.navigate('RegistrationPreview')}
+          style={{marginBottom: spacing.xl}}>
+          <Card>
+            <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start'}}>
+              <View style={{flexDirection: 'row', alignItems: 'center', flex: 1}}>
+                <Avatar uri={user.avatar_url} name={user.name} size="md" />
+                <View style={{marginLeft: spacing.sm, flex: 1}}>
+                  <AppText variant="h3" numberOfLines={1}>
+                    {user.name}
+                  </AppText>
+                  <AppText
+                    variant="caption"
+                    color={colors.textSecondary}
+                    style={{marginTop: moderateScale(2)}}>
+                    {user.email}
+                  </AppText>
+                </View>
+              </View>
+              <Badge label="Pending" tone="warning" />
+            </View>
+            <View
+              style={{
+                marginTop: spacing.md,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}>
+              <AppText variant="caption" color={colors.textMuted}>
+                {user.mobile}
+              </AppText>
+              <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                <AppText variant="caption" color={colors.primary}>
+                  View Profile
                 </AppText>
-                <AppText
-                  variant="caption"
-                  color={colors.textSecondary}
-                  style={{marginTop: moderateScale(2)}}>
-                  {user.email}
-                </AppText>
+                <Icon name="chevron-forward" size={moderateScale(14)} color={colors.primary} style={{marginLeft: moderateScale(2)}} />
               </View>
             </View>
-            <Badge label="Pending" tone="warning" />
-          </View>
-          <View style={{marginTop: spacing.md}}>
-            <AppText variant="caption" color={colors.textMuted}>
-              {user.mobile}
-            </AppText>
-          </View>
-        </Card>
+          </Card>
+        </TouchableOpacity>
       )}
+
+      <Button
+        label="Update Profile"
+        icon="create-outline"
+        loading={isReopening}
+        onPress={handleUpdateProfile}
+        style={{marginBottom: spacing.sm}}
+      />
 
       <Button
         label="Back to Sign In"
         variant="outline"
         icon="arrow-back-outline"
+        disabled={isReopening}
         onPress={() => {
           // resetAuth, not clearAuthError: this account's user/token stayed in Redux
           // otherwise, and CompleteProfileScreen's prefill (buildInitialForm) reads

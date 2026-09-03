@@ -111,6 +111,23 @@ export const saveRegistrationStep = createAsyncThunk(
   },
 );
 
+/**
+ * "Update Profile" from PendingApprovalScreen — drops this still-`pending` account
+ * back to `draft` on the same live session, so CompleteProfileScreen can be reopened
+ * to fix something before an admin ever reviews it.
+ */
+export const reopenRegistration = createAsyncThunk(
+  'auth/reopenRegistration',
+  async (_, {rejectWithValue}) => {
+    try {
+      const {data} = await authApi.reopenRegistration();
+      return data;
+    } catch (error) {
+      return rejectWithValue(extractError(error));
+    }
+  },
+);
+
 export const login = createAsyncThunk(
   'auth/login',
   async ({email, password, role}, {dispatch, rejectWithValue}) => {
@@ -384,13 +401,16 @@ const authSlice = createSlice({
         state.error = null;
 
         // Step 3's real submit (not Save Draft) finalizes: the account is `pending`
-        // now, UserResource no longer sends registration_step/draft_profile at all,
-        // and there's no session left to keep signed into — same as registerBroker
-        // used to do, no token was ever issued for this status either.
+        // now, and UserResource no longer sends registration_step/draft_profile at
+        // all — but the session itself stays live. This is the same token
+        // startRegistration issued back in step 1, still perfectly valid
+        // server-side (nothing here ever revokes it), and PUSH_ROUTES/RootNavigator
+        // both already lean on a pending broker being a genuine signed-in session
+        // (device registration while waiting, "Update Profile" from
+        // PendingApprovalScreen going straight through on the same token — see
+        // reopenRegistration). Clearing it here would just be manufacturing a
+        // logged-out state nothing downstream actually wants.
         if (data.status === 'pending') {
-          setAuthToken(null);
-          state.token = null;
-          state.isLoggedIn = false;
           state.registrationStatus = 'pendingApproval';
           state.draftProfile = null;
           state.rejectionReason = null;
@@ -405,6 +425,25 @@ const authSlice = createSlice({
         state.status = 'failed';
         state.error = action.payload?.message ?? 'Could not save this step.';
         state.fieldErrors = action.payload?.errors ?? {};
+      })
+
+      .addCase(reopenRegistration.pending, state => {
+        state.status = 'loading';
+        state.error = null;
+      })
+      .addCase(reopenRegistration.fulfilled, (state, action) => {
+        const {data} = action.payload;
+        state.status = 'succeeded';
+        state.user = data;
+        state.registrationStatus = 'draft';
+        state.registrationStep = data.registration_step ?? state.registrationStep;
+        state.draftProfile = data.draft_profile ?? state.draftProfile;
+        state.rejectionReason = null;
+        state.error = null;
+      })
+      .addCase(reopenRegistration.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload?.message ?? 'Could not reopen your registration.';
       })
 
       // ------------------------------------------------ login

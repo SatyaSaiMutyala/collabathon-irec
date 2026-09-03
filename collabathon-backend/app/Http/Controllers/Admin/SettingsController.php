@@ -133,6 +133,11 @@ class SettingsController extends Controller
             // see ConfigController, the public endpoint the mobile app reads this from
             // pre-login.
             'cpLoginMethod' => Setting::get('cp_login_method', 'email'),
+            // How many channel partner accounts may share one company's PAN/RERA/GST
+            // number — see AuthController::documentSharingRule(). 1 means no sharing
+            // at all (the same strict-unique behaviour an individual always gets),
+            // which is the safer starting point until a super admin opts in.
+            'documentShareLimit' => (int) Setting::get('company_document_share_limit', 1),
             'mail' => [
                 'configured' => MailSettings::isConfigured(),
                 // The key identifies the account and is safe to show; the secret is the
@@ -419,6 +424,29 @@ class SettingsController extends Controller
         Setting::put('cp_login_method', $data['cp_login_method']);
 
         return $this->settingsResponse($request, 'Channel partner sign-in method saved.');
+    }
+
+    /**
+     * How many channel partner accounts may register with the same company PAN,
+     * RERA, or GST number — read by AuthController::documentSharingRule() on every
+     * registration step-3 save. Super-admin only: it is a business rule that changes
+     * how strictly identity documents are policed platform-wide, the same bar as the
+     * Firebase service account below rather than a normal settings toggle.
+     */
+    public function updateDocumentSharing(Request $request): RedirectResponse|JsonResponse
+    {
+        $this->authorize('manage-team');
+
+        $data = $request->validate([
+            'document_share_limit' => ['required', 'integer', 'min:1', 'max:50'],
+        ], [
+            'document_share_limit.min' => 'Enter at least 1.',
+            'document_share_limit.max' => 'That is higher than any real company needs — enter 50 or less.',
+        ]);
+
+        Setting::put('company_document_share_limit', $data['document_share_limit']);
+
+        return $this->settingsResponse($request, 'Company document sharing limit saved.');
     }
 
     /**

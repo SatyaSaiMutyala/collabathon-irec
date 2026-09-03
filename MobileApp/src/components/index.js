@@ -42,5 +42,6 @@ export {default as Skeleton} from './Skeleton';
 export * from './Skeletons';
 export {default as Snackbar} from './Snackbar';
 export {default as ConfirmDialog} from './ConfirmDialog';
+export {default as InfoDialog} from './InfoDialog';
 export {default as ProjectDecisionPanel} from './ProjectDecisionPanel';
 export {default as OtpInput} from './OtpInput';

@@ -224,19 +224,24 @@ const RootNavigator = () => {
     // Mid-registration — this is what makes reopening the app land directly on
     // whichever wizard step was last saved, instead of restarting from Welcome.
     content = <AuthNavigator initialRouteName="CompleteProfile" />;
+  } else if (isLoggedIn && role === 'broker' && registrationStatus === 'pendingApproval') {
+    // Ahead of the generic `isLoggedIn && role === 'broker'` branch below on purpose,
+    // same reasoning as the `draft` branch above it: a pending broker's step-1 token
+    // stays live straight through to approval (see the note on this in PUSH_ROUTES —
+    // it's what lets device registration and this same in-app "Update Profile" work
+    // while waiting), so without this branch that generic one would catch a pending
+    // broker first and drop them into the real app before they're approved to be
+    // there. Handles both the live in-app transition (draft -> pendingApproval while
+    // already mounted, same <AuthNavigator/> instance, prop-only update) and a cold
+    // relaunch that lands here directly, where `initialRouteName` actually takes
+    // effect on first mount.
+    content = <AuthNavigator initialRouteName="PendingApproval" />;
   } else if (isLoggedIn && role === 'broker') {
     content = <BrokerRootStack />;
   } else if (role === 'broker' && registrationStatus === 'pendingApproval') {
-    // Only matters for a *cold* relaunch that lands here directly (submitted, then
-    // force-quit before ever seeing the confirmation) — registrationStatus/role/
-    // isLoggedIn are all persisted (see store/index.js), so this branch can be true
-    // on the very first render, before any navigator exists yet, which is the one
-    // case `initialRouteName` actually takes effect. It does nothing for the live,
-    // in-app transition (draft -> pendingApproval while already mounted): that's
-    // still the same <AuthNavigator/> component at the same tree position, so React
-    // treats it as a prop update rather than a remount, and a prop change to an
-    // already-mounted navigator's initialRouteName is a no-op. CompleteProfileScreen
-    // handles that case itself with a direct `navigation.replace('PendingApproval')`.
+    // Same screen, for the case above's precondition (isLoggedIn) not holding — a
+    // pending broker who reached this status through a 403 on login/verify rather
+    // than a live wizard session (no token was ever issued down that path).
     content = <AuthNavigator initialRouteName="PendingApproval" />;
   } else {
     content = <AuthNavigator />;
