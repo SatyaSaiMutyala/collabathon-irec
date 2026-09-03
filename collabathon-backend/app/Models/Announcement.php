@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Support\FileStorage;
 
 /** One manual push an admin sent — see the migration for what is and isn't recorded here. */
@@ -14,6 +15,8 @@ use App\Support\FileStorage;
 ])]
 class Announcement extends Model
 {
+    use SoftDeletes;
+
     public function sender(): BelongsTo
     {
         return $this->belongsTo(User::class, 'sent_by');

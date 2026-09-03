@@ -30,8 +30,14 @@
                     <label class="relative block">
                         <span class="sr-only">{{ $searchPlaceholder }}</span>
                         <x-icon name="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-3 pointer-events-none" />
+                        {{-- Clearing the box — backspacing it out, or the browser's own
+                             × button on a search input (which also fires `input`) —
+                             reloads immediately instead of waiting for Enter. Guarded to
+                             the transition into empty only, so normal typing never
+                             submits mid-word. --}}
                         <input type="search" name="search" value="{{ request('search') }}"
                                placeholder="{{ $searchPlaceholder }}"
+                               x-on:input="if (! $event.target.value) $event.target.form.requestSubmit()"
                                class="w-full h-9 pl-9 pr-3 rounded-lg bg-canvas border border-transparent shadow-card text-[13px] text-ink
                                       placeholder:text-ink-3 hover:border-line focus:bg-panel focus:border-primary-ring
                                       focus:outline-none transition-colors">

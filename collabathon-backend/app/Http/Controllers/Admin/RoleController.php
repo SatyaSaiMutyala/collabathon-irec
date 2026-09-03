@@ -50,14 +50,37 @@ class RoleController extends Controller
         return back()->with('status', "Role \"{$data['name']}\" updated.");
     }
 
+    /** Moves the role to Trash — reversible, see restore(). Its permissions are untouched. */
     public function destroy(Role $role): RedirectResponse
     {
         abort_if($role->is_system, 403, 'The Super Admin role cannot be deleted.');
-        abort_if($role->users()->exists(), 422, 'Reassign staff off this role before deleting it.');
+        // A trashed team member doesn't count as "still assigned" — they no longer show
+        // up anywhere in the admin panel, so a role only they held should not be stuck
+        // undeletable because of them.
+        abort_if($role->users()->whereNull('deleted_at')->exists(), 422, 'Reassign staff off this role before deleting it.');
 
         $role->delete();
 
-        return back()->with('warning', "Role \"{$role->name}\" deleted.");
+        return back()->with('warning', "Role \"{$role->name}\" was moved to Trash.");
+    }
+
+    /** Undoes destroy() — the role and its permissions come back exactly as they were. */
+    public function restore(int $role): RedirectResponse
+    {
+        $role = Role::onlyTrashed()->findOrFail($role);
+        $role->restore();
+
+        return redirect()->route('admin.trash')->with('success', "Role \"{$role->name}\" was restored.");
+    }
+
+    /** The irreversible version of destroy() — only reachable from Trash. */
+    public function forceDelete(int $role): RedirectResponse
+    {
+        $role = Role::onlyTrashed()->findOrFail($role);
+        $name = $role->name;
+        $role->forceDelete();
+
+        return redirect()->route('admin.trash')->with('warning', "Role \"{$name}\" was permanently deleted.");
     }
 
     /** @return array{name: string, permissions: array<string, array{view: bool, edit: bool, delete: bool}>} */

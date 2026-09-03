@@ -141,9 +141,16 @@ class User extends Authenticatable
     }
 
     /** Only an active account may hold a token or a session. */
+    /**
+     * `deleted_at` here means an admin moved this account to Trash (see Team/Channel
+     * Partners/Approvals controllers) — a second, independent gate from `status`, which
+     * still carries its own meaning (active/pending/inactive/etc.) untouched by a trash
+     * action. Checking both here means every sign-in path is protected by one line
+     * rather than each needing to remember to check `deleted_at` on top of `status`.
+     */
     public function isActive(): bool
     {
-        return $this->status === self::STATUS_ACTIVE;
+        return $this->status === self::STATUS_ACTIVE && $this->deleted_at === null;
     }
 
     public function isDraft(): bool

@@ -13,10 +13,27 @@
         </x-slot:actions>
     </x-page-header>
 
+    {{-- "Approved"/"Rejected" are all-time counts (no window), "Decided (30d)" is the
+         reverse — a window with no outcome. Each card explicitly nulls out the other
+         card's key rather than only merging its own in, so clicking between them always
+         shows a clean, correctly-matching view instead of one silently narrowing the
+         other (the CP-page bug, see cp.blade.php's own note). --}}
     <div class="grid grid-cols-3 gap-3.5 mb-5">
-        <x-stat-card icon="check" label="Approved" :value="$stats['approved']" />
-        <x-stat-card icon="x" label="Rejected" :value="$stats['rejected']" />
-        <x-stat-card icon="clock" label="Decided (30d)" :value="$stats['last_30d']" />
+        <a href="{{ request()->fullUrlWithQuery(['outcome' => 'approved', 'window' => null, 'page' => null]) }}" class="block">
+            <x-stat-card icon="check" label="Approved" :value="$stats['approved']"
+                         :class="(request('outcome') === 'approved' ? 'border-primary-ring shadow-md ' : '')
+                             . 'hover:border-ink-3 transition-colors cursor-pointer'" />
+        </a>
+        <a href="{{ request()->fullUrlWithQuery(['outcome' => 'rejected', 'window' => null, 'page' => null]) }}" class="block">
+            <x-stat-card icon="x" label="Rejected" :value="$stats['rejected']"
+                         :class="(request('outcome') === 'rejected' ? 'border-primary-ring shadow-md ' : '')
+                             . 'hover:border-ink-3 transition-colors cursor-pointer'" />
+        </a>
+        <a href="{{ request()->fullUrlWithQuery(['window' => '30d', 'outcome' => null, 'page' => null]) }}" class="block">
+            <x-stat-card icon="clock" label="Decided (30d)" :value="$stats['last_30d']"
+                         :class="(request('window') === '30d' ? 'border-primary-ring shadow-md ' : '')
+                             . 'hover:border-ink-3 transition-colors cursor-pointer'" />
+        </a>
     </div>
 
     <x-data-table
@@ -102,7 +119,7 @@
                         <form method="POST" action="{{ route('admin.approvals.destroy', $decision->broker) }}"
                               x-on:submit.prevent="$dispatch('confirm-request', { ...{{ $deletePayload }}, form: $el })">
                             @csrf @method('DELETE')
-                            <x-button variant="danger-ghost" size="sm" icon="x" tag="button" type="submit"
+                            <x-button variant="danger-ghost" size="sm" icon="trash" tag="button" type="submit"
                                       aria-label="Delete {{ $decision->broker->name }}" />
                         </form>
                     @endif

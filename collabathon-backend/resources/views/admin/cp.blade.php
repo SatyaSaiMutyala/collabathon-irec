@@ -204,11 +204,36 @@
         </x-slot:actions>
     </x-page-header>
 
+    {{-- "Active partners" excludes inactive (self-deleted) brokers — the roster below
+         includes both, so this number can genuinely be lower than the page's total row
+         count. All three cards below share different query keys (status / type /
+         joined), so each one explicitly nulls out the *other two* rather than only
+         merging its own in — otherwise clicking one after another silently ANDs the
+         filters together (e.g. "active AND company AND joined in 30d"), which can
+         collapse to a smaller or empty result and look like the second click "doesn't
+         work" (see the Listings page's own copy of this note for the bug this fixes). --}}
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-5">
-        <x-stat-card icon="users" label="Active partners" :value="$stats['total']" />
-        <x-stat-card icon="building" label="Registered as company" :value="$stats['companies']" />
-        <x-stat-card icon="sparkles" label="Joined (30d)" :value="$stats['joined_30d']" />
-        <x-stat-card icon="list" label="Cities covered" :value="$stats['cities']" />
+        <a href="{{ request()->fullUrlWithQuery(['status' => 'active', 'type' => null, 'joined' => null, 'page' => null]) }}" class="block">
+            <x-stat-card icon="users" label="Active partners" :value="$stats['total']"
+                         :class="(request('status') === 'active' ? 'border-primary-ring shadow-md ' : '')
+                             . 'hover:border-ink-3 transition-colors cursor-pointer'" />
+        </a>
+        <a href="{{ request()->fullUrlWithQuery(['type' => 'company', 'status' => null, 'joined' => null, 'page' => null]) }}" class="block">
+            <x-stat-card icon="building" label="Registered as company" :value="$stats['companies']"
+                         :class="(request('type') === 'company' ? 'border-primary-ring shadow-md ' : '')
+                             . 'hover:border-ink-3 transition-colors cursor-pointer'" />
+        </a>
+        <a href="{{ request()->fullUrlWithQuery(['joined' => '30d', 'status' => null, 'type' => null, 'page' => null]) }}" class="block">
+            <x-stat-card icon="sparkles" label="Joined (30d)" :value="$stats['joined_30d']"
+                         :class="(request('joined') === '30d' ? 'border-primary-ring shadow-md ' : '')
+                             . 'hover:border-ink-3 transition-colors cursor-pointer'" />
+        </a>
+        {{-- Not a filter — "8 cities" has no single value to jump to, it's a spread
+             across many. Clicking it just says so, rather than doing nothing and
+             looking broken the way an unlabelled plain card did. --}}
+        <x-stat-card icon="list" label="Cities covered" :value="$stats['cities']"
+                     class="hover:border-ink-3 transition-colors cursor-pointer"
+                     x-on:click="window.toast?.('Cities covered is for viewing only — open the City filter below to browse a specific one.', 'info')" />
     </div>
 
     <x-data-table
@@ -226,6 +251,9 @@
             <x-filter-select name="type"
                              :options="['company' => 'Company', 'individual' => 'Individual']"
                              placeholder="Any type" />
+            <x-filter-select name="member_type"
+                             :options="\App\Models\BrokerProfile::MEMBER_TYPES"
+                             placeholder="Any member type" />
         </x-slot:filters>
 
         <x-slot:head>
@@ -342,7 +370,7 @@
                     <form method="POST" action="{{ route('admin.cp.destroy', $partner) }}"
                           x-on:submit.prevent="$dispatch('confirm-request', { ...{{ $deletePayload }}, form: $el })">
                         @csrf @method('DELETE')
-                        <x-button variant="danger-ghost" size="sm" icon="x" tag="button" type="submit"
+                        <x-button variant="danger-ghost" size="sm" icon="trash" tag="button" type="submit"
                                   aria-label="Delete {{ $partner->name }}" />
                     </form>
                 </td>

@@ -3,8 +3,12 @@
     refresh this whole block in place instead of a full page reload. `data-ajax-panel`
     marks it for app.js's generic panel mechanism (same one Team's table uses): any
     link or GET form inside this element is fetched and swapped back in, rather than
-    navigating. The per-row Approve button is deliberately NOT part of that contract —
+    navigating. The per-row Delete button is deliberately NOT part of that contract —
     same reasoning as Team's row actions — it stays a real POST/redirect.
+
+    There's no inline Approve here — Member Type is required before a broker can be
+    approved (see approvals/partials/detail.blade.php's approve form), and a table row
+    has nowhere to pick it from. Review is the only path to Approve.
 
     This exact file is what both ApprovalController::index()'s full-page branch and its
     ajax() fragment branch render — never two versions of the same table to keep in
@@ -75,16 +79,14 @@
                     <div class="flex items-center justify-end gap-1.5">
                         {{-- The full registration is ~34 fields plus documents — too
                              much for a drawer, so review happens on its own page. --}}
+                        {{-- No inline Approve here on purpose — Member Type is required
+                             before a broker can be approved (see the review page's
+                             approve form), and there's nowhere to pick it from a table
+                             row. Review is the only path to Approve now. --}}
                         <x-button variant="subtle" size="sm" tag="a"
                                   href="{{ route('admin.approvals.show', [$broker, 'from' => 'approvals']) }}">
                             Review
                         </x-button>
-
-                        <form method="POST" action="{{ route('admin.approvals.approve', $broker) }}">
-                            @csrf
-                            <x-button variant="success-ghost" size="sm" icon="check" tag="button" type="submit"
-                                      aria-label="Approve {{ $broker->name }}" />
-                        </form>
 
                         @php
                             // Rejecting keeps the row in the queue forever; this is for the
@@ -101,7 +103,7 @@
                         <form method="POST" action="{{ route('admin.approvals.destroy', $broker) }}"
                               x-on:submit.prevent="$dispatch('confirm-request', { ...{{ $deletePayload }}, form: $el })">
                             @csrf @method('DELETE')
-                            <x-button variant="danger-ghost" size="sm" icon="x" tag="button" type="submit"
+                            <x-button variant="danger-ghost" size="sm" icon="trash" tag="button" type="submit"
                                       aria-label="Delete {{ $broker->name }}" />
                         </form>
                     </div>

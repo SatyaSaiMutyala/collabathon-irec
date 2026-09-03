@@ -61,6 +61,19 @@ class LeadController extends Controller
     ];
 
     /**
+     * The funnel stat cards on index()/developer() pass their bucket as `?status=`
+     * (matching the same values Lead::STATUS_* and the project-tier filter dropdown
+     * already use) — this maps that value to which of the four withLeadCounts()
+     * columns to filter rollup rows by.
+     */
+    private const STATUS_TO_COUNT_COLUMN = [
+        'requested' => 'requests_count',
+        'accepted' => 'accepted_count',
+        'declined' => 'declined_count',
+        'interested' => 'pending_count',
+    ];
+
+    /**
      * A correlated COUNT over `leads`, as a subquery.
      *
      * These four counts used to come from a leftJoin plus `GROUP BY developers.id` with
@@ -116,7 +129,15 @@ class LeadController extends Controller
         $developers = Developer::query()
             ->select('developers.*')
             ->when($ownerId, fn ($q) => $q->where('developers.id', $ownerId))
-            ->when($search !== '', fn ($q) => $q->where('developers.company_name', 'like', "%{$search}%"));
+            ->when($search !== '', fn ($q) => $q->where('developers.company_name', 'like', "%{$search}%"))
+            // Behind the funnel stat cards above the table — each one only makes sense
+            // as "developers with at least one lead in that bucket", since a single
+            // developer can have leads in every bucket at once. An unrecognised value
+            // is simply ignored rather than guessed at.
+            ->when(
+                isset(self::STATUS_TO_COUNT_COLUMN[$request->query('status')]),
+                fn ($q) => $q->having(self::STATUS_TO_COUNT_COLUMN[$request->query('status')], '>', 0)
+            );
 
         $this->withLeadCounts($developers, 'developer_id', 'developers.id', $propertyId);
 
@@ -182,7 +203,12 @@ class LeadController extends Controller
             ->select('properties.*')
             ->where('properties.developer_id', $developer->id)
             ->when($search !== '', fn ($q) => $q->where('properties.name', 'like', "%{$search}%"))
-            ->when($projectType, fn ($q) => $q->where('properties.project_type', $projectType));
+            ->when($projectType, fn ($q) => $q->where('properties.project_type', $projectType))
+            // Same reasoning as index()'s status filter — see STATUS_TO_COUNT_COLUMN.
+            ->when(
+                isset(self::STATUS_TO_COUNT_COLUMN[$request->query('status')]),
+                fn ($q) => $q->having(self::STATUS_TO_COUNT_COLUMN[$request->query('status')], '>', 0)
+            );
 
         $this->withLeadCounts($properties, 'property_id', 'properties.id');
 

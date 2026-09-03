@@ -190,12 +190,16 @@
     {{-- Coverage rather than commercials: on a directory of companies the useful summary
          is where they are, not how many listings they hold. --}}
     <div class="grid grid-cols-2 md:grid-cols-5 gap-3.5 mb-5">
-        <x-stat-card icon="building" label="Total developers" :value="$totals['all']" />
+        {{-- Full reset, not a merge — "Total developers" means every record, so it
+             clears search/country/city/status rather than layering onto whatever is
+             already active. --}}
+        <a href="{{ route('admin.developers') }}" class="block h-full">
+            <x-stat-card icon="building" label="Total developers" :value="$totals['all']"
+                class="h-full hover:border-ink-3 transition-colors cursor-pointer" />
+        </a>
 
-        {{-- The one filterable tile: jumps the list below to status=active, keeping
-             whatever search/country/city filter is already applied. The other four
-             tiles are coverage counts with no matching row-level filter, so they stay
-             plain reads rather than links to nowhere. --}}
+        {{-- The one filterable-to-a-value tile: jumps the list below to status=active,
+             keeping whatever search/country/city filter is already applied. --}}
         <a href="{{ request()->fullUrlWithQuery(['status' => 'active', 'page' => null]) }}" class="block h-full">
             <x-stat-card icon="check" label="Active" :value="$totals['active']"
                 :class="(request('status') === 'active' ? 'border-primary-ring shadow-md ' : '')
@@ -203,9 +207,17 @@
                        transition-[border-color,box-shadow] duration-200 ease-out cursor-pointer'" />
         </a>
 
-        <x-stat-card icon="map-pin" label="Countries" :value="$totals['countries']" />
-        <x-stat-card icon="map-pin" label="States" :value="$totals['states']" />
-        <x-stat-card icon="map-pin" label="Cities" :value="$totals['cities']" />
+        {{-- Coverage counts spread across many values, not one to jump to — clicking
+             says so instead of doing nothing and looking broken. --}}
+        <x-stat-card icon="map-pin" label="Countries" :value="$totals['countries']"
+            class="h-full hover:border-ink-3 transition-colors cursor-pointer"
+            x-on:click="window.toast?.('Countries is for viewing only — open the Country filter below to browse a specific one.', 'info')" />
+        <x-stat-card icon="map-pin" label="States" :value="$totals['states']"
+            class="h-full hover:border-ink-3 transition-colors cursor-pointer"
+            x-on:click="window.toast?.('States is for viewing only — no state filter exists below, but Country and City both narrow the list.', 'info')" />
+        <x-stat-card icon="map-pin" label="Cities" :value="$totals['cities']"
+            class="h-full hover:border-ink-3 transition-colors cursor-pointer"
+            x-on:click="window.toast?.('Cities is for viewing only — open the City filter below to browse a specific one.', 'info')" />
     </div>
 
     <x-data-table
@@ -313,14 +325,15 @@
                                 'name' => $dev->company_name,
                                 'action' => route('admin.developers.password', $dev),
                             ]);
-                            // properties and leads both cascade on developers.id, so the
-                            // count goes in the prompt rather than being a nasty surprise.
+                            // Soft delete — moves to Trash, not gone. properties_count is
+                            // just informational here; nothing cascades until forceDelete()
+                            // is reached from Trash, see admin.trash.
                             $deletePayload = \Illuminate\Support\Js::from([
-                                'title' => 'Delete this developer?',
+                                'title' => 'Move this developer to Trash?',
                                 'message' => "{$dev->company_name}, its login account and "
                                     . $dev->properties_count . ' listing' . ($dev->properties_count === 1 ? '' : 's')
-                                    . ' will be permanently deleted. This cannot be undone.',
-                                'confirmLabel' => 'Delete developer',
+                                    . ' will be hidden from the platform. It can be restored from Trash, or deleted permanently from there.',
+                                'confirmLabel' => 'Move to Trash',
                                 'tone' => 'danger',
                             ]);
                         @endphp
@@ -352,8 +365,8 @@
                         <form method="POST" action="{{ route('admin.developers.destroy', $dev) }}"
                               x-on:submit.prevent="$dispatch('confirm-request', { ...{{ $deletePayload }}, form: $el }); close()">
                             @csrf @method('DELETE')
-                            <x-dropdown-item icon="x" tone="danger" tag="button" type="submit">
-                                Delete developer
+                            <x-dropdown-item icon="trash" tone="danger" tag="button" type="submit">
+                                Move to Trash
                             </x-dropdown-item>
                         </form>
                     </x-dropdown>

@@ -98,8 +98,8 @@ class Lead extends Model
         }
 
         return $query->where(function (Builder $q) use ($term) {
-            $q->whereHas('broker', fn ($b) => $b->where('name', 'like', $term . '%'))
-                ->orWhereHas('property', fn ($p) => $p->where('name', 'like', $term . '%'));
+            $q->whereHas('broker', fn ($b) => $b->where('name', 'like', '%' . $term . '%'))
+                ->orWhereHas('property', fn ($p) => $p->where('name', 'like', '%' . $term . '%'));
         });
     }
 }

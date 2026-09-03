@@ -38,6 +38,7 @@ $paths = [
     'external' => '<path d="M14 4h6v6"/><path d="M20 4l-8.5 8.5"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
     'shield' => '<path d="M12 3l7 3v5.5c0 4.2-2.9 7.8-7 9-4.1-1.2-7-4.8-7-9V6l7-3Z"/><path d="M9 12l2 2 4-4"/>',
     'inbox' => '<path d="M4 13h4l1.5 2.5h5L16 13h4"/><path d="M4.5 13 6.8 5.6A1 1 0 0 1 7.8 5h8.4a1 1 0 0 1 1 .7L19.5 13v5a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-5Z"/>',
+    'trash' => '<path d="M4 7h16"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/><path d="M6 7l1 12.5a2 2 0 0 0 2 1.5h6a2 2 0 0 0 2-1.5L18 7"/><path d="M10 11v6M14 11v6"/>',
     // A spreadsheet grid and a text document — the two export formats. `list` and
     // `external` stood in for them and read as "a list" and "a link", which is not what
     // an Excel/PDF choice is asking.

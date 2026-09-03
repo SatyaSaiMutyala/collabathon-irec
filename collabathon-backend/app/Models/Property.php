@@ -155,9 +155,9 @@ class Property extends Model
         }
 
         return $query->where(function (Builder $q) use ($term) {
-            $q->where('name', 'like', $term . '%')
-                ->orWhere('locality', 'like', $term . '%')
-                ->orWhere('city', 'like', $term . '%');
+            $q->where('name', 'like', '%' . $term . '%')
+                ->orWhere('locality', 'like', '%' . $term . '%')
+                ->orWhere('city', 'like', '%' . $term . '%');
         });
     }
 

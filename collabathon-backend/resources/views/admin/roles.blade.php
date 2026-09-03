@@ -80,7 +80,7 @@
                             <form method="POST" action="{{ route('admin.roles.destroy', $role) }}"
                                   x-on:submit.prevent="$dispatch('confirm-request', { ...{{ $deletePayload }}, form: $el })">
                                 @csrf @method('DELETE')
-                                <x-button variant="danger-ghost" size="sm" tag="button" type="submit" icon="x">
+                                <x-button variant="danger-ghost" size="sm" tag="button" type="submit" icon="trash">
                                     Delete
                                 </x-button>
                             </form>

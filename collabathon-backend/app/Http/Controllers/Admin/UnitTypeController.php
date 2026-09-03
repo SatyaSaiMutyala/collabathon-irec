@@ -86,6 +86,7 @@ class UnitTypeController extends Controller
         return $this->backToPanel($request, "Unit type “{$unitType->name}” updated.");
     }
 
+    /** Moves the unit type to Trash — reversible, see restore(). */
     public function destroy(Request $request, UnitType $unitType): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
@@ -104,6 +105,29 @@ class UnitTypeController extends Controller
         $name = $unitType->name;
         $unitType->delete();
 
-        return $this->backToPanel($request, "Unit type “{$name}” removed.", 'warning');
+        return $this->backToPanel($request, "Unit type “{$name}” moved to Trash.", 'warning');
+    }
+
+    /** Undoes destroy(). */
+    public function restore(int $unitType): RedirectResponse
+    {
+        $this->authorize('edit-module', 'settings');
+
+        $unitType = UnitType::onlyTrashed()->findOrFail($unitType);
+        $unitType->restore();
+
+        return redirect()->route('admin.trash')->with('success', "Unit type “{$unitType->name}” was restored.");
+    }
+
+    /** The irreversible version of destroy() — only reachable from Trash. */
+    public function forceDelete(int $unitType): RedirectResponse
+    {
+        $this->authorize('edit-module', 'settings');
+
+        $unitType = UnitType::onlyTrashed()->findOrFail($unitType);
+        $name = $unitType->name;
+        $unitType->forceDelete();
+
+        return redirect()->route('admin.trash')->with('warning', "Unit type “{$name}” was permanently deleted.");
     }
 }

@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /** The ~34 registration fields the mobile app collects, hanging off the broker's user row. */
 #[Fillable([
     'user_id', 'registration_step', 'verified_channel', 'alternate_mobile', 'residence_address', 'photo_path',
-    'is_company', 'company_name', 'office_address', 'company_website',
+    'is_company', 'member_type', 'company_name', 'office_address', 'company_website',
     'instagram', 'facebook', 'youtube', 'twitter', 'linkedin',
     'years_of_experience', 'team_size',
     'pan_card', 'pan_card_path', 'pan_verified', 'pan_verified_name', 'pan_verified_at',
@@ -23,6 +23,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class BrokerProfile extends Model
 {
+    /** The only values `member_type` may hold — set by the admin, not the broker. */
+    public const MEMBER_TYPES = ['HRA', 'NAR', 'Non HRA'];
+
     protected function casts(): array
     {
         return [

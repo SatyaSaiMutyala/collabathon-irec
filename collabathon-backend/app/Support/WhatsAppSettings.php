@@ -36,6 +36,17 @@ class WhatsAppSettings
     public const KEY_TEMPLATE_NAMESPACE = 'whatsapp_template_namespace';
     public const KEY_TEMPLATE_LANGUAGE = 'whatsapp_template_language';
 
+    // A second, independent template — same account, same integrated number, but a
+    // distinct approval. Meta's Authentication category (used above for OTP) is locked
+    // to a bare code; sending a name/email/password needs a Utility-category template,
+    // which is a separate submission on the MSG91/WhatsApp Business dashboard. Kept
+    // optional everywhere below: until this is approved and its name saved here,
+    // sending credentials over WhatsApp is simply skipped — email remains the channel
+    // that always works.
+    public const KEY_CREDENTIALS_TEMPLATE_NAME = 'whatsapp_credentials_template_name';
+    public const KEY_CREDENTIALS_TEMPLATE_NAMESPACE = 'whatsapp_credentials_template_namespace';
+    public const KEY_CREDENTIALS_TEMPLATE_LANGUAGE = 'whatsapp_credentials_template_language';
+
     public const ENV_SANDBOX = 'sandbox';
     public const ENV_PRODUCTION = 'production';
 
@@ -129,6 +140,40 @@ class WhatsAppSettings
         return filled(self::activeToken())
             && filled(self::integratedNumber())
             && filled(self::templateName());
+    }
+
+    public static function credentialsTemplateName(): ?string
+    {
+        return Setting::get(self::KEY_CREDENTIALS_TEMPLATE_NAME);
+    }
+
+    public static function credentialsTemplateNamespace(): ?string
+    {
+        return Setting::get(self::KEY_CREDENTIALS_TEMPLATE_NAMESPACE);
+    }
+
+    public static function credentialsTemplateLanguage(): string
+    {
+        return Setting::get(self::KEY_CREDENTIALS_TEMPLATE_LANGUAGE) ?: 'en';
+    }
+
+    public static function putCredentialsConfig(string $templateName, ?string $namespace, string $language): void
+    {
+        Setting::put(self::KEY_CREDENTIALS_TEMPLATE_NAME, $templateName);
+        Setting::put(self::KEY_CREDENTIALS_TEMPLATE_NAMESPACE, $namespace);
+        Setting::put(self::KEY_CREDENTIALS_TEMPLATE_LANGUAGE, $language ?: 'en');
+    }
+
+    /**
+     * Same shape as {@see isConfigured()} but for the credentials template — kept
+     * separate because this one is allowed to be unset. The auth key and integrated
+     * number are shared with the OTP template above; only the template name is its own.
+     */
+    public static function isCredentialsConfigured(): bool
+    {
+        return filled(self::activeToken())
+            && filled(self::integratedNumber())
+            && filled(self::credentialsTemplateName());
     }
 
     private static function decrypt(string $key): ?string

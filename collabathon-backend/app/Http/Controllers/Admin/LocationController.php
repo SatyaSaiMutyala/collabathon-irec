@@ -78,13 +78,48 @@ class LocationController extends Controller
         return $this->backTo($request, ['country' => $country->id], 'Country updated.');
     }
 
+    /**
+     * Moves the country — and everything under it — to Trash. Reversible per row, see
+     * restoreCountry(); restoring the country does not also restore its states/cities,
+     * each is its own row in Trash.
+     *
+     * The database's cascade only fires on a real DELETE — this is a soft one (an
+     * UPDATE), so cascading down to states and their cities has to happen here by
+     * hand, or they would keep showing up everywhere this country no longer does. See
+     * forceDeleteCountry() for the irreversible version, where the real cascade fires.
+     */
     public function destroyCountry(Request $request, Country $country): RedirectResponse|JsonResponse
     {
         $name = $country->name;
-        // Cascades to states and their cities — see the migration's docblock.
+        $stateIds = State::where('country_id', $country->id)->pluck('id');
+
+        City::whereIn('state_id', $stateIds)->delete();
+        State::where('country_id', $country->id)->delete();
         $country->delete();
 
-        return $this->backTo($request, ['country' => null, 'state' => null], "Country “{$name}” and everything under it were removed.");
+        return $this->backTo($request, ['country' => null, 'state' => null], "Country “{$name}” and everything under it were moved to Trash.");
+    }
+
+    /** Undoes destroyCountry() — only this row; its states/cities are restored separately. */
+    public function restoreCountry(int $country): RedirectResponse
+    {
+        $country = Country::onlyTrashed()->findOrFail($country);
+        $country->restore();
+
+        return redirect()->route('admin.trash')->with('success', "Country “{$country->name}” was restored.");
+    }
+
+    /** The irreversible version of destroyCountry() — only reachable from Trash. */
+    public function forceDeleteCountry(int $country): RedirectResponse
+    {
+        $country = Country::onlyTrashed()->findOrFail($country);
+        $name = $country->name;
+        // A real DELETE this time — the database's own cascade removes every state and
+        // city under it for good, trashed or not.
+        $country->forceDelete();
+
+        return redirect()->route('admin.trash')
+            ->with('warning', "Country “{$name}” and everything under it were permanently deleted.");
     }
 
     // ------------------------------------------------------------------ states
@@ -119,13 +154,35 @@ class LocationController extends Controller
         return $this->backTo($request, ['country' => $state->country_id, 'state' => $state->id], 'State updated.');
     }
 
+    /** Moves the state — and its cities — to Trash. See destroyCountry()'s note on why the cascade is manual here. */
     public function destroyState(Request $request, State $state): RedirectResponse|JsonResponse
     {
         $name = $state->name;
         $countryId = $state->country_id;
+
+        City::where('state_id', $state->id)->delete();
         $state->delete();
 
-        return $this->backTo($request, ['country' => $countryId, 'state' => null], "State “{$name}” and its cities were removed.");
+        return $this->backTo($request, ['country' => $countryId, 'state' => null], "State “{$name}” and its cities were moved to Trash.");
+    }
+
+    /** Undoes destroyState() — only this row; its cities are restored separately. */
+    public function restoreState(int $state): RedirectResponse
+    {
+        $state = State::onlyTrashed()->findOrFail($state);
+        $state->restore();
+
+        return redirect()->route('admin.trash')->with('success', "State “{$state->name}” was restored.");
+    }
+
+    /** The irreversible version of destroyState() — only reachable from Trash. */
+    public function forceDeleteState(int $state): RedirectResponse
+    {
+        $state = State::onlyTrashed()->findOrFail($state);
+        $name = $state->name;
+        $state->forceDelete();
+
+        return redirect()->route('admin.trash')->with('warning', "State “{$name}” and its cities were permanently deleted.");
     }
 
     // ------------------------------------------------------------------ cities
@@ -165,6 +222,7 @@ class LocationController extends Controller
         ], 'City updated.');
     }
 
+    /** Moves the city to Trash — reversible, see restoreCity(). */
     public function destroyCity(Request $request, City $city): RedirectResponse|JsonResponse
     {
         $name = $city->name;
@@ -172,6 +230,25 @@ class LocationController extends Controller
         $countryId = $city->state->country_id;
         $city->delete();
 
-        return $this->backTo($request, ['country' => $countryId, 'state' => $stateId], "City “{$name}” was removed.");
+        return $this->backTo($request, ['country' => $countryId, 'state' => $stateId], "City “{$name}” was moved to Trash.");
+    }
+
+    /** Undoes destroyCity(). */
+    public function restoreCity(int $city): RedirectResponse
+    {
+        $city = City::onlyTrashed()->findOrFail($city);
+        $city->restore();
+
+        return redirect()->route('admin.trash')->with('success', "City “{$city->name}” was restored.");
+    }
+
+    /** The irreversible version of destroyCity() — only reachable from Trash. */
+    public function forceDeleteCity(int $city): RedirectResponse
+    {
+        $city = City::onlyTrashed()->findOrFail($city);
+        $name = $city->name;
+        $city->forceDelete();
+
+        return redirect()->route('admin.trash')->with('warning', "City “{$name}” was permanently deleted.");
     }
 }

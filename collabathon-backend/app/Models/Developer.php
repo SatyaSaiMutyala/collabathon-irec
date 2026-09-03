@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /** A developer company. Created by an admin — developers never self-register. */
 #[Fillable([
-    'user_id', 'company_name', 'contact_person', 'mobile', 'email', 'city', 'state',
+    'user_id', 'external_reference_code', 'company_name', 'contact_person', 'mobile', 'email', 'city', 'state',
     'logo_path', 'about', 'cp_payout_percent', 'verified', 'status',
     // Contacts. `key_contact_*`'s number/email are masked to a broker until this
     // developer accepts their lead — see DeveloperResource::withContact().
@@ -22,6 +23,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 ])]
 class Developer extends Model
 {
+    use SoftDeletes;
+
     protected function casts(): array
     {
         return [
@@ -31,6 +34,7 @@ class Developer extends Model
             // "17.4401000" and compare unequal to the float the form posted.
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
+            'deleted_at' => 'datetime',
         ];
     }
 

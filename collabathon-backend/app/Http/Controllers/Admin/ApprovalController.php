@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Concerns\HandlesListQueries;
 use App\Http\Controllers\Controller;
 use App\Mail\BrokerApprovedMail;
+use App\Mail\BrokerRejectedMail;
 use App\Models\ApprovalDecision;
+use App\Models\BrokerProfile;
 use App\Models\User;
 use App\Services\AadhaarXmlReader;
 use App\Services\BrokerAccountDeleter;
@@ -18,6 +20,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
@@ -37,13 +40,14 @@ class ApprovalController extends Controller
     {
         $pending = User::role(User::ROLE_BROKER)
             ->status(User::STATUS_PENDING)
+            ->whereNull('deleted_at')
             ->with('brokerProfile')
             ->when($request->query('search'), function ($q, $term) {
-                $q->where(fn ($w) => $w->where('name', 'like', $term . '%')
-                    ->orWhere('email', 'like', $term . '%')
+                $q->where(fn ($w) => $w->where('name', 'like', '%' . $term . '%')
+                    ->orWhere('email', 'like', '%' . $term . '%')
                     ->orWhereHas('brokerProfile', fn ($p) => $p
-                        ->where('company_name', 'like', $term . '%')
-                        ->orWhere('rera_number', 'like', $term . '%')));
+                        ->where('company_name', 'like', '%' . $term . '%')
+                        ->orWhere('rera_number', 'like', '%' . $term . '%')));
             })
             ->when($request->query('city'), fn ($q, $v) => $q
                 ->whereHas('brokerProfile', fn ($p) => $p->where('city', $v)))
@@ -62,11 +66,18 @@ class ApprovalController extends Controller
                 ->filter()
                 ->values(),
             'stats' => [
-                'pending' => User::role(User::ROLE_BROKER)->status(User::STATUS_PENDING)->count(),
+                'pending' => User::role(User::ROLE_BROKER)->status(User::STATUS_PENDING)
+                    ->whereNull('deleted_at')->count(),
                 'approved' => ApprovalDecision::where('decision', 'approved')
                     ->where('created_at', '>=', now()->subDays(30))->count(),
                 'rejected' => ApprovalDecision::where('decision', 'rejected')
                     ->where('created_at', '>=', now()->subDays(30))->count(),
+                // Surfaced here too, not just on its own page — a drafts count of zero
+                // everywhere an admin already is meant nobody ever thought to click
+                // through and check, since nothing on this page hinted there might be
+                // something worth seeing.
+                'drafts' => User::role(User::ROLE_BROKER)->status(User::STATUS_DRAFT)
+                    ->whereNull('deleted_at')->count(),
             ],
         ];
 
@@ -96,11 +107,12 @@ class ApprovalController extends Controller
 
         $drafts = User::role(User::ROLE_BROKER)
             ->status(User::STATUS_DRAFT)
+            ->whereNull('deleted_at')
             ->with('brokerProfile')
             ->when($request->query('search'), function ($q, $term) {
-                $q->where(fn ($w) => $w->where('name', 'like', $term . '%')
-                    ->orWhere('email', 'like', $term . '%')
-                    ->orWhere('mobile', 'like', $term . '%'));
+                $q->where(fn ($w) => $w->where('name', 'like', '%' . $term . '%')
+                    ->orWhere('email', 'like', '%' . $term . '%')
+                    ->orWhere('mobile', 'like', '%' . $term . '%'));
             })
             // registration_step is the high-water mark of the last step actually
             // reached — see AuthController::saveRegistrationStep's own note on why it
@@ -108,6 +120,13 @@ class ApprovalController extends Controller
             // (the very first instant after sign-up, before any save) reads as step 1.
             ->when($request->query('step'), fn ($q, $v) => $q
                 ->whereHas('brokerProfile', fn ($p) => $p->where('registration_step', $v)))
+            // Behind the "Started today" / "Stalled 7d+" stat cards above the table —
+            // the same two windows their own counts use, so clicking one shows exactly
+            // the rows behind that number.
+            ->when($request->query('filter') === 'today', fn ($q) => $q
+                ->where('updated_at', '>=', now()->startOfDay()))
+            ->when($request->query('filter') === 'stalled', fn ($q) => $q
+                ->where('updated_at', '<=', now()->subDays(7)))
             // Most recently active first — the point of this page is "who's mid-flow
             // right now and might be worth a nudge", not a FIFO of who signed up first.
             ->orderByDesc('updated_at');
@@ -115,10 +134,13 @@ class ApprovalController extends Controller
         $data = [
             'drafts' => $drafts->paginate($this->perPage($request))->withQueryString(),
             'stats' => [
-                'total' => User::role(User::ROLE_BROKER)->status(User::STATUS_DRAFT)->count(),
+                'total' => User::role(User::ROLE_BROKER)->status(User::STATUS_DRAFT)
+                    ->whereNull('deleted_at')->count(),
                 'stalled' => User::role(User::ROLE_BROKER)->status(User::STATUS_DRAFT)
+                    ->whereNull('deleted_at')
                     ->where('updated_at', '<=', now()->subDays(7))->count(),
                 'today' => User::role(User::ROLE_BROKER)->status(User::STATUS_DRAFT)
+                    ->whereNull('deleted_at')
                     ->where('updated_at', '>=', now()->startOfDay())->count(),
             ],
         ];
@@ -141,12 +163,15 @@ class ApprovalController extends Controller
             ->with(['broker:id,name,email,status,mobile', 'broker.brokerProfile:id,user_id,company_name,photo_path,city', 'decider:id,name'])
             ->when($request->query('search'), function ($q, $term) {
                 $q->whereHas('broker', fn ($b) => $b
-                    ->where('name', 'like', $term . '%')
-                    ->orWhere('email', 'like', $term . '%')
-                    ->orWhereHas('brokerProfile', fn ($p) => $p->where('company_name', 'like', $term . '%')));
+                    ->where('name', 'like', '%' . $term . '%')
+                    ->orWhere('email', 'like', '%' . $term . '%')
+                    ->orWhereHas('brokerProfile', fn ($p) => $p->where('company_name', 'like', '%' . $term . '%')));
             })
             ->when($request->query('outcome'), fn ($q, $v) => $q->where('decision', $v))
             ->when($request->query('decided_by'), fn ($q, $v) => $q->where('decided_by', $v))
+            // Behind the "Decided (30d)" stat card — the same window last_30d uses below.
+            ->when($request->query('window') === '30d', fn ($q) => $q
+                ->where('created_at', '>=', now()->subDays(30)))
             ->latest();
 
         return view('admin.approvals.decided', [
@@ -279,12 +304,25 @@ class ApprovalController extends Controller
         $this->authorize('edit-module', 'approvals');
         $this->guardIsBroker($user);
 
-        $data = $request->validate(['internal_note' => ['nullable', 'string', 'max:2000']]);
+        $data = $request->validate([
+            'internal_note' => ['nullable', 'string', 'max:2000'],
+            // Required here, not on the profile edit form — a broker can sit pending
+            // with this unset for as long as it takes to review them, but approval
+            // must not go through without an admin having made the call.
+            'member_type' => ['required', Rule::in(BrokerProfile::MEMBER_TYPES)],
+        ], [
+            'member_type.required' => 'Select a member type before approving.',
+        ]);
 
         $wasRejected = $user->status === User::STATUS_REJECTED;
 
         DB::transaction(function () use ($user, $request, $data) {
             $user->update(['status' => User::STATUS_ACTIVE]);
+
+            $user->brokerProfile()->updateOrCreate(
+                ['user_id' => $user->id],
+                ['member_type' => $data['member_type']]
+            );
 
             ApprovalDecision::create([
                 'user_id' => $user->id,
@@ -343,11 +381,40 @@ class ApprovalController extends Controller
 
         $wasActive ? $push->brokerAccessRevoked($user) : $push->brokerRejected($user);
 
+        // After the commit, same reasoning as approve()'s notifyApproved() call.
+        $emailed = $this->notifyRejected($user, $data['reason'], $wasActive);
+
         $message = $wasActive
             ? "{$user->name}'s access revoked — their sessions were signed out."
             : "{$user->name} rejected.";
+        $message .= $emailed ? ' Notified by email.' : ' No email was sent — check the Mailjet settings.';
 
         return $this->approvalResponse($request, $message, 'warning');
+    }
+
+    /**
+     * Emails the broker why their registration was rejected, or their access revoked.
+     * Same failure-swallowing reasoning as notifyApproved() below — the decision has
+     * already committed and a mail hiccup must not surface as a failure of it.
+     */
+    private function notifyRejected(User $user, string $reason, bool $wasRevoked): bool
+    {
+        if (! MailSettings::apply()) {
+            return false;
+        }
+
+        try {
+            Mail::to($user->email)->send(new BrokerRejectedMail($user, $reason, $wasRevoked));
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('Broker rejection email failed', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
     }
 
     /**
@@ -395,20 +462,55 @@ class ApprovalController extends Controller
     }
 
     /**
-     * Permanently deletes a registration — the abandoned drafts and duplicate sign-ups
-     * that rejecting only hides, since a rejected row stays in the queue forever.
+     * Moves a registration to Trash — reversible, see restore(). Only `deleted_at` is
+     * set; `status` is untouched, so a restored draft/pending/rejected row reappears
+     * exactly where it was (pending queue, Drafts or Decided) with no bookkeeping
+     * needed to remember which. The abandoned drafts and duplicate sign-ups this is
+     * usually for would otherwise sit in the queue forever, since rejecting only
+     * hides a row, it doesn't remove it.
      *
      * `back()` rather than a fixed route: this is reachable from the pending queue,
      * Drafts and Decided, and each should return where it was.
      */
-    public function destroy(User $user, BrokerAccountDeleter $deleter): RedirectResponse
+    public function destroy(User $user): RedirectResponse
+    {
+        $this->authorize('edit-module', 'approvals');
+        $this->guardIsBroker($user);
+
+        $name = $user->name;
+        $user->tokens()->delete();
+        $user->forceFill(['deleted_at' => now()])->save();
+
+        return back()->with('warning', "{$name}'s registration was moved to Trash.");
+    }
+
+    /** Undoes destroy() — the registration reappears wherever its status puts it. */
+    public function restore(User $user): RedirectResponse
+    {
+        $this->authorize('edit-module', 'approvals');
+        $this->guardIsBroker($user);
+
+        $user->forceFill(['deleted_at' => null])->save();
+
+        return redirect()
+            ->route('admin.trash')
+            ->with('success', "{$user->name}'s registration was restored.");
+    }
+
+    /**
+     * The irreversible version of destroy() — only reachable from Trash. Permanently
+     * deletes the registration and its documents.
+     */
+    public function forceDelete(User $user, BrokerAccountDeleter $deleter): RedirectResponse
     {
         $this->authorize('edit-module', 'approvals');
         $this->guardIsBroker($user);
 
         $name = $deleter->delete($user);
 
-        return back()->with('warning', "{$name}'s registration and documents were permanently deleted.");
+        return redirect()
+            ->route('admin.trash')
+            ->with('warning', "{$name}'s registration and documents were permanently deleted.");
     }
 
     /**

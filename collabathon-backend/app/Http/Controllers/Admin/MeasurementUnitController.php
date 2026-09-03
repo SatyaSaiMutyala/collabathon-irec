@@ -86,6 +86,7 @@ class MeasurementUnitController extends Controller
         return $this->backToPanel($request, "Measurement unit “{$measurementUnit->name}” updated.");
     }
 
+    /** Moves the unit to Trash — reversible, see restore(). */
     public function destroy(Request $request, MeasurementUnit $measurementUnit): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
@@ -104,6 +105,31 @@ class MeasurementUnitController extends Controller
         $name = $measurementUnit->name;
         $measurementUnit->delete();
 
-        return $this->backToPanel($request, "Measurement unit “{$name}” removed.", 'warning');
+        return $this->backToPanel($request, "Measurement unit “{$name}” moved to Trash.", 'warning');
+    }
+
+    /** Undoes destroy(). */
+    public function restore(int $measurementUnit): RedirectResponse
+    {
+        $this->authorize('edit-module', 'settings');
+
+        $measurementUnit = MeasurementUnit::onlyTrashed()->findOrFail($measurementUnit);
+        $measurementUnit->restore();
+
+        return redirect()->route('admin.trash')
+            ->with('success', "Measurement unit “{$measurementUnit->name}” was restored.");
+    }
+
+    /** The irreversible version of destroy() — only reachable from Trash. */
+    public function forceDelete(int $measurementUnit): RedirectResponse
+    {
+        $this->authorize('edit-module', 'settings');
+
+        $measurementUnit = MeasurementUnit::onlyTrashed()->findOrFail($measurementUnit);
+        $name = $measurementUnit->name;
+        $measurementUnit->forceDelete();
+
+        return redirect()->route('admin.trash')
+            ->with('warning', "Measurement unit “{$name}” was permanently deleted.");
     }
 }

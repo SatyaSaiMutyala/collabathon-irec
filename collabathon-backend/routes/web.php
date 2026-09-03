@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\ChannelPartnerController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DeveloperController;
+use App\Http\Controllers\Admin\MasterDataController;
 use App\Http\Controllers\Admin\GeocodeController;
 use App\Http\Controllers\Admin\LeadController;
 use App\Http\Controllers\Admin\LocationController;
@@ -19,6 +20,7 @@ use App\Http\Controllers\Admin\PropertyController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\TeamController;
+use App\Http\Controllers\Admin\TrashController;
 use App\Http\Controllers\Admin\UnitTypeController;
 use App\Http\Controllers\DeveloperProjectResponseController;
 use App\Http\Middleware\EnsureAdmin;
@@ -121,6 +123,10 @@ Route::prefix('admin')
         // Same account the Channel Partners roster deletes — see BrokerAccountDeleter.
         Route::delete('/approvals/{user}', [ApprovalController::class, 'destroy'])
             ->name('approvals.destroy');
+        Route::post('/trash/approvals/{user}/restore', [ApprovalController::class, 'restore'])
+            ->name('trash.approvals.restore');
+        Route::delete('/trash/approvals/{user}', [ApprovalController::class, 'forceDelete'])
+            ->name('trash.approvals.destroy');
 
         Route::get('/cp', [ChannelPartnerController::class, 'index'])->name('cp')
             ->middleware("can:view-module,'cp'");
@@ -131,6 +137,10 @@ Route::prefix('admin')
         Route::post('/cp', [ChannelPartnerController::class, 'store'])->name('cp.store');
         Route::patch('/cp/{user}', [ChannelPartnerController::class, 'update'])->name('cp.update');
         Route::delete('/cp/{user}', [ChannelPartnerController::class, 'destroy'])->name('cp.destroy');
+        Route::post('/trash/cp/{user}/restore', [ChannelPartnerController::class, 'restore'])
+            ->name('trash.cp.restore');
+        Route::delete('/trash/cp/{user}', [ChannelPartnerController::class, 'forceDelete'])
+            ->name('trash.cp.destroy');
 
         // Address lookup behind the developer form's "find on map" control.
         Route::get('/geocode', GeocodeController::class)->name('geocode');
@@ -147,8 +157,21 @@ Route::prefix('admin')
         Route::post('/developers', [DeveloperController::class, 'store'])->name('developers.store');
         Route::delete('/developers/{developer}', [DeveloperController::class, 'destroy'])->name('developers.destroy');
         Route::patch('/developers/{developer}', [DeveloperController::class, 'update'])->name('developers.update');
+        Route::post('/trash/developers/{developer}/restore', [DeveloperController::class, 'restore'])
+            ->name('trash.developers.restore');
+        Route::delete('/trash/developers/{developer}', [DeveloperController::class, 'forceDelete'])
+            ->name('trash.developers.destroy');
         Route::post('/developers/{developer}/password', [DeveloperController::class, 'resetPassword'])
             ->name('developers.password');
+
+        // literal segments before {registrationId} isn't a concern here — index/show/
+        // convert are the only three, and none of their static paths collide.
+        Route::get('/master-data', [MasterDataController::class, 'index'])->name('master-data')
+            ->middleware("can:view-module,'master_data'");
+        Route::get('/master-data/{registrationId}', [MasterDataController::class, 'show'])->name('master-data.show')
+            ->middleware("can:view-module,'master_data'");
+        Route::post('/master-data/{registrationId}/convert', [MasterDataController::class, 'convert'])
+            ->name('master-data.convert')->middleware("can:edit-module,'master_data'");
 
         Route::get('/properties', [PropertyController::class, 'index'])->name('properties')
             ->middleware("can:view-module,'properties'");
@@ -167,6 +190,13 @@ Route::prefix('admin')
         Route::post('/properties', [PropertyController::class, 'store'])->name('properties.store');
         Route::patch('/properties/{property}', [PropertyController::class, 'update'])->name('properties.update');
         Route::delete('/properties/{property}', [PropertyController::class, 'destroy'])->name('properties.destroy');
+        Route::post('/trash/properties/{property}/restore', [PropertyController::class, 'restore'])
+            ->name('trash.properties.restore');
+        Route::delete('/trash/properties/{property}', [PropertyController::class, 'forceDelete'])
+            ->name('trash.properties.destroy');
+
+        Route::get('/trash', [TrashController::class, 'index'])->name('trash')
+            ->middleware("can:view-module,'trash'");
 
         Route::get('/leads', [LeadController::class, 'index'])->name('leads')
             ->middleware("can:view-module,'leads'");
@@ -210,6 +240,7 @@ Route::prefix('admin')
         Route::post('/settings/mail/test', [SettingsController::class, 'testMail'])->name('settings.mail.test');
         Route::patch('/settings/surepass', [SettingsController::class, 'updateSurepass'])->name('settings.surepass');
         Route::patch('/settings/whatsapp', [SettingsController::class, 'updateWhatsApp'])->name('settings.whatsapp');
+        Route::patch('/settings/master-data', [SettingsController::class, 'updateMasterData'])->name('settings.master-data');
         Route::patch('/settings/google-maps', [SettingsController::class, 'updateGoogleMaps'])->name('settings.google-maps');
 
         // Measurement units — the "Project extent metric" options.
@@ -255,17 +286,50 @@ Route::prefix('admin')
             Route::delete('/{projectType}', [ProjectTypeController::class, 'destroy'])->name('destroy');
         });
 
+        // ------------------------------------------------------ Trash: lookup entities
+        Route::prefix('trash')->name('trash.')->group(function () {
+            Route::post('/measurement-units/{measurementUnit}/restore', [MeasurementUnitController::class, 'restore'])->name('measurement-units.restore');
+            Route::delete('/measurement-units/{measurementUnit}', [MeasurementUnitController::class, 'forceDelete'])->name('measurement-units.destroy');
+
+            Route::post('/unit-types/{unitType}/restore', [UnitTypeController::class, 'restore'])->name('unit-types.restore');
+            Route::delete('/unit-types/{unitType}', [UnitTypeController::class, 'forceDelete'])->name('unit-types.destroy');
+
+            Route::post('/amenities/{amenity}/restore', [AmenityController::class, 'restore'])->name('amenities.restore');
+            Route::delete('/amenities/{amenity}', [AmenityController::class, 'forceDelete'])->name('amenities.destroy');
+
+            Route::post('/project-types/{projectType}/restore', [ProjectTypeController::class, 'restore'])->name('project-types.restore');
+            Route::delete('/project-types/{projectType}', [ProjectTypeController::class, 'forceDelete'])->name('project-types.destroy');
+
+            Route::post('/announcements/{announcement}/restore', [AnnouncementController::class, 'restore'])->name('announcements.restore');
+            Route::delete('/announcements/{announcement}', [AnnouncementController::class, 'forceDelete'])->name('announcements.destroy');
+
+            Route::post('/countries/{country}/restore', [LocationController::class, 'restoreCountry'])->name('countries.restore');
+            Route::delete('/countries/{country}', [LocationController::class, 'forceDeleteCountry'])->name('countries.destroy');
+            Route::post('/states/{state}/restore', [LocationController::class, 'restoreState'])->name('states.restore');
+            Route::delete('/states/{state}', [LocationController::class, 'forceDeleteState'])->name('states.destroy');
+            Route::post('/cities/{city}/restore', [LocationController::class, 'restoreCity'])->name('cities.restore');
+            Route::delete('/cities/{city}', [LocationController::class, 'forceDeleteCity'])->name('cities.destroy');
+        });
+
         // ------------------------------------------------------ Super Admin only
         Route::middleware('can:manage-team')->group(function () {
             Route::get('/roles', [RoleController::class, 'index'])->name('roles');
             Route::post('/roles', [RoleController::class, 'store'])->name('roles.store');
             Route::patch('/roles/{role}', [RoleController::class, 'update'])->name('roles.update');
             Route::delete('/roles/{role}', [RoleController::class, 'destroy'])->name('roles.destroy');
+            Route::post('/trash/roles/{role}/restore', [RoleController::class, 'restore'])
+                ->name('trash.roles.restore');
+            Route::delete('/trash/roles/{role}', [RoleController::class, 'forceDelete'])
+                ->name('trash.roles.destroy');
 
             Route::get('/team', [TeamController::class, 'index'])->name('team');
             Route::post('/team', [TeamController::class, 'store'])->name('team.store');
             Route::patch('/team/{user}', [TeamController::class, 'update'])->name('team.update');
             Route::post('/team/{user}/password', [TeamController::class, 'resetPassword'])->name('team.password');
             Route::delete('/team/{user}', [TeamController::class, 'destroy'])->name('team.destroy');
+            Route::post('/trash/team/{user}/restore', [TeamController::class, 'restore'])
+                ->name('trash.team.restore');
+            Route::delete('/trash/team/{user}', [TeamController::class, 'forceDelete'])
+                ->name('trash.team.destroy');
         });
     });

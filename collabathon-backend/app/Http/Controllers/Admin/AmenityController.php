@@ -100,6 +100,7 @@ class AmenityController extends Controller
         return $this->backToPanel($request, "Amenity “{$amenity->name}” updated.");
     }
 
+    /** Moves the amenity to Trash — reversible, see restore(). */
     public function destroy(Request $request, Amenity $amenity): RedirectResponse|JsonResponse
     {
         $this->authorize('edit-module', 'settings');
@@ -119,6 +120,29 @@ class AmenityController extends Controller
         $name = $amenity->name;
         $amenity->delete();
 
-        return $this->backToPanel($request, "Amenity “{$name}” removed.", 'warning');
+        return $this->backToPanel($request, "Amenity “{$name}” moved to Trash.", 'warning');
+    }
+
+    /** Undoes destroy(). */
+    public function restore(int $amenity): RedirectResponse
+    {
+        $this->authorize('edit-module', 'settings');
+
+        $amenity = Amenity::onlyTrashed()->findOrFail($amenity);
+        $amenity->restore();
+
+        return redirect()->route('admin.trash')->with('success', "Amenity “{$amenity->name}” was restored.");
+    }
+
+    /** The irreversible version of destroy() — only reachable from Trash. */
+    public function forceDelete(int $amenity): RedirectResponse
+    {
+        $this->authorize('edit-module', 'settings');
+
+        $amenity = Amenity::onlyTrashed()->findOrFail($amenity);
+        $name = $amenity->name;
+        $amenity->forceDelete();
+
+        return redirect()->route('admin.trash')->with('warning', "Amenity “{$name}” was permanently deleted.");
     }
 }

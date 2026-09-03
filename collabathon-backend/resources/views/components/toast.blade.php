@@ -53,24 +53,26 @@
              x-transition:leave-start="opacity-100 translate-x-0"
              x-transition:leave-end="opacity-0 translate-x-6"
              @mouseenter="pause(t)" @mouseleave="resume(t)"
-             class="relative overflow-hidden rounded-xl shadow-modal ring-1 ring-black/10"
-             :class="tone(t).wrap">
+             class="relative overflow-hidden rounded-xl bg-panel shadow-pop border border-line-soft">
 
-            <div class="flex items-start gap-2.5 px-4 py-3">
-                {{-- x-html, not <template x-if>. Inside <svg> the parser is in foreign-content
-                     mode, so a <template> there becomes an SVG element rather than an
-                     HTMLTemplateElement — it has no .content, and x-if throws "Cannot read
-                     properties of undefined (reading 'cloneNode')". That error aborted Alpine
-                     for the rest of the page, taking the toast and anything after it with it. --}}
+            <div class="flex items-center gap-2.5 px-4 py-3">
+                {{-- Plain coloured icon, no badge/border/backdrop around it — the icon's
+                     own colour is the only accent, everything else about the card is
+                     neutral. x-html, not <template x-if>: inside <svg> the parser is in
+                     foreign-content mode, so a <template> there becomes an SVG element
+                     rather than an HTMLTemplateElement — it has no .content, and x-if
+                     throws "Cannot read properties of undefined (reading 'cloneNode')".
+                     That error aborted Alpine for the rest of the page, taking the toast
+                     and anything after it with it. --}}
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"
-                     class="w-4 h-4 shrink-0 mt-px" aria-hidden="true"
+                     stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"
+                     class="w-4 h-4 shrink-0" :class="tone(t).text" aria-hidden="true"
                      x-html="tone(t).icon"></svg>
 
-                <p class="text-[12.5px] leading-relaxed flex-1 min-w-0" x-text="t.message"></p>
+                <p class="text-[12.5px] leading-relaxed text-ink flex-1 min-w-0" x-text="t.message"></p>
 
                 <button type="button" @click="dismiss(t)" aria-label="Dismiss"
-                        class="shrink-0 -mr-1 -mt-0.5 p-1 rounded-md opacity-70 hover:opacity-100 transition-opacity">
+                        class="shrink-0 -mr-1 p-1 rounded-md text-ink-3 hover:text-ink hover:bg-canvas transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                          stroke-width="2.2" stroke-linecap="round" class="w-3.5 h-3.5" aria-hidden="true">
                         <path d="M18 6 6 18M6 6l12 12" />
@@ -78,9 +80,11 @@
                 </button>
             </div>
 
-            {{-- Time-remaining bar; pauses while the pointer is over the toast. --}}
-            <div class="h-[3px] bg-black/15">
-                <div class="h-full bg-current opacity-40 origin-left"
+            {{-- Time-remaining — the one accent left, and doing double duty: its colour
+                 carries the tone, and its shrinking width is the countdown to auto-
+                 dismiss. Pauses while the pointer is over the toast. --}}
+            <div class="h-[4px] bg-line-soft">
+                <div class="h-full origin-left" :class="tone(t).bar"
                      :style="`transform: scaleX(${t.progress}); transition: transform 100ms linear`"></div>
             </div>
         </div>
@@ -92,22 +96,28 @@
         <script>
             // Written out in full so Tailwind's source scanner sees each class literally.
             // `icon` is the <svg> inner markup, injected with x-html — see the note above it.
+            // Reuses the same reserved status tokens every badge/banner in the panel
+            // already uses, so a toast reads as part of the same system rather than
+            // its own separately-tuned colour.
             const TOAST_TONES = {
                 success: {
-                    wrap: 'bg-toast-success text-white',
+                    text: 'text-success',
+                    bar: 'bg-success',
                     icon: '<path d="M20 6 9 17l-5-5"/>',
                 },
                 error: {
-                    wrap: 'bg-toast-error text-white',
+                    text: 'text-danger',
+                    bar: 'bg-danger',
                     icon: '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5h.01"/>',
                 },
-                // True yellow needs dark text — white on #f5c518 is unreadable.
                 warning: {
-                    wrap: 'bg-toast-warning text-ink',
+                    text: 'text-warning',
+                    bar: 'bg-warning',
                     icon: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
                 },
                 info: {
-                    wrap: 'bg-toast-info text-white',
+                    text: 'text-info',
+                    bar: 'bg-info',
                     icon: '<circle cx="12" cy="12" r="9"/><path d="M12 16v-5M12 7.5h.01"/>',
                 },
             };

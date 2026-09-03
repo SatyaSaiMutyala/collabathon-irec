@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * An editable measurement unit — the list behind "Project extent metric" on the project
@@ -15,9 +16,11 @@ use Illuminate\Database\Eloquent\Model;
 #[Fillable(['name', 'is_active', 'sort_order'])]
 class MeasurementUnit extends Model
 {
+    use SoftDeletes;
+
     protected function casts(): array
     {
-        return ['is_active' => 'boolean'];
+        return ['is_active' => 'boolean', 'deleted_at' => 'datetime'];
     }
 
     /** Units offerable on a form — the inactive ones stay valid on existing projects. */

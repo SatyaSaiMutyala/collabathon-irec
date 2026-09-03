@@ -60,11 +60,33 @@
     </x-page-header>
 
 
+    {{-- Every card sets BOTH `status` (listing_status) and `developer_status` explicitly
+         — including nulling out whichever one it doesn't care about — rather than only
+         merging its own key in. These four cards share both keys between them ("Live"
+         needs both set; "Awaiting"/"Declined" only care about developer_status), so a
+         merge-only link would let one card's leftover value silently narrow the next
+         one clicked, the same class of bug the CP page's cards had. --}}
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-5">
-        <x-stat-card icon="list" label="Total listings" :value="$totals['all']" />
-        <x-stat-card icon="check" label="Live to Channel Partners" :value="$totals['live']" />
-        <x-stat-card icon="clock" label="Awaiting developer" :value="$totals['awaiting']" :good-when-up="false" />
-        <x-stat-card icon="x" label="Declined" :value="$totals['declined']" :good-when-up="false" />
+        <a href="{{ request()->fullUrlWithQuery(['status' => null, 'developer_status' => null, 'page' => null]) }}" class="block">
+            <x-stat-card icon="list" label="Total listings" :value="$totals['all']"
+                         :class="(! request('status') && ! request('developer_status') ? 'border-primary-ring shadow-md ' : '')
+                             . 'hover:border-ink-3 transition-colors cursor-pointer'" />
+        </a>
+        <a href="{{ request()->fullUrlWithQuery(['status' => 'active', 'developer_status' => 'accepted', 'page' => null]) }}" class="block">
+            <x-stat-card icon="check" label="Live to Channel Partners" :value="$totals['live']"
+                         :class="(request('status') === 'active' && request('developer_status') === 'accepted' ? 'border-primary-ring shadow-md ' : '')
+                             . 'hover:border-ink-3 transition-colors cursor-pointer'" />
+        </a>
+        <a href="{{ request()->fullUrlWithQuery(['developer_status' => 'pending', 'status' => null, 'page' => null]) }}" class="block">
+            <x-stat-card icon="clock" label="Awaiting developer" :value="$totals['awaiting']" :good-when-up="false"
+                         :class="(request('developer_status') === 'pending' ? 'border-primary-ring shadow-md ' : '')
+                             . 'hover:border-ink-3 transition-colors cursor-pointer'" />
+        </a>
+        <a href="{{ request()->fullUrlWithQuery(['developer_status' => 'declined', 'status' => null, 'page' => null]) }}" class="block">
+            <x-stat-card icon="x" label="Declined" :value="$totals['declined']" :good-when-up="false"
+                         :class="(request('developer_status') === 'declined' ? 'border-primary-ring shadow-md ' : '')
+                             . 'hover:border-ink-3 transition-colors cursor-pointer'" />
+        </a>
     </div>
 
     <x-data-table
@@ -200,18 +222,18 @@
 
                         <div class="my-1 border-t border-line-soft"></div>
 
-                        {{-- Soft delete: leads cascade on a hard delete, so the row is kept. --}}
+                        {{-- Soft delete — moves to Trash, not gone. See admin.trash. --}}
                         <form method="POST" action="{{ route('admin.properties.destroy', $p) }}"
                               x-on:submit.prevent="$dispatch('confirm-request', {
-                                  title: 'Delete this listing?',
-                                  message: @js('"' . $p->name . '" will be removed from every listing and from channel partner view. Leads already raised against it are kept.'),
-                                  confirmLabel: 'Delete listing',
+                                  title: 'Move this listing to Trash?',
+                                  message: @js('"' . $p->name . '" will be removed from every listing and from channel partner view. It can be restored from Trash, or deleted permanently from there.'),
+                                  confirmLabel: 'Move to Trash',
                                   tone: 'danger',
                                   form: $el,
                               }); close()">
                             @csrf @method('DELETE')
-                            <x-dropdown-item icon="x" tone="danger" tag="button" type="submit">
-                                Delete listing
+                            <x-dropdown-item icon="trash" tone="danger" tag="button" type="submit">
+                                Move to Trash
                             </x-dropdown-item>
                         </form>
                     </x-dropdown>

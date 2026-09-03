@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * An editable amenity — the checkbox list on the project intake form, managed under
@@ -16,9 +17,11 @@ use Illuminate\Database\Eloquent\Model;
 #[Fillable(['name', 'is_active', 'sort_order'])]
 class Amenity extends Model
 {
+    use SoftDeletes;
+
     protected function casts(): array
     {
-        return ['is_active' => 'boolean'];
+        return ['is_active' => 'boolean', 'deleted_at' => 'datetime'];
     }
 
     /** Amenities offerable on a form — the inactive ones stay valid on existing projects. */

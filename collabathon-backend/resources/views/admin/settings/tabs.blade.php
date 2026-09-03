@@ -33,6 +33,7 @@ $tabs = [
     ['key' => 'email',     'label' => 'Email'],
     ['key' => 'kyc',       'label' => 'KYC Verification'],
     ['key' => 'whatsapp',  'label' => 'WhatsApp OTP'],
+    ['key' => 'master-data', 'label' => 'Master Data'],
     ['key' => 'maps',      'label' => 'Maps'],
     ['key' => 'access',    'label' => 'Access'],
 ];
@@ -1207,6 +1208,40 @@ $openTab = in_array(request()->query('tab'), array_column($tabs, 'key'), true)
                                  hint="Leave blank unless MSG91's own template page shows a namespace to copy." />
                     </div>
 
+                    {{-- ---------------------------- Credentials template (optional) ---------------------------- --}}
+                    <div class="border-t border-line-soft pt-4 space-y-3">
+                        <div class="flex items-center gap-2">
+                            <p class="text-[12.5px] font-medium text-ink">Credentials template</p>
+                            <span @class([
+                                'text-[10.5px] font-semibold px-1.5 py-0.5 rounded-badge',
+                                'bg-success-soft text-success' => $whatsapp['credentials_configured'],
+                                'bg-line-soft text-ink-3' => ! $whatsapp['credentials_configured'],
+                            ])>{{ $whatsapp['credentials_configured'] ? 'Connected' : 'Optional — not set' }}</span>
+                        </div>
+                        <p class="text-[11.5px] text-ink-3 -mt-2 leading-relaxed">
+                            A second, separate template — same auth key and number above, but its own
+                            approval — used to send a new developer or channel partner their sign-in
+                            email and password over WhatsApp. Sending a password needs a
+                            <strong class="text-ink">Utility</strong>-category template (Meta's Authentication
+                            category above is locked to a bare code and can't carry it). Leave this blank
+                            until that template is approved — credentials still go out by email either way.
+                        </p>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <x-field label="Template name" name="whatsapp_credentials_template_name"
+                                     :value="$whatsapp['credentials_template_name']"
+                                     placeholder="e.g. account_credentials"
+                                     hint="Must be an approved Utility-category template with 3 body variables: name, email, password (in that order)." />
+                            <x-field label="Template language code" name="whatsapp_credentials_template_language"
+                                     :value="$whatsapp['credentials_template_language']"
+                                     placeholder="en" />
+                        </div>
+
+                        <x-field label="Template namespace" name="whatsapp_credentials_template_namespace"
+                                 :value="$whatsapp['credentials_template_namespace']"
+                                 placeholder="Optional — only if your MSG91 account requires one" />
+                    </div>
+
                     <div class="flex flex-wrap items-center gap-2.5 pt-1">
                         <x-button type="submit" icon="check">Save</x-button>
                     </div>
@@ -1227,10 +1262,74 @@ $openTab = in_array(request()->query('tab'), array_column($tabs, 'key'), true)
                         <span class="text-primary">&bull;</span>
                         <span>Only mobile-number sign-in uses this. Email sign-in still goes through Mailjet, unaffected.</span>
                     </li>
+                    <li class="flex gap-2">
+                        <span class="text-primary">&bull;</span>
+                        <span>For credentials over WhatsApp: a second, <strong class="text-ink">Utility</strong>-category template — a separate submission on the same dashboard.</span>
+                    </li>
                 </ul>
                 <p class="text-[12px] text-ink-3 mt-4 pt-3 border-t border-line-soft leading-relaxed">
                     Which one a broker sees is set on the Access tab's Channel Partner login method.
                 </p>
+            </x-panel>
+        </div>
+
+        {{-- ---------------------------- Master Data (irecexpo.com) ---------------------------- --}}
+        <div x-show="tab === 'master-data'" x-cloak class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            <x-panel title="Master Data API"
+                     subtitle="Feeds the Master Data page — developer/project registrations from irecexpo.com"
+                     padded class="xl:col-span-2">
+
+                <div @class([
+                    'flex items-start gap-2.5 px-3.5 py-3 mb-5 border',
+                    'bg-success-soft border-success-ring' => $masterData['configured'],
+                    'bg-warning-soft border-warning-ring' => ! $masterData['configured'],
+                ])>
+                    <x-icon :name="$masterData['configured'] ? 'check' : 'clock'"
+                            class="w-4 h-4 shrink-0 mt-px {{ $masterData['configured'] ? 'text-success' : 'text-warning' }}" />
+                    <div class="min-w-0">
+                        <p class="text-[13px] font-medium {{ $masterData['configured'] ? 'text-success' : 'text-warning' }}">
+                            {{ $masterData['configured'] ? 'Connected' : 'Not configured' }}
+                        </p>
+                        <p class="text-[12.5px] text-ink-2 mt-0.5 leading-relaxed">
+                            @if($masterData['configured'])
+                                An API key is saved. The Master Data page can fetch registrations.
+                            @else
+                                Until an API key is saved below, the Master Data page can't load anything.
+                            @endif
+                        </p>
+                    </div>
+                </div>
+
+                <form method="POST" action="{{ route('admin.settings.master-data') }}" class="space-y-4">
+                    @csrf
+                    @method('PATCH')
+
+                    <x-field label="API base URL" name="master_data_base_url" required
+                             :value="$masterData['base_url']"
+                             hint="The vendor's own endpoint — only change this if they move it." />
+
+                    <x-field label="API key" name="master_data_api_key" type="password"
+                             :required="false"
+                             :placeholder="$masterData['has_key'] ? 'Saved — leave blank to keep' : 'irec_sec_…'"
+                             :hint="$masterData['has_key'] ? 'Stored encrypted (' . $masterData['masked_key'] . '). Enter a new one only to replace it.' : 'Sent as the X-API-KEY header on every request.'" />
+
+                    <div class="flex flex-wrap items-center gap-2.5 pt-1">
+                        <x-button type="submit" icon="check">Save</x-button>
+                    </div>
+                </form>
+            </x-panel>
+
+            <x-panel title="What this needs" padded class="self-start">
+                <ul class="space-y-2.5 text-[12.5px] text-ink-2 leading-relaxed">
+                    <li class="flex gap-2">
+                        <span class="text-primary">&bull;</span>
+                        <span>An API key issued by irecexpo.com — sent as <code class="text-[11.5px]">X-API-KEY</code> on every request.</span>
+                    </li>
+                    <li class="flex gap-2">
+                        <span class="text-primary">&bull;</span>
+                        <span>Converting a registration creates a real Developer account and emails/WhatsApps its sign-in details — same delivery as adding one by hand.</span>
+                    </li>
+                </ul>
             </x-panel>
         </div>
 
