@@ -224,6 +224,15 @@ class MasterDataController extends Controller
             'contact_designation' => data_get($profile, 'designation') ?: null,
             'email' => (string) data_get($profile, 'email', ''),
             'mobile' => $this->normaliseMobile((string) data_get($profile, 'mobile', '')),
+            // The vendor sends exactly one contact — the same person fills both our
+            // public "Contact person" and the admin-only "Key contact" panel, since
+            // there's nothing in the payload to tell the two apart. An admin can
+            // still edit Key contact separately later if a different internal
+            // decision-maker turns out to be the right one there.
+            'key_contact_person' => data_get($profile, 'key_contact_person') ?: null,
+            'key_contact_designation' => data_get($profile, 'designation') ?: null,
+            'key_contact_mobile' => ($m = $this->normaliseMobile((string) data_get($profile, 'mobile', ''))) !== '' ? $m : null,
+            'key_contact_email' => data_get($profile, 'email') ?: null,
             'about' => data_get($profile, 'about_company') ?: (data_get($profile, 'brief_description') ?: null),
             'website' => data_get($profile, 'website') ?: null,
             'address' => data_get($profile, 'registered_address') ?: null,
