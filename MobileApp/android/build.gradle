@@ -1,16 +1,20 @@
 buildscript {
     ext {
-        // 35, not the RN 0.75 template's 34: Play refuses a production release that targets
-        // below 35. Android 15 enforces edge-to-edge for apps targeting 35, so every screen
-        // now draws under the status and navigation bars — the app already wraps its screens
-        // in SafeAreaView, which is what keeps that from clipping content.
-        buildToolsVersion = "35.0.0"
+        // 36, not 35: Play now refuses a production release that targets below 36
+        // (Android 16). Still built on AGP 8.7.2 (see kotlinVersion's own note below) —
+        // that combination compiles fine against platform 36, just short of AGP's own
+        // "officially tested" ceiling, which only ever affects a build-time warning, not
+        // the build itself. Android 15 already enforced edge-to-edge for apps targeting
+        // 35, carried forward unchanged at 36 — every screen already draws under the
+        // status and navigation bars, and the app already wraps its screens in
+        // SafeAreaView, which is what keeps that from clipping content.
+        buildToolsVersion = "36.0.0"
         // 24, not 23: RN 0.77's own native libraries are built with minSdk 24 — AGP's
         // manifest merge rejects an app minSdk below a dependency's. Drops Android 6.0,
         // negligible share by 2026.
         minSdkVersion = 24
-        compileSdkVersion = 35
-        targetSdkVersion = 35
+        compileSdkVersion = 36
+        targetSdkVersion = 36
         // 28, not the RN 0.77 template's 27.1: NDK r27 only 16KB-aligns .so files a
         // library's own build script explicitly opts into (via -Wl,-z,max-page-size=16384).
         // RN's own native libs (libhermes.so, libreactnative.so) do that themselves and came
