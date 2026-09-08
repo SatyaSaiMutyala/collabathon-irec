@@ -210,9 +210,11 @@
                     </button>
                 </x-slot:trigger>
 
-                <x-dropdown-item icon="users" tag="a" href="{{ route('admin.leads.project', [$property->developer, $property]) }}">
-                    View leads
-                </x-dropdown-item>
+                @if($property->developer)
+                    <x-dropdown-item icon="users" tag="a" href="{{ route('admin.leads.project', [$property->developer, $property]) }}">
+                        View leads
+                    </x-dropdown-item>
+                @endif
 
                 @foreach(['draft' => 'Move to draft', 'active' => 'Publish listing', 'archived' => 'Archive listing'] as $value => $label)
                     @if($property->listing_status !== $value)
