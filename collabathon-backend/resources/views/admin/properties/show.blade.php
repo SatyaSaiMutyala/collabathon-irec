@@ -83,8 +83,9 @@
         'Commercial terms' => [
             'CP commission' => $detail?->cp_commission_percent !== null
                 ? $trim($detail->cp_commission_percent) . '%' : null,
-            'FOS commission' => $detail?->fos_commission_percent !== null
-                ? $trim($detail->fos_commission_percent) . '%' : null,
+            // A flat payout, not a percentage — formatted with $money like every other
+            // currency field on this sheet, not the CP commission's own '%' suffix.
+            'FOS commission' => $money($detail?->fos_commission_amount),
         ],
         'Contact & sales' => [
             'Sales office' => $detail?->sales_office_address,
@@ -95,14 +96,15 @@
         // Compliance & trust held only awards, which is no longer collected either.
     ];
 
-    // Attachment kinds, in the order the sheet lists them.
+    // Attachment kinds, in the order the sheet lists them. 'rera_certificate' is
+    // deliberately absent — the intake form has never collected one (nothing in
+    // _form.blade.php uploads this kind), so showing the row would only ever read "—".
     $attachmentKinds = [
         'site_layout' => 'Site layout plan',
         'master_plan' => 'Master plan',
         'brochure' => 'Brochure',
         'price_list' => 'Price list',
         'payment_schedule' => 'Payment schedule',
-        'rera_certificate' => 'RERA QR / certificate',
         'unit_plan' => 'Unit plan / layout',
     ];
 @endphp
@@ -258,7 +260,11 @@
                 <x-panel :title="$title" flush>
                     <dl class="divide-y divide-line-soft">
                         @foreach($fields as $label => $value)
-                            <div class="px-5 py-3 flex items-start gap-4">
+                            {{-- items-center, not items-start: the label (12.5px) and value
+                                 (13px) have slightly different line-heights, so top-aligning
+                                 them left the label sitting a touch high and the value a
+                                 touch low relative to each other on a single-line row. --}}
+                            <div class="px-5 py-3 flex items-center gap-4">
                                 <dt class="text-[12.5px] text-ink-3 w-[168px] shrink-0">{{ $label }}</dt>
                                 <dd class="text-[13px] text-ink min-w-0 break-words whitespace-pre-line flex-1">
                                     @if(filled($value) && \Illuminate\Support\Str::startsWith((string) $value, ['http://', 'https://']))
@@ -429,20 +435,10 @@
                         </div>
                     @endforeach
 
-                    <div class="px-5 py-3 flex items-center justify-between gap-3">
-                        <dt class="text-[12.5px] text-ink-3">Legal due diligence</dt>
-                        <dd class="text-[12.5px] shrink-0">
-                            @if($detail?->legal_due_diligence_path)
-                                <a href="{{ \App\Support\FileStorage::url($detail->legal_due_diligence_path) }}"
-                                   target="_blank" rel="noopener"
-                                   class="inline-flex items-center gap-1 text-primary hover:underline">
-                                    View <x-icon name="external" class="w-3 h-3" />
-                                </a>
-                            @else
-                                <span class="text-ink-3">—</span>
-                            @endif
-                        </dd>
-                    </div>
+                    {{-- No "Legal due diligence" row here — the intake form dropped this
+                         field along with the rest of the old Compliance step (see the note
+                         near $groups above), and every record's legal_due_diligence_path is
+                         empty, so the row only ever read "—". --}}
 
                     @foreach(['video' => 'Video / walkthrough', 'virtual_tour' => 'Walkthrough link'] as $kind => $label)
                         <div class="px-5 py-3 flex items-center justify-between gap-3">

@@ -204,7 +204,7 @@
                     @endif
 
                     {{-- Commercial terms --}}
-                    @if($detail && ($detail->cp_commission_percent || $detail->fos_commission_percent))
+                    @if($detail && ($detail->cp_commission_percent || $detail->fos_commission_amount))
                         <tr>
                             <td style="padding:22px 28px 0;">
                                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
@@ -219,11 +219,12 @@
                                                 @if($detail->cp_commission_percent)
                                                     CP commission: <strong style="color:#1d1d1f;">{{ $detail->cp_commission_percent }}%</strong>
                                                 @endif
-                                                @if($detail->cp_commission_percent && $detail->fos_commission_percent)
+                                                @if($detail->cp_commission_percent && $detail->fos_commission_amount)
                                                     &nbsp;&middot;&nbsp;
                                                 @endif
-                                                @if($detail->fos_commission_percent)
-                                                    FOS commission: <strong style="color:#1d1d1f;">{{ $detail->fos_commission_percent }}%</strong>
+                                                @if($detail->fos_commission_amount)
+                                                    {{-- A flat payout, not a percentage — no '%' suffix, unlike CP above. --}}
+                                                    FOS commission: <strong style="color:#1d1d1f;">{{ $property->currency }} {{ number_format($detail->fos_commission_amount) }}</strong>
                                                 @endif
                                             </p>
                                         </td>

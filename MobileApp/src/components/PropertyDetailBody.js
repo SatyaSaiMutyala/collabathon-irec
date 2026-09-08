@@ -85,14 +85,19 @@ const PropertyDetailBody = ({project, highlightCommission = false}) => {
             )}
           </View>
         </View>
-        {!highlightCommission && (!!project.commissionPercent || !!project.fosCommissionPercent) && (
+        {!highlightCommission && (!!project.commissionPercent || !!project.fosCommissionAmount) && (
           <View style={{alignItems: 'flex-end'}}>
             {!!project.commissionPercent && (
               <Badge label={`${project.commissionPercent}% CP Commission`} tone="warning" />
             )}
-            {!!project.fosCommissionPercent && (
+            {!!project.fosCommissionAmount && (
               <View style={{marginTop: spacing.xs}}>
-                <Badge label={`${project.fosCommissionPercent}% FOS Commission`} tone="primary" />
+                {/* A flat payout, not a percentage — currency code + formatted amount,
+                    not the CP badge's "%" suffix. */}
+                <Badge
+                  label={`${project.currency ?? 'INR'} ${formatPrice(project.fosCommissionAmount)} FOS Commission`}
+                  tone="primary"
+                />
               </View>
             )}
           </View>
@@ -111,9 +116,10 @@ const PropertyDetailBody = ({project, highlightCommission = false}) => {
             style={{marginLeft: moderateScale(6)}}>
             {project.commissionPercent}% CP Commission
           </AppText>
-          {!!project.fosCommissionPercent && (
+          {!!project.fosCommissionAmount && (
+            // A flat payout, not a percentage — formatted amount, no "%" suffix.
             <AppText variant="caption" color={colors.textMuted} style={{marginLeft: moderateScale(6)}}>
-              (+{project.fosCommissionPercent}% FOS)
+              (+{project.currency ?? 'INR'} {formatPrice(project.fosCommissionAmount)} FOS)
             </AppText>
           )}
         </View>

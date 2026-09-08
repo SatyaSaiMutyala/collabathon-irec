@@ -197,6 +197,7 @@ class PropertyController extends Controller
             'developers' => Developer::orderBy('company_name')->get(['id', 'company_name']),
             'amenityOptions' => Amenity::optionsFor(),
             'fieldsEnabled' => $this->fieldsEnabled(),
+            'stepFields' => $this->stepFields(),
         ] + $this->projectTypeData(old('project_type')));
     }
 
@@ -244,6 +245,10 @@ class PropertyController extends Controller
     {
         $this->authorize('edit-module', 'properties');
 
+        if ($request->input('_step_action') === 'advance') {
+            return $this->createFromStep($request);
+        }
+
         $data = $request->validate($this->rules());
 
         $property = DB::transaction(function () use ($request, $data) {
@@ -282,6 +287,51 @@ class PropertyController extends Controller
             ->with('status', $data['listing_status'] === 'active'
                 ? "\"{$data['name']}\" is live to brokers."
                 : "\"{$data['name']}\" saved as a draft.");
+    }
+
+    /**
+     * Step 1's "Next" on a brand-new listing — the create half of the same per-step save
+     * pattern the broker registration wizard uses (see AuthController::
+     * saveRegistrationStep): the property is created the moment its first step is
+     * complete, rather than only once the whole seven-step form is finished, so nothing
+     * typed so far is lost to a closed tab or a crashed browser. advanceStep() below
+     * continues the same pattern for every step after this one.
+     *
+     * Nothing here fires the developer-assignment push/email — that only makes sense
+     * once the admin has actually chosen to publish, at the wizard's real final submit.
+     */
+    private function createFromStep(Request $request): RedirectResponse
+    {
+        $this->authorize('edit-module', 'properties');
+
+        $step = max(1, (int) $request->input('_current_step', 1));
+        $data = $request->validate($this->rulesUpToStep($step));
+
+        $property = DB::transaction(function () use ($request, $data) {
+            $property = Property::create($this->propertyAttributes($data));
+
+            $branding = [];
+            if ($file = $request->file('logo')) {
+                $branding['logo_path'] = $this->upload($file, $property->id);
+            }
+            if ($file = $request->file('cover_image')) {
+                $branding['cover_image_path'] = $this->upload($file, $property->id);
+            }
+            if ($branding) {
+                $property->update($branding);
+            }
+
+            PropertyDetail::create($this->detailAttributes($data, $request, $property->id));
+
+            $this->syncUnitTypes($request, $property->id);
+            $this->syncMedia($request, $data, $property->id);
+
+            return $property;
+        });
+
+        $next = min($step + 1, count($this->stepFields()));
+
+        return redirect(route('admin.properties.edit', $property) . '?step=' . $next);
     }
 
     /**
@@ -580,6 +630,7 @@ class PropertyController extends Controller
             // Flat map of form-field name => current value; see toFormValues().
             'formRecord' => $this->toFormValues($property),
             'fieldsEnabled' => $this->fieldsEnabled(),
+            'stepFields' => $this->stepFields(),
         ] + $this->projectTypeData(old('project_type', $property->project_type)));
     }
 
@@ -594,6 +645,10 @@ class PropertyController extends Controller
     public function update(Request $request, Property $property): RedirectResponse
     {
         $this->authorize('edit-module', 'properties');
+
+        if ($request->input('_step_action') === 'advance') {
+            return $this->advanceStep($request, $property);
+        }
 
         $isFullForm = $request->boolean('_full');
 
@@ -633,6 +688,52 @@ class PropertyController extends Controller
         return redirect()
             ->route('admin.properties.show', $property)
             ->with('success', "\"{$property->name}\" updated.");
+    }
+
+    /**
+     * "Next" on the intake wizard for a listing that already exists — persists whatever the
+     * admin has filled in through the current step and moves them on, rather than holding
+     * everything in the browser until the final step is reached. Same create-then-
+     * update-per-step pattern as the broker registration wizard (see AuthController::
+     * saveRegistrationStep); createFromStep() above is this method's step-1 counterpart
+     * for a listing that does not exist yet.
+     *
+     * Only steps 1..$step are required here — a later step's required fields would block
+     * an admin from ever reaching them. Any field the admin has not gotten to yet keeps
+     * whatever it already had (see rulesUpToStep()'s doc comment and toFormValues() below)
+     * rather than being blanked out just because this particular request did not repeat it.
+     */
+    private function advanceStep(Request $request, Property $property): RedirectResponse
+    {
+        $step = max(1, (int) $request->input('_current_step', 1));
+
+        // Validated, fresh-this-request values win; toFormValues() backfills everything
+        // else from the record as it already stands — the same flat map the edit form
+        // itself is populated from — so a step the admin has not reached yet is left
+        // exactly as it was rather than nulled out by its absence from this submission.
+        $data = $request->validate($this->rulesUpToStep($step)) + $this->toFormValues($property);
+
+        DB::transaction(function () use ($request, $data, $property) {
+            $attributes = $this->propertyAttributes($data);
+            unset($attributes['slug']);
+
+            $property->update($attributes + $this->replacedBranding($request, $property));
+
+            $property->detail()->updateOrCreate(
+                ['property_id' => $property->id],
+                $this->detailAttributes($data, $request, $property->id, $property->detail)
+            );
+
+            $property->unitTypes()->delete();
+            $this->syncUnitTypes($request, $property->id);
+
+            $this->removeMedia($request, $property);
+            $this->syncMedia($request, $data, $property->id);
+        });
+
+        $next = min($step + 1, count($this->stepFields()));
+
+        return redirect(route('admin.properties.edit', $property) . '?step=' . $next);
     }
 
     /**
@@ -729,7 +830,7 @@ class PropertyController extends Controller
 
         if ($detail) {
             $values += $detail->only([
-                'booking_amount', 'cp_commission_percent', 'fos_commission_percent', 'special_incentives', 'cashback_schemes',
+                'booking_amount', 'cp_commission_percent', 'fos_commission_amount', 'special_incentives', 'cashback_schemes',
                 'registration_stamp_duty', 'maintenance_charges', 'floor_rise', 'plc_charges',
                 'payment_schedule', 'sales_office_address', 'site_visit_timings',
                 'sales_contact_name', 'sales_contact_number', 'booking_process',
@@ -903,7 +1004,9 @@ class PropertyController extends Controller
             'payment_plan_options.*' => ['string', 'max:64'],
             'booking_amount' => ['nullable', 'integer', 'min:0'],
             'cp_commission_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'fos_commission_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            // A flat payout amount, not a percentage (unlike its CP sibling above) — no
+            // 100 ceiling makes sense here, only that it isn't negative.
+            'fos_commission_amount' => ['nullable', 'numeric', 'min:0'],
             'special_incentives' => ['nullable', 'string', 'max:5000'],
             'cashback_schemes' => ['nullable', 'string', 'max:5000'],
             'registration_stamp_duty' => ['nullable', 'string', 'max:255'],
@@ -928,6 +1031,57 @@ class PropertyController extends Controller
             'sales_contact_number' => ['nullable', 'string', 'max:32'],
             'booking_process' => ['nullable', 'string', 'max:5000'],
         ];
+    }
+
+    /**
+     * Canonical field ownership per wizard step — the single source both rulesUpToStep()
+     * below and the wizard's own step rail / error-jump mapping read from (passed to the
+     * view as $stepFields; see _form.blade.php), so the two can never drift apart the way
+     * two independently-maintained copies of the same list eventually do.
+     *
+     * @return array<int, list<string>>
+     */
+    private function stepFields(): array
+    {
+        return [
+            // possession_date sits here, not with the other dates in step 2: it is
+            // revealed by project_type, and a conditional field the type control cannot
+            // show is invisible.
+            1 => ['name', 'developer_id', 'project_type', 'possession_date', 'project_status',
+                  'tagline', 'description', 'logo', 'listing_status'],
+            2 => ['country', 'state', 'city', 'locality', 'full_address', 'landmark', 'pincode', 'zone',
+                  'latitude', 'longitude', 'maps_link', 'connectivity_highlights', 'nearby_infrastructure'],
+            3 => ['price_min', 'price_max', 'extent_metric', 'currency', 'total_units', 'towers',
+                  'floors_per_tower', 'land_parcel_acres', 'total_project_area_sqft', 'unit_types', 'unit_plans'],
+            4 => ['amenities', 'green_certification', 'vastu_compliant'],
+            5 => ['cover_image', 'gallery', 'site_layout', 'master_plan', 'brochure', 'price_list',
+                  'video_url', 'virtual_tour_url', 'payment_schedule_file'],
+            6 => ['cp_commission_percent', 'fos_commission_amount', 'terms_title', 'terms_document'],
+            7 => ['sales_office_address', 'site_visit_timings', 'sales_contact_name', 'sales_contact_number', 'booking_process'],
+        ];
+    }
+
+    /**
+     * rules() filtered down to fields owned by steps 1..$step — advancing past step N must
+     * only demand what steps 1..N require, never a later step's required fields the admin
+     * has not even reached yet (those still get enforced, same as always, once their own
+     * step is reached or the form's final submit runs the unfiltered rules()).
+     *
+     * Wildcard sub-rules (e.g. 'unit_types.*.label') are matched on their field's own base
+     * key, so listing just 'unit_types' under a step is enough to carry its row rules too.
+     *
+     * @return array<string, mixed>
+     */
+    private function rulesUpToStep(int $step): array
+    {
+        $allowed = collect($this->stepFields())
+            ->filter(fn ($fields, $number) => $number <= $step)
+            ->flatten()
+            ->all();
+
+        return collect($this->rules())
+            ->filter(fn ($rule, $key) => in_array(Str::before($key, '.'), $allowed, true))
+            ->all();
     }
 
     // ------------------------------------------------------------------ mapping
@@ -1000,7 +1154,7 @@ class PropertyController extends Controller
     private function detailAttributes(array $data, Request $request, int $propertyId, ?PropertyDetail $existing = null): array
     {
         $columns = [
-            'booking_amount', 'cp_commission_percent', 'fos_commission_percent', 'special_incentives', 'cashback_schemes',
+            'booking_amount', 'cp_commission_percent', 'fos_commission_amount', 'special_incentives', 'cashback_schemes',
             'registration_stamp_duty', 'maintenance_charges', 'floor_rise', 'plc_charges',
             'payment_schedule', 'sales_office_address', 'site_visit_timings',
             'sales_contact_name', 'sales_contact_number', 'booking_process',

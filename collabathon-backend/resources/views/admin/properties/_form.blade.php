@@ -41,26 +41,17 @@
         7 => ['label' => 'Contact & sales',  'icon' => 'phone',       'hint' => 'Sales office and booking process'],
     ];
 
-    // A failed submit lands back here — open the first step that actually has an error
-    // rather than step 1, so the message is not hidden behind the rail.
-    $stepFields = [
-        // possession_date sits here, not with the other dates in step 5: it is revealed by
-        // project_type, and a conditional field the type control cannot show is invisible.
-        1 => ['name', 'developer_id', 'project_type', 'possession_date', 'project_status',
-              'tagline', 'description',
-              'logo', 'listing_status'],
-        2 => ['country', 'state', 'city', 'locality', 'full_address', 'landmark', 'pincode', 'zone',
-              'latitude', 'longitude', 'maps_link', 'connectivity_highlights', 'nearby_infrastructure'],
-        3 => ['price_min', 'price_max', 'extent_metric', 'currency', 'total_units', 'towers',
-              'floors_per_tower', 'land_parcel_acres', 'total_project_area_sqft', 'unit_types', 'unit_plans'],
-        4 => ['amenities', 'green_certification', 'vastu_compliant'],
-        5 => ['cover_image', 'gallery', 'site_layout', 'master_plan', 'brochure', 'price_list',
-              'video_url', 'virtual_tour_url', 'payment_schedule_file'],
-        6 => ['cp_commission_percent', 'fos_commission_percent', 'terms_title', 'terms_document'],
-        7 => ['sales_office_address', 'site_visit_timings', 'sales_contact_name', 'sales_contact_number', 'booking_process'],
-    ];
+    // $stepFields comes from PropertyController (create()/edit()) rather than being
+    // repeated here — it is also how the controller scopes "Next"'s partial save
+    // (rulesUpToStep()), and a second, independently-maintained copy of the same list is
+    // exactly how those two drift apart over time.
 
-    $initialStep = 1;
+    // Lands the admin back on whichever step they were advancing past — see
+    // PropertyController::advanceStep()/createFromStep(), which redirect here with
+    // ?step=N+1 after a successful "Next". A failed submit's error always takes
+    // priority over that, opening the first step that actually has an error rather
+    // than wherever the redirect pointed, so the message is never hidden behind the rail.
+    $initialStep = max(1, min((int) request('step', 1), count($stepFields)));
     foreach ($stepFields as $number => $keys) {
         if ($errors->hasAny($keys)) {
             $initialStep = $number;
@@ -156,7 +147,10 @@
 
               /** Reveal the step holding the first invalid control, then report on it there. */
               reportInvalid() {
-                  const invalid = this.$el.querySelector(':invalid');
+                  // $root, not $el: this can now run from submit() called off the Next
+                  // button's own x-on:click (see below), where $el would be the button
+                  // rather than the form.
+                  const invalid = this.$root.querySelector(':invalid');
                   if (! invalid) return;
 
                   const section = invalid.closest('[data-step]');
@@ -166,12 +160,25 @@
                   this.$nextTick(() => { invalid.focus(); invalid.reportValidity() });
               },
 
-              async submit(event) {
+              /**
+               * `advance`: Next rather than a real final submit — see
+               * PropertyController::advanceStep()/createFromStep(). checkValidity() is
+               * skipped in that case: it walks every `required` control in the whole
+               * form, including steps the admin has not reached yet, which is exactly
+               * what a partial, in-progress save must not demand. The server applies
+               * the equivalent, step-scoped check instead (rulesUpToStep()) and reports
+               * back the same way a full submit's validation failure already does.
+               */
+              async submit(event, advance = false) {
                   event.preventDefault();
 
-                  const form = this.$el;
+                  // $root, not $el: submit() is now called two ways — from the form's own
+                  // x-on:submit (final save, where $el already is the form) and from the
+                  // Next button's x-on:click (advance, where $el would be the button
+                  // instead). $root always resolves to the form either way.
+                  const form = this.$root;
 
-                  if (! form.checkValidity()) { this.reportInvalid(); return }
+                  if (! advance && ! form.checkValidity()) { this.reportInvalid(); return }
 
                   this.busy = true;
                   this.uploadError = '';
@@ -206,6 +213,11 @@
                       return;
                   }
 
+                  if (advance) {
+                      this.$refs.stepAction.value = 'advance';
+                      this.$refs.currentStep.value = this.step;
+                  }
+
                   this.saving = true;
                   // form.submit() fires no submit event, so the layout's page skeleton
                   // has to be asked for directly.
@@ -224,6 +236,12 @@
         {{-- Tells update() this is the full form, not the row menu's one-field status action,
              so it is safe to rebuild the detail row, unit types and attachments. --}}
         <input type="hidden" name="_full" value="1">
+
+        {{-- Set by submit(event, true) just before a "Next" click's own form.submit() —
+             see PropertyController::advanceStep()/createFromStep(). Empty here means a
+             real final submit, same as before this pair of fields existed. --}}
+        <input type="hidden" name="_step_action" x-ref="stepAction" value="">
+        <input type="hidden" name="_current_step" x-ref="currentStep" value="">
 
         {{-- The publish choice is a field rather than the submit button's name/value, because
              submit() ignores the submitter. Editing keeps the listing's current state unless
@@ -688,8 +706,10 @@
                                 <x-field label="CP commission %" name="cp_commission_percent" type="number" step="0.01"
                                          placeholder="2.50" hint="Overrides the developer default for this project." />
                             @endif
-                            <x-field label="FOS commission %" name="fos_commission_percent" type="number" step="0.01"
-                                     placeholder="1.00" hint="Payout for feet-on-street field sales agents." />
+                            {{-- A flat payout amount, not a percentage — unlike CP commission above,
+                                 which does scale with sale price. --}}
+                            <x-field label="FOS commission" name="fos_commission_amount" type="number" step="1"
+                                     placeholder="25000" hint="Flat payout for feet-on-street field sales agents." />
                         </div>
 
                         {{-- Developer terms ------------------------------------------------
@@ -751,14 +771,22 @@
                         <div class="flex flex-wrap items-center justify-between gap-3">
                             <div class="flex items-center gap-2">
                                 <x-button variant="outline" size="sm" tag="button" type="button" icon="chevron-left"
-                                          x-on:click="go(step - 1)" x-bind:disabled="step === 1">Back</x-button>
+                                          x-on:click="go(step - 1)" x-bind:disabled="step === 1 || busy || saving">Back</x-button>
+                                {{-- Not pure client-side navigation any more: this saves whatever the
+                                     admin has filled in through the current step before moving on —
+                                     see PropertyController::advanceStep()/createFromStep() and
+                                     submit()'s `advance` param above. --}}
                                 <x-button variant="outline" size="sm" tag="button" type="button" icon-right="chevron-right"
-                                          x-on:click="go(step + 1)" x-show="step < last">Next</x-button>
-                                <p class="text-[11.5px] text-ink-3 nums ml-1" x-show="! busy">
+                                          x-on:click="submit($event, true)" x-show="step < last"
+                                          x-bind:disabled="busy || saving">Next</x-button>
+                                <p class="text-[11.5px] text-ink-3 nums ml-1" x-show="! busy && ! saving">
                                     Step <span x-text="step"></span> of {{ count($steps) }}
                                 </p>
                                 <p class="text-[11.5px] text-ink-2 ml-1" x-show="busy" x-cloak>
                                     Optimising images…
+                                </p>
+                                <p class="text-[11.5px] text-ink-2 ml-1" x-show="saving" x-cloak>
+                                    Saving…
                                 </p>
                             </div>
 

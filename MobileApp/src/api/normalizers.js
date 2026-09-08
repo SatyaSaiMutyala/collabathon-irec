@@ -190,7 +190,8 @@ export function normalizeProperty(api) {
     attachmentCount: media.plans.length + media.documents.length + media.tours.length,
 
     commissionPercent: detail.cp_commission_percent ?? 0,
-    fosCommissionPercent: detail.fos_commission_percent ?? 0,
+    // A flat payout amount, not a percentage — unlike CP commission above.
+    fosCommissionAmount: detail.fos_commission_amount ?? 0,
 
     /**
      * The developer's terms for this project, when there are any.
