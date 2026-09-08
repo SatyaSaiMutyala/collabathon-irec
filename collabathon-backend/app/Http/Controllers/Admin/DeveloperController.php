@@ -203,7 +203,9 @@ class DeveloperController extends Controller
             // Typed in the form; blank falls back to a generated one. 72 is bcrypt's
             // hard limit — anything longer is silently truncated.
             'password' => ['nullable', 'string', 'min:8', 'max:72'],
-            'mobile' => ['required', 'string', 'max:32'],
+            // The new login (users.mobile) carries a DB-level unique constraint — without
+            // this check a colliding number passes validation and crashes on the insert.
+            'mobile' => ['required', 'string', 'max:32', 'unique:users,mobile'],
             'contact_designation' => ['nullable', 'string', 'max:96'],
 
             // Key contact — internal. Nullable because it is often filled in after the
@@ -549,7 +551,13 @@ class DeveloperController extends Controller
                 // The login lives on users; developers.email only mirrors it.
                 Rule::unique('users', 'email')->ignore($developer->user_id),
             ],
-            'mobile' => ['sometimes', 'required', 'string', 'max:32'],
+            'mobile' => [
+                'sometimes', 'required', 'string', 'max:32',
+                // developers.mobile isn't itself unique, but the linked login (users.mobile)
+                // is — this update writes the same value there below, so without this check
+                // a colliding number passes validation and then crashes on the raw DB write.
+                Rule::unique('users', 'mobile')->ignore($developer->user_id),
+            ],
             'contact_designation' => ['sometimes', 'nullable', 'string', 'max:96'],
 
             'key_contact_person' => ['sometimes', 'nullable', 'string', 'max:255'],
@@ -575,6 +583,7 @@ class DeveloperController extends Controller
         ], [
             'company_name.unique' => 'Another developer already uses this company name.',
             'email.unique' => 'An account with this email already exists.',
+            'mobile.unique' => 'Another account already uses this mobile number.',
         ]);
 
         unset($data['logo']);
