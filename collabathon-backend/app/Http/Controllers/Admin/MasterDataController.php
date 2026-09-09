@@ -2,28 +2,24 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Exceptions\MasterDataImportException;
 use App\Http\Concerns\HandlesListQueries;
 use App\Http\Controllers\Controller;
-use App\Models\Developer;
-use App\Models\User;
-use App\Services\DeveloperCredentialsNotifier;
+use App\Models\Property;
+use App\Services\MasterData\ImportOutcome;
+use App\Services\MasterData\MasterDataImporter;
 use App\Services\MasterDataClient;
-use App\Support\FileStorage;
+use App\Services\ProjectAssignmentNotifier;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator as ManualPaginator;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
  * Browses the irecexpo.com "Master Data" feed — developer/project registrations
- * submitted on that site — and converts one into a real Developer account here.
+ * submitted on that site — and imports one as a real developer account and listing.
  *
  * The feed is entirely external: nothing under this controller reads or writes it, it
  * only ever calls out through {@see MasterDataClient} and reads the JSON that comes
@@ -31,6 +27,10 @@ use Illuminate\View\View;
  * `convert()` — reached by clicking through, not by re-querying — don't need a second
  * round trip for data already in hand; see {@see record()} for what happens when that
  * cache has expired.
+ *
+ * The import itself lives in {@see MasterDataImporter}. What stays here is a
+ * controller's share of it: fetch the record, catch the one exception the importer
+ * raises, and turn what it did into the right message.
  */
 class MasterDataController extends Controller
 {
@@ -75,9 +75,13 @@ class MasterDataController extends Controller
             return $record;
         });
 
-        // Which of this page's rows are already a real Developer — checked in one
-        // query against every reference_code on the page, not one query per row.
-        $convertedCodes = Developer::whereIn('external_reference_code', $records->pluck('reference_code')->filter())
+        // Which of this page's rows are already in — checked against listings rather
+        // than developers, because a registration is one project and a listing is what
+        // it becomes. A developer with three registrations shows three rows here, two
+        // of which may be imported and one not, which the developer table could not
+        // express. One query for the whole page, not one per row.
+        $convertedCodes = Property::withTrashed()
+            ->whereIn('external_reference_code', $records->pluck('reference_code')->filter())
             ->pluck('id', 'external_reference_code');
 
         return view('admin.master-data.index', [
@@ -88,8 +92,12 @@ class MasterDataController extends Controller
         ]);
     }
 
-    public function show(Request $request, int $registrationId, MasterDataClient $client): View|RedirectResponse
-    {
+    public function show(
+        Request $request,
+        int $registrationId,
+        MasterDataClient $client,
+        MasterDataImporter $importer
+    ): View|RedirectResponse {
         $this->authorize('view-module', 'master_data');
 
         $record = $this->record($registrationId, $client);
@@ -99,27 +107,41 @@ class MasterDataController extends Controller
                 ->with('warning', 'That registration could not be found — it may have expired from view. Try opening it again from the list.');
         }
 
-        $developer = Developer::where('external_reference_code', $record['reference_code'] ?? null)
-            ->with('user:id,email,status')
+        // Three states the page has to tell apart, each with its own button: nothing
+        // here yet, the company is here but this project is not, or both are. The
+        // developer is resolved by the importer itself, so the page never offers
+        // something the import would then do differently.
+        $property = Property::withTrashed()
+            ->with('developer')
+            ->where('external_reference_code', $record['reference_code'] ?? null)
             ->first();
 
         return view('admin.master-data.show', [
             'record' => $record,
-            'developer' => $developer,
+            'property' => $property,
+            'developer' => $property?->developer ?? $importer->existingDeveloper($record),
         ]);
     }
 
     /**
-     * Creates a real Developer + login account from one Master Data registration —
-     * the one-way action that turns an external sign-up into an actual partner here.
-     * Idempotent: converting the same registration twice redirects to the developer
-     * created the first time rather than erroring or creating a duplicate.
+     * Imports one Master Data registration: the developer's account when they are new
+     * here, and the project itself as a listing either way.
+     *
+     * A registration is one *project*, and a developer files a fresh one for every
+     * project they launch — so the second registration from a company already on the
+     * platform brings only its listing, hung off the account the first one created.
+     * That resolution and the rules around it live in {@see MasterDataImporter}; this
+     * method only decides what to say about the result.
+     *
+     * Idempotent: converting the same registration twice opens the listing it produced
+     * the first time rather than erroring or creating a duplicate.
      */
     public function convert(
         Request $request,
         int $registrationId,
         MasterDataClient $client,
-        DeveloperCredentialsNotifier $notifier
+        MasterDataImporter $importer,
+        ProjectAssignmentNotifier $notifier
     ): RedirectResponse {
         $this->authorize('edit-module', 'master_data');
 
@@ -130,60 +152,72 @@ class MasterDataController extends Controller
                 ->with('warning', 'That registration could not be found — it may have expired from view. Try opening it again from the list.');
         }
 
-        $referenceCode = $record['reference_code'] ?? null;
-
-        $existing = $referenceCode ? Developer::where('external_reference_code', $referenceCode)->first() : null;
-        if ($existing) {
-            return redirect()->route('admin.developers.show', $existing)
-                ->with('info', "Already converted — {$existing->company_name} was created from this registration earlier.");
-        }
-
-        $data = $this->mapDeveloperFields($record);
-
         try {
-            $this->guardUnique($data);
-        } catch (ValidationException $e) {
+            $outcome = $importer->import($record);
+        } catch (MasterDataImportException $e) {
+            // The only exception the importer raises, and every message it carries is
+            // already written for this page — so it is shown as it is rather than
+            // restated as something vaguer here.
             return redirect()->route('admin.master-data.show', $registrationId)
                 ->with('error', $e->getMessage());
         }
 
-        $logoPath = $this->downloadLogo($record['developer_profile']['builder_logo_url'] ?? null);
+        if (! $outcome->propertyCreated) {
+            return redirect()->route('admin.properties.show', $outcome->property)
+                ->with('info', "Already imported — \"{$outcome->property->name}\" was created from this registration earlier.");
+        }
 
-        $password = Str::password(14, symbols: false);
-
-        $user = DB::transaction(function () use ($data, $password, $logoPath) {
-            $user = User::create([
-                'name' => $data['contact_person'],
-                'email' => $data['email'],
-                'password' => $password,
-                'mobile' => $data['mobile'],
-                'role' => User::ROLE_DEVELOPER,
-                'status' => User::STATUS_ACTIVE,
-                'email_verified_at' => now(),
-            ]);
-
-            Developer::create($data + [
-                'user_id' => $user->id,
-                'logo_path' => $logoPath,
-                'verified' => false,
-                'status' => 'active',
-            ]);
-
-            return $user;
-        });
-
-        $delivery = $notifier->send($user, $password, $data['contact_person']);
-
-        $developer = $user->developer;
+        // The same notification an admin-created listing sends, through the same
+        // service: the developer needs the accept/decline links before a broker can see
+        // this listing at all.
+        $notifier->assigned($outcome->property);
 
         return redirect()
-            ->route('admin.developers.show', $developer)
-            ->with('success', "{$data['company_name']} converted to a developer account.{$delivery['note']}")
-            ->with('credentials', [
-                'name' => $data['contact_person'],
-                'email' => $data['email'],
-                'password' => $password,
-            ]);
+            ->route('admin.properties.show', $outcome->property)
+            ->with('success', $this->importMessage($outcome))
+            // Its own notice rather than more text on the success message: this is not
+            // what the admin asked for, it is a side effect they may want to undo, and
+            // it should read as one.
+            ->with('warning', $this->catalogueNote($outcome))
+            ->with('credentials', $outcome->credentials);
+    }
+
+    /**
+     * What the import added to the editable lists, if anything.
+     *
+     * The vendor's fields are free text, so a registration can carry a project type or a
+     * state nobody here has ever used — sometimes a genuine new value, sometimes a
+     * developer typing into the wrong box on their form. Both are added so the import
+     * never dead-ends, and both are named here so the admin can go and tidy up the
+     * second kind. Added entries are inactive, so nothing new is offered on a form or a
+     * filter until someone turns it on.
+     */
+    private function catalogueNote(ImportOutcome $outcome): ?string
+    {
+        if ($outcome->catalogueAdditions === []) {
+            return null;
+        }
+
+        return implode('. ', $outcome->catalogueAdditions)
+            . '. Added switched off, so nothing new appears on a form until you enable it in Settings.';
+    }
+
+    /**
+     * What the import did, in one sentence.
+     *
+     * The two cases read differently on purpose. A new account is news the admin has to
+     * act on, because credentials have just gone out to someone; another listing for a
+     * developer already on the platform is routine, and naming the company is what
+     * confirms the listing landed on the right one.
+     */
+    private function importMessage(ImportOutcome $outcome): string
+    {
+        $listing = "\"{$outcome->property->name}\" is live under {$outcome->developer->company_name}, "
+            .'pending their acceptance.';
+
+        return $outcome->developerCreated
+            ? "{$outcome->developer->company_name} converted to a developer account. {$listing}{$outcome->deliveryNote}"
+            : $listing;
     }
 
     /** Cache first (the normal path — reached by clicking through the list just rendered), API second. */
@@ -199,127 +233,6 @@ class MasterDataController extends Controller
     private function cacheKey(int $registrationId): string
     {
         return "master-data:record:{$registrationId}";
-    }
-
-    /**
-     * Every field App\Http\Controllers\Admin\DeveloperController::store() collects,
-     * pulled from the registration's `developer_profile` block. `project_details` (the
-     * project itself — units, amenities, commercials) is deliberately NOT imported here;
-     * converting creates the developer's account, not a listing.
-     */
-    private function mapDeveloperFields(array $record): array
-    {
-        $profile = $record['developer_profile'] ?? [];
-        $social = $profile['social_links'] ?? [];
-        $commission = $record['project_details']['channel_partner_commercials']['cp_commission'] ?? null;
-
-        // data_get(), not $profile['key'] ?: null — every one of these is an optional
-        // field on the vendor's side (confirmed: their own sample payload already
-        // ships some social links as absent), and `?:` throws on a genuinely missing
-        // array key rather than just falling through on an empty one.
-        return [
-            'external_reference_code' => $record['reference_code'] ?? null,
-            'company_name' => (string) data_get($profile, 'company_name', ''),
-            'contact_person' => (string) data_get($profile, 'key_contact_person', ''),
-            'contact_designation' => data_get($profile, 'designation') ?: null,
-            'email' => (string) data_get($profile, 'email', ''),
-            'mobile' => $this->normaliseMobile((string) data_get($profile, 'mobile', '')),
-            // The vendor sends exactly one contact — the same person fills both our
-            // public "Contact person" and the admin-only "Key contact" panel, since
-            // there's nothing in the payload to tell the two apart. An admin can
-            // still edit Key contact separately later if a different internal
-            // decision-maker turns out to be the right one there.
-            'key_contact_person' => data_get($profile, 'key_contact_person') ?: null,
-            'key_contact_designation' => data_get($profile, 'designation') ?: null,
-            'key_contact_mobile' => ($m = $this->normaliseMobile((string) data_get($profile, 'mobile', ''))) !== '' ? $m : null,
-            'key_contact_email' => data_get($profile, 'email') ?: null,
-            'about' => data_get($profile, 'about_company') ?: (data_get($profile, 'brief_description') ?: null),
-            'website' => data_get($profile, 'website') ?: null,
-            'address' => data_get($profile, 'registered_address') ?: null,
-            'city' => data_get($profile, 'city') ?: null,
-            'state' => data_get($profile, 'state') ?: null,
-            'country' => data_get($profile, 'country') ?: null,
-            'pincode' => data_get($profile, 'pincode') ?: null,
-            'instagram' => data_get($social, 'instagram') ?: null,
-            'facebook' => data_get($social, 'facebook') ?: null,
-            'youtube' => data_get($social, 'youtube') ?: null,
-            'twitter' => data_get($social, 'twitter_x') ?: null,
-            'linkedin' => data_get($social, 'linkedin') ?: null,
-            // 2.50 matches DeveloperController::store()'s own default — this is
-            // commission a channel partner earns from us, not necessarily the same
-            // figure the developer quoted the vendor's site for their own listing, so
-            // it's only trusted when it actually looks like a plain percentage.
-            'cp_payout_percent' => is_numeric($commission) ? (float) $commission : 2.50,
-        ];
-    }
-
-    /**
-     * Checked before creating, not left to the database, so a collision surfaces as a
-     * clear message on the Master Data page rather than a raw constraint-violation 500.
-     */
-    private function guardUnique(array $data): void
-    {
-        if ($data['email'] === '' || $data['mobile'] === '' || $data['company_name'] === '') {
-            throw ValidationException::withMessages([
-                'error' => ['This registration is missing a required field (email, mobile or company name) and cannot be converted yet.'],
-            ]);
-        }
-
-        if (User::where('email', $data['email'])->exists()) {
-            throw ValidationException::withMessages([
-                'error' => ["{$data['email']} is already in use by another account — resolve that before converting."],
-            ]);
-        }
-
-        if (User::where('mobile', $data['mobile'])->exists()) {
-            throw ValidationException::withMessages([
-                'error' => ["{$data['mobile']} is already in use by another account — resolve that before converting."],
-            ]);
-        }
-
-        if (Developer::where('company_name', $data['company_name'])->exists()) {
-            throw ValidationException::withMessages([
-                'error' => ["A developer named \"{$data['company_name']}\" already exists — resolve that before converting."],
-            ]);
-        }
-    }
-
-    /**
-     * Best-effort: a broken or slow image fetch must not block the whole conversion,
-     * since the account and its access are the part that actually matters.
-     */
-    private function downloadLogo(?string $url): ?string
-    {
-        if (! $url) {
-            return null;
-        }
-
-        try {
-            $response = Http::timeout(10)->get($url);
-
-            if (! $response->successful()) {
-                return null;
-            }
-
-            $extension = pathinfo(parse_url($url, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION) ?: 'png';
-            $folder = 'developers/logos';
-            $path = $folder . '/' . Str::random(24) . '.' . $extension;
-
-            FileStorage::diskForFolder($folder)->put($path, $response->body());
-
-            return $path;
-        } catch (\Throwable $e) {
-            Log::warning('Master Data logo download failed', ['url' => $url, 'error' => $e->getMessage()]);
-
-            return null;
-        }
-    }
-
-    private function normaliseMobile(?string $value): string
-    {
-        $digits = preg_replace('/\D+/', '', (string) $value) ?? '';
-
-        return strlen($digits) > 10 ? substr($digits, -10) : $digits;
     }
 
     /**

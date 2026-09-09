@@ -2,7 +2,7 @@
 
     <x-page-header
         title="Master Data"
-        subtitle="Developer and project registrations submitted on irecexpo.com. Open one to see the full submission and convert it into a real developer account here." />
+        subtitle="Developer and project registrations submitted on irecexpo.com. Open one to see the full submission and import it as a listing here — creating the developer's account too, if this is their first." />
 
     @unless($apiOk)
         <div class="flex items-start gap-3 rounded-xl bg-danger-soft ring-1 ring-inset ring-danger-ring px-4 py-3 mb-5">
@@ -46,7 +46,10 @@
                 $project = $record['project_details'] ?? [];
                 $sync = $record['sync_meta'] ?? [];
                 $referenceCode = $record['reference_code'] ?? null;
-                $developerId = $referenceCode ? ($convertedCodes[$referenceCode] ?? null) : null;
+                // The listing this registration produced, not the developer: one
+                // developer files a registration per project, so imported-ness belongs
+                // to the row, not the company.
+                $importedPropertyId = $referenceCode ? ($convertedCodes[$referenceCode] ?? null) : null;
             @endphp
             <tr class="hover:bg-canvas transition-colors cursor-pointer"
                 x-on:click="window.location = @js(route('admin.master-data.show', $record['registration_id']))">
@@ -81,8 +84,8 @@
 
                 <td class="px-4 py-3" data-row-actions>
                     <div class="flex items-center justify-end gap-1.5">
-                        @if($developerId)
-                            <x-badge tone="success" size="sm" dot>Converted</x-badge>
+                        @if($importedPropertyId)
+                            <x-badge tone="success" size="sm" dot>Imported</x-badge>
                         @else
                             <x-badge tone="neutral" size="sm">{{ ucfirst($sync['status'] ?? 'unknown') }}</x-badge>
                         @endif

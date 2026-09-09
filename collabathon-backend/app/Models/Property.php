@@ -12,10 +12,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 
 #[Fillable([
-    'developer_id', 'name', 'slug', 'project_type', 'project_status', 'listing_status',
+    'developer_id', 'external_reference_code', 'name', 'slug', 'project_type', 'project_status', 'listing_status',
     'tagline', 'description', 'logo_path', 'cover_image_path',
     'rera_number', 'rera_registered_at', 'rera_valid_till',
-    'state', 'city', 'locality', 'full_address', 'landmark', 'pincode', 'zone',
+    // `country` was collected by the intake form and mapped by PropertyController long
+    // before it was listed here, so every save silently discarded it. Adding it stores
+    // what the form has always been sending.
+    'country', 'state', 'city', 'locality', 'full_address', 'landmark', 'pincode', 'zone',
     'latitude', 'longitude', 'maps_link',
     'price_min', 'price_max', 'price_per_sqft', 'extent_metric', 'currency',
     'total_units', 'towers', 'floors_per_tower', 'flats_per_floor',

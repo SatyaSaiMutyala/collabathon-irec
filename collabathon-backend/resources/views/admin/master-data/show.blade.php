@@ -43,16 +43,30 @@
             </div>
         </div>
 
+        {{-- Three states, and the button has to name the right one. A registration is
+             one project, so "already imported" is about this listing, not about the
+             company — a developer already on the platform is the ordinary case here,
+             not a blocker, and the button says which company the listing will join so
+             an admin can catch a wrong match before pressing it. --}}
         <div class="flex flex-wrap items-center gap-2.5 shrink-0">
-            @if($developer)
-                <x-button variant="outline" icon="check" tag="a" href="{{ route('admin.developers.show', $developer) }}">
-                    Already converted — view developer
+            @if($property)
+                <x-button variant="outline" icon="check" tag="a" href="{{ route('admin.properties.show', $property) }}">
+                    Already imported — view listing
                 </x-button>
+                @if($developer)
+                    <x-button variant="ghost" tag="a" href="{{ route('admin.developers.show', $developer) }}">
+                        View developer
+                    </x-button>
+                @endif
             @else
                 <form method="POST" action="{{ route('admin.master-data.convert', $record['registration_id']) }}">
                     @csrf
                     <x-button variant="primary" tag="button" type="submit" icon="check">
-                        Convert developer
+                        @if($developer)
+                            Add listing to {{ $developer->company_name }}
+                        @else
+                            Convert developer &amp; import listing
+                        @endif
                     </x-button>
                 </form>
             @endif

@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Concerns\ExportsList;
 use App\Http\Concerns\HandlesListQueries;
 use App\Http\Controllers\Controller;
-use App\Mail\ProjectAssignedMail;
 use App\Models\Amenity;
 use App\Models\Country;
 use App\Models\Developer;
@@ -13,23 +12,20 @@ use App\Models\FormField;
 use App\Models\MeasurementUnit;
 use App\Models\ProjectType;
 use App\Models\Property;
+use App\Services\ProjectAssignmentNotifier;
 use App\Services\PropertyDeleter;
-use App\Services\PushNotifier;
 use App\Models\PropertyDetail;
 use App\Models\PropertyMedia;
 use App\Models\PropertyUnitType;
 use App\Models\UnitType;
 use App\Support\CsvReader;
-use App\Support\MailSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -241,7 +237,7 @@ class PropertyController extends Controller
         ];
     }
 
-    public function store(Request $request, PushNotifier $push): RedirectResponse
+    public function store(Request $request, ProjectAssignmentNotifier $notifier): RedirectResponse
     {
         $this->authorize('edit-module', 'properties');
 
@@ -278,8 +274,7 @@ class PropertyController extends Controller
         // Only for a listing that is actually live — a draft is not news to anyone, and
         // notifying on save would fire again every time the draft is edited.
         if ($data['listing_status'] === 'active') {
-            $push->propertyAssigned($property);
-            $this->notifyDeveloperByEmail($property);
+            $notifier->assigned($property);
         }
 
         return redirect()
@@ -332,50 +327,6 @@ class PropertyController extends Controller
         $next = min($step + 1, count($this->stepFields()));
 
         return redirect(route('admin.properties.edit', $property) . '?step=' . $next);
-    }
-
-    /**
-     * Emails the developer the full project sheet with one-click accept/decline links.
-     *
-     * Same swallow-every-failure shape as ApprovalController::notifyApproved — the
-     * project is already saved and live to the push notification either way; an
-     * unreachable SMTP host must not turn a successful save into a 500.
-     */
-    private function notifyDeveloperByEmail(Property $property): bool
-    {
-        if (! MailSettings::apply()) {
-            return false;
-        }
-
-        $developer = $property->developer ?? $property->loadMissing('developer')->developer;
-        if (! $developer?->email) {
-            return false;
-        }
-
-        try {
-            $property->loadMissing(['detail', 'unitTypes']);
-
-            $expires = now()->addDays(14);
-            $acceptUrl = URL::temporarySignedRoute('developer-response.show', $expires, [
-                'property' => $property->id,
-                'action' => 'accept',
-            ]);
-            $declineUrl = URL::temporarySignedRoute('developer-response.show', $expires, [
-                'property' => $property->id,
-                'action' => 'decline',
-            ]);
-
-            Mail::to($developer->email)->send(new ProjectAssignedMail($property, $acceptUrl, $declineUrl));
-
-            return true;
-        } catch (\Throwable $e) {
-            Log::error('Project assignment email failed', [
-                'property_id' => $property->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return false;
-        }
     }
 
     /**
