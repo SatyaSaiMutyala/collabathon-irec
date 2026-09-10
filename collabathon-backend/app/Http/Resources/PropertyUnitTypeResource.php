@@ -15,6 +15,7 @@ class PropertyUnitTypeResource extends JsonResource
             'carpet_area_sqft' => $this->carpet_area_sqft,
             'built_up_area_sqft' => $this->built_up_area_sqft,
             'super_built_up_area_sqft' => $this->super_built_up_area_sqft,
+            'facing' => $this->facing,
             'price_min' => $this->price_min !== null ? (int) $this->price_min : null,
             'price_max' => $this->price_max !== null ? (int) $this->price_max : null,
             'units_count' => $this->units_count,

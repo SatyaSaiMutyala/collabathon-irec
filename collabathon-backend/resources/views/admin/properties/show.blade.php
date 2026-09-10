@@ -321,7 +321,7 @@
                         <table class="w-full text-left">
                             <thead>
                                 <tr class="border-b border-line-soft bg-canvas">
-                                    @foreach(['Unit', 'Carpet', 'Built-up', 'Super built-up', 'Price', 'Units', 'Floor plan'] as $head)
+                                    @foreach(['Unit', 'Carpet', 'Built-up', 'Super built-up', 'Facing', 'Price', 'Units', 'Floor plan'] as $head)
                                         <th class="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-3 whitespace-nowrap">
                                             {{ $head }}
                                         </th>
@@ -344,6 +344,9 @@
                                                 @endif
                                             </td>
                                         @endforeach
+                                        <td class="px-4 py-3 text-[12.5px] text-ink-2 whitespace-nowrap">
+                                            {{ $unit->facing ?? '—' }}
+                                        </td>
                                         {{-- Intake collects the entry price alone, so the upper end is
                                              null on everything saved since. number_format(null) prints
                                              "0", which made every new row read "18,00,000 – 0" — the

@@ -1,0 +1,66 @@
+# Local development stack for the Collabathon admin panel.
+#
+#   docker compose up --build      first run — builds the image, installs Composer
+#                                  dependencies, migrates and seeds, then serves
+#   docker compose up              every run after that
+#
+# Two services only. The admin panel's Vite assets are already built and committed under
+# public/build, so there is nothing for a Node container to do; run `npm run dev` on the
+# host if you need to change CSS or JS.
+name: collabathon
+
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: collabathon
+      MYSQL_USER: collabathon
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: secret
+    ports:
+      # 3308 on the host, not 3306: this machine already runs a Homebrew MySQL on the
+      # default port, and another project's container (natality-mysql) holds 3307.
+      # Binding a taken port is a silent-looking startup failure. Point a GUI client at
+      # 127.0.0.1:3308 to inspect this database.
+      - "3308:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      # The app's entrypoint waits for MySQL too; this is what lets `depends_on` hold the
+      # app back rather than starting it into a connection-refused loop.
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-psecret"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      # Deliberately NOT named DB_* / APP_URL. Laravel's own configuration comes from
+      # .env (written from .env.docker on first boot), and these are only what the
+      # entrypoint's readiness probe connects with.
+      #
+      # Naming them DB_* here was a real bug, not a style question. A variable set in the
+      # container environment outranks phpunit.xml's <env> entries, which is how the test
+      # suite is pinned to in-memory SQLite — so `php artisan test` picked up this MySQL
+      # connection instead and RefreshDatabase truncated the development database. Keep
+      # every Laravel-recognised key out of this block.
+      WAIT_DB_HOST: mysql
+      WAIT_DB_PORT: "3306"
+      WAIT_DB_USERNAME: collabathon
+      WAIT_DB_PASSWORD: secret
+    volumes:
+      # The whole tree, so edits on the host are live and vendor/ lands back on the host
+      # for the IDE to index.
+      - .:/var/www/html
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql-data:

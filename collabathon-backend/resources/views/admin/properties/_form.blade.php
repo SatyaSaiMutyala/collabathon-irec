@@ -36,7 +36,7 @@
         2 => ['label' => 'Location',         'icon' => 'map-pin',     'hint' => 'Address, zone and connectivity'],
         3 => ['label' => 'Configuration',    'icon' => 'list',        'hint' => 'Unit types, areas and pricing'],
         4 => ['label' => 'Specifications',   'icon' => 'sparkles',    'hint' => 'Land, build quality and amenities'],
-        5 => ['label' => 'Master plan and gallery', 'icon' => 'palette', 'hint' => 'Gallery, plans and brochures'],
+        5 => ['label' => 'Media and gallery', 'icon' => 'palette', 'hint' => 'Gallery, plans and brochures'],
         6 => ['label' => 'Commercial terms', 'icon' => 'chart',       'hint' => 'Payment plans, charges and CP payout'],
         7 => ['label' => 'Contact & sales',  'icon' => 'phone',       'hint' => 'Sales office and booking process'],
     ];
@@ -70,14 +70,24 @@
             'carpet_area_sqft' => $u->carpet_area_sqft,
             'built_up_area_sqft' => $u->built_up_area_sqft,
             'super_built_up_area_sqft' => $u->super_built_up_area_sqft,
+            'facing' => $u->facing,
             'price_min' => $u->price_min,
             'price_max' => $u->price_max,
             'units_count' => $u->units_count,
             'existing_floor_plan' => $u->floor_plan_path,
+            // Only for the "On file" link — no input posts this back.
+            'existing_floor_plan_url' => $u->floor_plan_path
+                ? \App\Support\FileStorage::url($u->floor_plan_path)
+                : null,
         ])->all()
         : []);
 
     $unitTypeRows = $unitTypeRows ?: [['label' => '']];
+
+    // A fixed list on the model, not master data from Settings: the eight compass points
+    // are closed, so there is nothing for an admin to maintain. Validation reads the same
+    // constant, so the dropdown cannot offer a value the controller would then reject.
+    $facingOptions = \App\Models\PropertyUnitType::FACINGS;
 
     // Attachments already on record, so the media step can show and offer to remove them.
     $mediaByKind = $property ? $property->media->groupBy('kind') : collect();
@@ -508,18 +518,15 @@
                                         <input type="hidden" :name="`unit_types[${i}][existing_floor_plan]`"
                                                :value="rows[i].existing_floor_plan ?? ''">
 
-                                        {{-- The three area figures and the upper price are no longer asked for,
-                                             but an edit deletes every unit-type row and recreates it from this
-                                             payload — so dropping the inputs outright would silently blank these
-                                             columns on the next save of a project that already has them. They
-                                             ride through hidden instead: new rows leave them empty, existing rows
-                                             keep whatever is on record. Same reason `existing_floor_plan` above
-                                             is here. --}}
-                                        <template x-for="carried in ['carpet_area_sqft', 'built_up_area_sqft', 'super_built_up_area_sqft', 'price_max']"
-                                                  :key="carried">
-                                            <input type="hidden" :name="`unit_types[${i}][${carried}]`"
-                                                   :value="rows[i][carried] ?? ''">
-                                        </template>
+                                        {{-- The upper price is still not asked for, but an edit deletes every
+                                             unit-type row and recreates it from this payload — so dropping the
+                                             input outright would silently blank the column on the next save of a
+                                             project that already has one. It rides through hidden instead: new
+                                             rows leave it empty, existing rows keep what is on record. Same
+                                             reason `existing_floor_plan` above is here. The three area figures
+                                             used to ride along this way too, and are edited directly below now. --}}
+                                        <input type="hidden" :name="`unit_types[${i}][price_max]`"
+                                               :value="rows[i].price_max ?? ''">
 
                                         <div class="flex items-center justify-between gap-3">
                                             <span class="text-[11.5px] font-medium text-ink-3 nums"
@@ -548,6 +555,38 @@
                                             </label>
 
                                             <label class="block">
+                                                <span class="block text-[11.5px] text-ink-2 mb-1">Carpet (sq.ft.)</span>
+                                                <input type="number" min="0" :name="`unit_types[${i}][carpet_area_sqft]`"
+                                                       x-model="rows[i].carpet_area_sqft" placeholder="1250"
+                                                       class="w-full h-9 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
+                                            </label>
+
+                                            <label class="block">
+                                                <span class="block text-[11.5px] text-ink-2 mb-1">Built-up (sq.ft.)</span>
+                                                <input type="number" min="0" :name="`unit_types[${i}][built_up_area_sqft]`"
+                                                       x-model="rows[i].built_up_area_sqft" placeholder="1437"
+                                                       class="w-full h-9 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
+                                            </label>
+
+                                            <label class="block">
+                                                <span class="block text-[11.5px] text-ink-2 mb-1">Super built-up (sq.ft.)</span>
+                                                <input type="number" min="0" :name="`unit_types[${i}][super_built_up_area_sqft]`"
+                                                       x-model="rows[i].super_built_up_area_sqft" placeholder="1625"
+                                                       class="w-full h-9 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
+                                            </label>
+
+                                            <label class="block">
+                                                <span class="block text-[11.5px] text-ink-2 mb-1">Facing</span>
+                                                <select :name="`unit_types[${i}][facing]`" x-model="rows[i].facing"
+                                                        class="w-full h-9 pl-3 pr-8 rounded-lg bg-panel border border-line text-[13px] text-ink appearance-none focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
+                                                    <option value="">Select…</option>
+                                                    @foreach($facingOptions as $facing)
+                                                        <option value="{{ $facing }}">{{ $facing }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </label>
+
+                                            <label class="block">
                                                 <span class="block text-[11.5px] text-ink-2 mb-1">Starting from</span>
                                                 <input type="number" :name="`unit_types[${i}][price_min]`"
                                                        x-model="rows[i].price_min" placeholder="1800000"
@@ -561,12 +600,38 @@
                                                        class="w-full h-9 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
                                             </label>
 
-                                            <label class="block">
+                                            {{-- Not <x-file-field>: that component owns its own name/id and
+                                                 label markup, and this control's name is an Alpine expression
+                                                 built from the row index. The dashed-dropzone look and the
+                                                 filename readout are borrowed from it so the two still read as
+                                                 the same control, sized to the row's h-9 grid. --}}
+                                            <div class="block" x-data="{ picked: '' }">
                                                 <span class="block text-[11.5px] text-ink-2 mb-1">Upload floor plan</span>
-                                                <input type="file" :name="`unit_types[${i}][floor_plan]`"
-                                                       accept="image/*,application/pdf"
-                                                       class="w-full h-9 text-[11.5px] text-ink-2 file:mr-2 file:h-9 file:px-2.5 file:rounded-lg file:border-0 file:bg-canvas file:text-[11.5px] file:text-ink-2 file:cursor-pointer">
-                                            </label>
+                                                <label class="relative flex items-center gap-2 w-full h-9 px-3 rounded-lg bg-panel border border-dashed border-line hover:border-primary hover:bg-canvas cursor-pointer transition-colors">
+                                                    <x-icon name="download" class="w-3.5 h-3.5 text-ink-3 shrink-0" />
+                                                    <span class="text-[12px] text-ink-3 truncate min-w-0" x-show="! picked">Choose a file…</span>
+                                                    <span class="text-[12px] text-ink truncate min-w-0" x-show="picked" x-cloak
+                                                          x-bind:title="picked" x-text="picked"></span>
+                                                    <input type="file" :name="`unit_types[${i}][floor_plan]`"
+                                                           accept="image/*,application/pdf"
+                                                           x-on:change="picked = $event.target.files[0]?.name ?? ''"
+                                                           class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                                                </label>
+
+                                                {{-- The plan already saved against this row, which the hidden
+                                                     `existing_floor_plan` above carries through the rebuild.
+                                                     Without this the edit form looked like no plan had ever
+                                                     been uploaded. Hidden the moment a new file is picked,
+                                                     because that pick is what replaces it. --}}
+                                                <template x-if="! picked && rows[i]?.existing_floor_plan">
+                                                    <p class="flex items-center gap-1.5 text-[11px] text-ink-3 mt-1">
+                                                        <x-icon name="check" class="w-3 h-3 text-success shrink-0" />
+                                                        <a :href="rows[i].existing_floor_plan_url" target="_blank" rel="noopener"
+                                                           class="truncate text-ink-2 hover:text-ink underline decoration-line underline-offset-2"
+                                                           x-text="'On file: ' + rows[i].existing_floor_plan.split('/').pop()"></a>
+                                                    </p>
+                                                </template>
+                                            </div>
                                         </div>
                                     </div>
                                 </template>
@@ -614,7 +679,7 @@
 
                     {{-- 5 · Media & Marketing Assets ------------------------------------ --}}
                     <section x-show="step === 5" data-step="5" x-cloak class="space-y-4">
-                        <x-wizard-heading :step="5" :of="count($steps)" title="Master plan and gallery"
+                        <x-wizard-heading :step="5" :of="count($steps)" title="Media and gallery"
                                           subtitle="Everything channel partners see and share." />
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -626,17 +691,25 @@
                                      way <x-file-field>'s "On file" link does — it has no native input value
                                      to read back and its own preview is reserved for what's cropped this
                                      session. --}}
+                                {{-- Shown as the picture itself, matching how <x-file-field> now
+                                     previews a stored image. The hero shot is the one field where
+                                     a filename is least use — an admin replacing it needs to see
+                                     what is currently there. --}}
                                 @if($property?->cover_image_path)
-                                    <p class="flex items-center gap-1.5 text-[11.5px] text-ink-3 mt-1.5">
-                                        <x-icon name="check" class="w-3.5 h-3.5 text-success shrink-0" />
-                                        <span class="truncate">
-                                            Current:
+                                    <div class="flex items-center gap-2.5 mt-2">
+                                        <a href="{{ \App\Support\FileStorage::url($property->cover_image_path) }}" target="_blank" rel="noopener" class="shrink-0">
+                                            <img src="{{ \App\Support\FileStorage::url($property->cover_image_path) }}" alt=""
+                                                 class="w-20 aspect-[4/3] rounded-lg object-cover border border-line" />
+                                        </a>
+                                        <p class="text-[11.5px] text-ink-3 min-w-0">
+                                            Current cover:
                                             <a href="{{ \App\Support\FileStorage::url($property->cover_image_path) }}" target="_blank" rel="noopener"
-                                               class="text-ink-2 hover:text-ink underline decoration-line underline-offset-2">
+                                               class="text-ink-2 hover:text-ink underline decoration-line underline-offset-2 break-words">
                                                 {{ basename($property->cover_image_path) }}
                                             </a>
-                                        </span>
-                                    </p>
+                                            <span class="block mt-0.5">Cropping a new one replaces it.</span>
+                                        </p>
+                                    </div>
                                 @endif
                             </div>
                             <x-file-field label="Site layout plan" name="site_layout" accept="image/*,application/pdf" :current="$firstMedia('site_layout')?->path" />
@@ -677,17 +750,20 @@
                             </div>
                         @endif
 
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <x-file-field label="Master plan" name="master_plan" accept="image/*,application/pdf" hint="Image or PDF." :current="$firstMedia('master_plan')?->path" />
+                        {{-- Master plan was removed from intake. Two columns now, not three.
+                             Anything already on record keeps its media row and still shows on
+                             the project sheet — the Master Data import can also still bring
+                             one — this form just no longer asks for it. --}}
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <x-file-field label="Brochure" name="brochure" accept="application/pdf" hint="PDF." :current="$firstMedia('brochure')?->path" />
                             <x-file-field label="Price list" name="price_list" accept="application/pdf" hint="PDF." :current="$firstMedia('price_list')?->path" />
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <x-field label="Project video" name="video_url" type="url"
-                                     placeholder="https://youtube.com/…" icon="external" />
-                            <x-field label="Walkthrough link" name="virtual_tour_url" type="url"
-                                     placeholder="https://my.matterport.com/…" icon="external" />
+                            <x-link-field label="Project video" name="video_url"
+                                          placeholder="https://youtube.com/…" />
+                            <x-link-field label="Walkthrough link" name="virtual_tour_url"
+                                          placeholder="https://my.matterport.com/…" />
                         </div>
 
                         <div class="border-t border-line-soft pt-4">

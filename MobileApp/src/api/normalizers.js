@@ -113,15 +113,22 @@ function normalizeMedia(media = []) {
 }
 
 /**
- * A unit-type row is now four things: the label, the price it starts at, how many there
- * are and its floor plan — the same four the intake form asks for. Carpet / built-up /
- * super built-up and the upper price are still on the API for records that have them,
- * but nothing collects them any more, so they are not carried through to the screen.
+ * Everything the intake form collects for a configuration: the label, its three area
+ * figures, which way it faces, the price it starts at, how many there are and its floor
+ * plan. The areas were dropped from the form once and so stopped being carried here;
+ * they are asked for again, alongside facing, so both are back.
+ *
+ * The upper price is the one field still not collected — it stays on the API for records
+ * that already have it, and no screen reads it.
  */
 function normalizeUnitTypes(units = []) {
   return units.map(unit => ({
     id: unit.id,
     label: unit.label,
+    carpetAreaSqft: unit.carpet_area_sqft,
+    builtUpAreaSqft: unit.built_up_area_sqft,
+    superBuiltUpAreaSqft: unit.super_built_up_area_sqft,
+    facing: unit.facing,
     priceMin: unit.price_min,
     unitsCount: unit.units_count,
     floorPlanUrl: unit.floor_plan_url,

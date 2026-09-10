@@ -151,12 +151,15 @@
                                         <td style="padding:0 0 6px; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;
                                                    font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:#86868b; border-bottom:1px solid #e8e8ed;">Carpet area</td>
                                         <td style="padding:0 0 6px; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;
+                                                   font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:#86868b; border-bottom:1px solid #e8e8ed;">Facing</td>
+                                        <td style="padding:0 0 6px; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;
                                                    font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:#86868b; border-bottom:1px solid #e8e8ed; text-align:right;">Price</td>
                                     </tr>
                                     @foreach($unitTypes as $unit)
                                         <tr>
                                             <td style="padding:8px 0; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:13px; color:#1d1d1f; border-bottom:1px solid #f0f0f2;">{{ $unit->label }}</td>
                                             <td style="padding:8px 0; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:13px; color:#3a3a3c; border-bottom:1px solid #f0f0f2;">{{ $unit->carpet_area_sqft ? number_format($unit->carpet_area_sqft) . ' sqft' : '—' }}</td>
+                                            <td style="padding:8px 0; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:13px; color:#3a3a3c; border-bottom:1px solid #f0f0f2;">{{ $unit->facing ?? '—' }}</td>
                                             <td style="padding:8px 0; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:13px; color:#3a3a3c; border-bottom:1px solid #f0f0f2; text-align:right;">{{ $property->currency }} {{ number_format($unit->price_min) }}{{ $unit->price_max && $unit->price_max != $unit->price_min ? ' – ' . number_format($unit->price_max) : '' }}</td>
                                         </tr>
                                     @endforeach

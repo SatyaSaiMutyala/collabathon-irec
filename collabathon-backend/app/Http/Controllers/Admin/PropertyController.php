@@ -55,7 +55,9 @@ class PropertyController extends Controller
      */
     private const MEDIA_FILES = [
         'site_layout' => 'site_layout',
-        'master_plan' => 'master_plan',
+        // No 'master_plan' entry: the intake form stopped asking for one. The `master_plan`
+        // media kind itself stays — rows already stored keep rendering on the project sheet,
+        // and MasterData\ProjectMapper can still create one from an imported registration.
         'brochure' => 'brochure',
         'price_list' => 'price_list',
         'payment_schedule_file' => 'payment_schedule',
@@ -911,6 +913,9 @@ class PropertyController extends Controller
             'unit_types.*.carpet_area_sqft' => ['nullable', 'integer', 'min:0'],
             'unit_types.*.built_up_area_sqft' => ['nullable', 'integer', 'min:0'],
             'unit_types.*.super_built_up_area_sqft' => ['nullable', 'integer', 'min:0'],
+            // Constrained to the model's own list rather than a free string, so the
+            // dropdown and what the column will accept cannot drift apart.
+            'unit_types.*.facing' => ['nullable', 'string', Rule::in(PropertyUnitType::FACINGS)],
             'unit_types.*.price_min' => ['nullable', 'integer', 'min:0'],
             'unit_types.*.price_max' => ['nullable', 'integer', 'min:0', 'gte:unit_types.*.price_min'],
             'unit_types.*.units_count' => ['nullable', 'integer', 'min:0'],
@@ -942,7 +947,6 @@ class PropertyController extends Controller
             'gallery' => ['nullable', 'array', 'max:30'],
             'gallery.*' => ['image', 'max:5120'],
             'site_layout' => $anyDoc,
-            'master_plan' => $anyDoc,
             'brochure' => ['nullable', 'file', 'mimes:pdf', 'max:20480'],
             'price_list' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
             'video_url' => ['nullable', 'url', 'max:255'],
@@ -1005,7 +1009,7 @@ class PropertyController extends Controller
             3 => ['price_min', 'price_max', 'extent_metric', 'currency', 'total_units', 'towers',
                   'floors_per_tower', 'land_parcel_acres', 'total_project_area_sqft', 'unit_types', 'unit_plans'],
             4 => ['amenities', 'green_certification', 'vastu_compliant'],
-            5 => ['cover_image', 'gallery', 'site_layout', 'master_plan', 'brochure', 'price_list',
+            5 => ['cover_image', 'gallery', 'site_layout', 'brochure', 'price_list',
                   'video_url', 'virtual_tour_url', 'payment_schedule_file'],
             6 => ['cp_commission_percent', 'fos_commission_amount', 'terms_title', 'terms_document'],
             7 => ['sales_office_address', 'site_visit_timings', 'sales_contact_name', 'sales_contact_number', 'booking_process'],
@@ -1219,6 +1223,7 @@ class PropertyController extends Controller
                 'carpet_area_sqft' => $row['carpet_area_sqft'] ?? null,
                 'built_up_area_sqft' => $row['built_up_area_sqft'] ?? null,
                 'super_built_up_area_sqft' => $row['super_built_up_area_sqft'] ?? null,
+                'facing' => $row['facing'] ?? null,
                 'price_min' => $row['price_min'] ?? null,
                 'price_max' => $row['price_max'] ?? null,
                 'units_count' => $row['units_count'] ?? null,
