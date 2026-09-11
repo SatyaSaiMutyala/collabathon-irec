@@ -76,6 +76,11 @@ export function useCurrentLocation() {
   const [state, setState] = useState({
     label: 'Set your location',
     city: null,
+    // The fix itself, kept alongside the name it resolved to. The two answer different
+    // questions for the developer directory: the point decides what is nearest, the
+    // name decides which state the list stops at. Neither substitutes for the other.
+    latitude: null,
+    longitude: null,
     isLoading: false,
     error: null,
   });
@@ -112,9 +117,28 @@ export function useCurrentLocation() {
             position.coords.latitude,
             position.coords.longitude,
           );
-          setState({label, city, isLoading: false, error: null});
+          setState({
+            label,
+            city,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            isLoading: false,
+            error: null,
+          });
         } catch {
-          setState(prev => ({...prev, isLoading: false, error: 'Could not resolve location'}));
+          /*
+           * The name lookup failed; the fix did not. Keeping the coordinates matters now
+           * that the directory is ordered by distance — without a name the list simply
+           * is not capped to a state, but it can still open with the nearest developer,
+           * which is the part the broker actually notices.
+           */
+          setState(prev => ({
+            ...prev,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            isLoading: false,
+            error: 'Could not resolve location',
+          }));
         }
       },
       error => {
@@ -157,7 +181,9 @@ export function useCurrentLocation() {
   }, [detectLocation]);
 
   const setManualLocation = useCallback(city => {
-    setState({label: city, city, isLoading: false, error: null});
+    // A name typed in by hand carries no fix with it, so the point is cleared rather
+    // than left pointing at wherever the broker last was.
+    setState({label: city, city, latitude: null, longitude: null, isLoading: false, error: null});
   }, []);
 
   return {...state, detectLocation, setManualLocation};

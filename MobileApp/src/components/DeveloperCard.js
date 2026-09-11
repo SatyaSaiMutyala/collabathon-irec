@@ -24,9 +24,9 @@ const MetaItem = ({icon, label, color}) => {
 };
 
 /**
- * Reads the API's developer shape: company_name / logo_url / properties_count.
- * `properties_count` is a server-side aggregate — the card must never rely on a
- * loaded projects array, because a developer's listings are paginated separately.
+ * Reads the API's developer shape: company_name / logo_url / properties_count /
+ * distance_km. `properties_count` is a server-side aggregate — the card must never rely
+ * on a loaded projects array, because a developer's listings are paginated separately.
  */
 const DeveloperCard = ({developer, onPress}) => {
   const {colors, spacing} = useAppTheme();
@@ -34,6 +34,20 @@ const DeveloperCard = ({developer, onPress}) => {
   const name = developer.company_name;
   const count = developer.properties_count ?? 0;
   const projectLabel = `${count} ${count === 1 ? 'Project' : 'Projects'}`;
+
+  /*
+   * How far away, when the server had somewhere to measure from and this developer has
+   * a point on file. Often it does not — location is optional on the admin record — and
+   * the row still belongs in the list either way, so the distance is appended to the
+   * city rather than given a line that would collapse to nothing.
+   *
+   * Number.isFinite, not a truthiness check: a developer at the broker's own address
+   * comes back as 0, which is a real answer and must not read as "unknown".
+   */
+  const distance = Number.isFinite(developer.distance_km) ? developer.distance_km : null;
+  const placeLabel = [developer.city ?? '—', distance === null ? null : `${distance} km away`]
+    .filter(Boolean)
+    .join('  ·  ');
 
   return (
     <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={{marginBottom: spacing.sm}}>
@@ -60,7 +74,7 @@ const DeveloperCard = ({developer, onPress}) => {
             </AppText>
 
             <View style={{marginTop: moderateScale(4)}}>
-              <MetaItem icon="location-outline" label={developer.city ?? '—'} />
+              <MetaItem icon="location-outline" label={placeLabel} />
               <View style={{marginTop: moderateScale(4)}}>
                 <MetaItem icon="business-outline" label={projectLabel} />
               </View>

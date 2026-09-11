@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Support\ContactMask;
+use App\Support\DirectoryLocation;
 use App\Support\SocialPlatforms;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -22,10 +23,20 @@ class DeveloperResource extends JsonResource
 {
     private bool $contactVisible = false;
 
+    private ?DirectoryLocation $viewedFrom = null;
+
     /** @param  bool  $visible  true once this developer has accepted the viewing broker's lead. */
     public function withContact(bool $visible): static
     {
         $this->contactVisible = $visible;
+
+        return $this;
+    }
+
+    /** Where the partner reading this list is, so each row can say how far away it is. */
+    public function withDistanceFrom(DirectoryLocation $from): static
+    {
+        $this->viewedFrom = $from;
 
         return $this;
     }
@@ -58,6 +69,16 @@ class DeveloperResource extends JsonResource
             'country' => $this->country,
             'city' => $this->city,
             'state' => $this->state,
+            /*
+             * Kilometres from the partner, straight line, once the app has told us where
+             * they are. Null when it has not, or when this company has no coordinates on
+             * file - the row is listed either way, just without a "12 km away" line. An
+             * app build that does not know this field simply ignores it.
+             */
+            'distance_km' => $this->viewedFrom?->kilometresTo(
+                $this->latitude === null ? null : (float) $this->latitude,
+                $this->longitude === null ? null : (float) $this->longitude,
+            ),
             'pincode' => $this->pincode,
             'address' => $this->address,
             'latitude' => $this->latitude !== null ? (float) $this->latitude : null,

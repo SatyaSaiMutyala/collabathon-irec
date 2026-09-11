@@ -3,8 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\BrokerProfile;
+use App\Models\City;
+use App\Models\Country;
 use App\Models\Developer;
 use App\Models\Role;
+use App\Models\State;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -136,15 +139,30 @@ class DeveloperPriorityTest extends TestCase
         );
     }
 
-    public function test_a_pin_in_another_city_never_reorders_this_one(): void
+    public function test_a_pin_in_another_state_never_reaches_this_partner(): void
     {
         $broker = $this->broker();
-        $this->developer('Alpha Estates');
-        $this->developer('Bravo Realty');
 
-        // Rank 1 in Bengaluru. The Hyderabad list must not see it at all — neither as a
-        // row nor as something that pushed a Hyderabad company down.
-        $this->developer('Deccan Builders', 'Bengaluru')->update(['priority' => 1]);
+        /*
+         * The cities master data is what turns "where the partner is" into a state, and
+         * the state is what caps how far the directory reaches. These rows are the only
+         * reason this test can separate two lists at all - without them nothing resolves,
+         * and an unresolved place deliberately shows the whole directory rather than an
+         * empty screen. See App\Support\DirectoryLocation.
+         */
+        $india = Country::create(['name' => 'India', 'code' => 'IN']);
+        $telangana = State::create(['country_id' => $india->id, 'name' => 'Telangana']);
+        $karnataka = State::create(['country_id' => $india->id, 'name' => 'Karnataka']);
+        City::create(['state_id' => $telangana->id, 'name' => 'Hyderabad']);
+        City::create(['state_id' => $karnataka->id, 'name' => 'Bengaluru']);
+
+        $this->developer('Alpha Estates', overrides: ['state' => 'Telangana']);
+        $this->developer('Bravo Realty', overrides: ['state' => 'Telangana']);
+
+        // Rank 1 in Bengaluru. A partner in Hyderabad must not see it at all - neither as
+        // a row, nor as something that pushed a Telangana company down. A pin is a
+        // position in one list, and this is not that partner's list.
+        $this->developer('Deccan Builders', 'Bengaluru', ['state' => 'Karnataka', 'priority' => 1]);
 
         $this->assertSame(['Bravo Realty', 'Alpha Estates'], $this->directory($broker));
         $this->assertSame(['Deccan Builders'], $this->directory($broker, 'Bengaluru'));

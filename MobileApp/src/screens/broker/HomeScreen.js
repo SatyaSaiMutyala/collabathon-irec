@@ -57,14 +57,34 @@ const HomeScreen = ({navigation}) => {
    * Hyderabad while the list showed every city.
    */
   const [mode, setMode] = useState('current');
-  /** Only meaningful in `city` mode — what the map screen handed back. */
-  const [pickedCity, setPickedCity] = useState(null);
+  /**
+   * Only meaningful in `city` mode — the whole place the map screen handed back, not
+   * just its name. It already resolves a point, and keeping that is what lets choosing
+   * a city re-centre the list instead of only re-labelling the header.
+   */
+  const [pickedPlace, setPickedPlace] = useState(null);
   const location = useCurrentLocation();
 
   // One request per typing pause, not one per keystroke.
   const debouncedQuery = useDebouncedValue(query, 400);
-  const activeCity =
-    mode === 'all' ? null : mode === 'city' ? pickedCity : (location.city ?? null);
+  /*
+   * Where the broker is, sent to the server as a name and a point together, because the
+   * two do different jobs. The point orders the list — nearest developer first, then
+   * outward, which is what scrolling walks through. The name only tells the server which
+   * state to stop at, so the list never wanders into one the broker did not ask for.
+   *
+   * Either can be missing. No name means no state cap, which is deliberate: a fix that
+   * reverse-geocodes to "Kukatpally" used to match no developer at all and left this
+   * screen empty. No point just means the list is not ordered by distance.
+   */
+  const activePlace = mode === 'all' ? null : mode === 'city' ? pickedPlace : location;
+  const activeCity = activePlace?.city ?? null;
+
+  // Read out as primitives on purpose. `location` is rebuilt on every render, so a
+  // dependency on the object itself would give loadFirstPage a new identity each time
+  // and turn the focus effect below into a fetch loop.
+  const activeLatitude = activePlace?.latitude ?? null;
+  const activeLongitude = activePlace?.longitude ?? null;
 
   // Once only — a GPS fix isn't something to redo every time this tab regains
   // focus, and nothing here changes it anyway once the broker's on the screen.
@@ -79,9 +99,14 @@ const HomeScreen = ({navigation}) => {
         page: 1,
         search: debouncedQuery.trim() || undefined,
         city: activeCity || undefined,
+        // As a pair or not at all: half a coordinate is not a place, and the server
+        // discards a lone one anyway rather than guessing the other half.
+        ...(activeLatitude !== null && activeLongitude !== null
+          ? {lat: activeLatitude, lng: activeLongitude}
+          : {}),
       }),
     );
-  }, [dispatch, debouncedQuery, activeCity]);
+  }, [dispatch, debouncedQuery, activeCity, activeLatitude, activeLongitude]);
 
   // Any change to search or city restarts at page 1, same as before — but this also
   // now re-runs on every focus, not just on mount. A developer's logo/name/project
@@ -133,7 +158,7 @@ const HomeScreen = ({navigation}) => {
                 {mode === 'all'
                   ? 'All locations'
                   : mode === 'city'
-                    ? pickedCity
+                    ? pickedPlace?.city
                     : location.isLoading
                       ? 'Locating…'
                       : (location.city ?? location.label)}
@@ -226,7 +251,9 @@ const HomeScreen = ({navigation}) => {
           setIsPickerVisible(false);
           setMapPickerCallback(result => {
             setMode('city');
-            setPickedCity(result.city);
+            // The map hands back the point it resolved, not just the name — keeping the
+            // whole result is what re-centres the list on the chosen city.
+            setPickedPlace(result);
           });
           navigation.navigate('MapPicker');
         }}

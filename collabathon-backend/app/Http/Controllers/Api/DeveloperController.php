@@ -8,6 +8,7 @@ use App\Http\Resources\DeveloperResource;
 use App\Http\Resources\PropertyResource;
 use App\Models\Developer;
 use App\Models\Lead;
+use App\Support\DirectoryLocation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -22,32 +23,55 @@ class DeveloperController extends Controller
         'city' => 'city',
     ];
 
-    /** GET /api/developers — browsable by brokers. */
+    /** GET /api/developers - browsable by brokers. */
     public function index(Request $request): AnonymousResourceCollection
     {
+        $here = DirectoryLocation::fromRequest($request);
+
         $query = Developer::query()
             ->where('status', 'active')
-            // withCount, not a loaded relation — one aggregate per page, no N+1.
+            // withCount, not a loaded relation - one aggregate per page, no N+1.
             ->withCount(['properties' => fn ($q) => $q->brokerVisible()])
             ->when($request->query('search'), fn ($q, $term) => $q->where('company_name', 'like', $term . '%'))
-            ->when($request->query('city'), fn ($q, $city) => $q->where('city', $city));
+            /*
+             * The partner's own state, and only when their city is one the admin has on
+             * file. A cap on how far the list reaches, not a filter on the exact spot
+             * they are standing in.
+             *
+             * Filtering on the city itself is what used to leave this screen empty: every
+             * developer sits in one of a couple of city names, while a GPS fix
+             * reverse-geocodes to whatever OpenStreetMap calls that point, so a partner in
+             * Secunderabad or Kukatpally matched nothing and saw nothing. Crossing into
+             * another state is a deliberate move instead - the partner changes the
+             * location themselves. See DirectoryLocation.
+             */
+            ->when($here->state, fn ($q, $state) => $q->where('state', $state));
 
         /*
-         * Admin pins lead the directory, then the caller's own sort orders the rest.
+         * Pinned companies first, then everything else outward from the partner.
          *
-         * This is the location-based priority the admin panel sets: `priority` is a rank
-         * within the developer's own city (a developer row has exactly one `city`, and the
-         * `city` filter above has already narrowed the page to it), so a company pinned to
-         * rank 1 in Hyderabad opens the list the moment a channel partner selects
-         * Hyderabad, and never appears above anyone in another city's list.
-         *
-         * Applied before applySort() on purpose — the first ORDER BY term added wins, so
-         * the pins lead and `sort`/`direction` decide the order among everything below
-         * them. See Developer::scopePinnedFirst().
+         * Order of the ORDER BY terms is the feature. pinnedFirst() goes on first, so an
+         * admin's rank always wins: a company pinned to 1 in its city opens the list even
+         * when a dozen others are physically nearer. Distance is added next, which makes
+         * it the tie-break inside a rank and the real order for everything unpinned -
+         * nearest, then further out, which is what scrolling walks through. applySort()
+         * lands last and only decides among rows the first two could not separate (no
+         * point sent, or no coordinates on file), keeping pages stable.
          */
-        $query = $this->applySort($query->pinnedFirst(), $request, self::SORTABLE);
+        $query = $query->pinnedFirst();
 
-        return DeveloperResource::collection($this->paginate($query, $request));
+        if ($here->hasPoint()) {
+            $query = $query->nearestTo($here->latitude, $here->longitude, $here->longitudeScale());
+        }
+
+        $resource = DeveloperResource::collection(
+            $this->paginate($this->applySort($query, $request, self::SORTABLE), $request)
+        );
+
+        // One location for the whole page - every row measures from the same partner.
+        $resource->collection->each(fn (DeveloperResource $item) => $item->withDistanceFrom($here));
+
+        return $resource;
     }
 
     /**

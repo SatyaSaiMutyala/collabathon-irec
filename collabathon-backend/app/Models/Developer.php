@@ -84,4 +84,34 @@ class Developer extends Model
             ->orderByRaw('developers.priority is null')
             ->orderBy('developers.priority');
     }
+
+    /**
+     * Order by how far each company is from a point, closest first.
+     *
+     * Plain arithmetic, no SQL trigonometry. The comparison only has to put rows in the
+     * right sequence, and squared degree distance - with longitude scaled for the
+     * viewer's latitude, see DirectoryLocation::longitudeScale() - rises and falls with
+     * real distance across the range a state covers. It also behaves the same on MySQL
+     * and SQLite, where the maths functions a Haversine needs are a build option rather
+     * than a guarantee. The kilometres a partner actually reads are worked out in PHP,
+     * per rendered row.
+     *
+     * Companies with no point on file sort after every company that has one, and are
+     * never dropped: a missing coordinate is a gap in the admin record, not a reason for
+     * a partner to stop seeing that company at all.
+     */
+    public function scopeNearestTo(
+        Builder $query,
+        float $latitude,
+        float $longitude,
+        float $longitudeScale,
+    ): Builder {
+        return $query
+            ->orderByRaw('developers.latitude is null or developers.longitude is null')
+            ->orderByRaw(
+                '((developers.latitude - ?) * (developers.latitude - ?))'
+                . ' + (((developers.longitude - ?) * ?) * ((developers.longitude - ?) * ?))',
+                [$latitude, $latitude, $longitude, $longitudeScale, $longitude, $longitudeScale],
+            );
+    }
 }
