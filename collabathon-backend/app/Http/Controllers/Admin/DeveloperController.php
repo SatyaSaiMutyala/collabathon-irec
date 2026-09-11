@@ -56,7 +56,25 @@ class DeveloperController extends Controller
             ->when($request->query('city'), fn ($q, $v) => $q->where('city', $v))
             ->when($request->query('status'), fn ($q, $v) => $q->where('status', $v));
 
-        $query = $this->applySort($query, $request, self::SORTABLE);
+        /*
+         * `priority` is not a plain sortable column, so it does not live in self::SORTABLE.
+         * Ordering by the raw column ascending puts every unpinned developer (NULL) above
+         * rank 1 on MySQL and SQLite alike — both sort NULLs first ascending — which is the
+         * exact opposite of what the header promises. Pinned rows always lead here;
+         * `direction` only flips the order among them. The column header asks for ascending
+         * on its first click, so one click shows rank 1 at the top.
+         *
+         * Pair this with the City filter to read back precisely what a channel partner sees
+         * after choosing that city in the app — same rank order, same tie-break.
+         */
+        if ($request->query('sort') === 'priority') {
+            $query = $query
+                ->orderByRaw('developers.priority is null')
+                ->orderBy('developers.priority', $request->query('direction') === 'desc' ? 'desc' : 'asc')
+                ->orderBy('developers.id', 'desc');
+        } else {
+            $query = $this->applySort($query, $request, self::SORTABLE);
+        }
 
         $grouped = $this->exportColumns();
 
@@ -127,6 +145,7 @@ class DeveloperController extends Controller
             ],
             'Commercial' => [
                 'payout' => ['CP payout %', fn (Developer $d) => $d->cp_payout_percent !== null ? $d->cp_payout_percent . '%' : null],
+                'priority' => ['Directory priority', fn (Developer $d) => $d->priority],
                 'listings' => ['Listings', fn (Developer $d) => $d->properties_count],
                 'created' => ['Created', fn (Developer $d) => $d->created_at?->format('Y-m-d')],
             ],
@@ -175,6 +194,14 @@ class DeveloperController extends Controller
             'properties' => $developer->properties()
                 ->latest()
                 ->limit(self::PROJECTS_ON_PROFILE + 1)
+                /*
+                 * Everything the Documents panel previews, loaded in one pass per relation
+                 * rather than a query per project. The panel below the listings gathers
+                 * every file a developer has submitted across their projects, which lives
+                 * in three places: property_media (brochures, plans, gallery), the terms
+                 * document on property_details, and a floor plan per unit type.
+                 */
+                ->with(['media', 'detail', 'unitTypes'])
                 ->get(),
             'projectCap' => self::PROJECTS_ON_PROFILE,
             'stats' => [
@@ -233,6 +260,11 @@ class DeveloperController extends Controller
             // validated rather than ignored, so a client that does send them is held to
             // the same bounds as the edit form.
             'cp_payout_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            // Directory rank, same as the edit form's. Not collected at creation — the city
+            // is barely decided at this point and a rank is a decision about a list that
+            // already exists — but validated so a client that does send one is held to the
+            // same bounds. See update()'s own rule for what the numbers mean.
+            'priority' => ['nullable', 'integer', 'min:1', 'max:999'],
             'verified' => ['nullable', 'boolean'],
             'status' => ['nullable', 'in:active,paused'],
         ]);
@@ -265,7 +297,9 @@ class DeveloperController extends Controller
         $password = ($data['password'] ?? '') ?: Str::password(14, symbols: false);
         unset($data['password']);   // lives on the user row, not the developer record
 
-        $user = DB::transaction(function () use ($data, $password) {
+        $rankNote = '';
+
+        $user = DB::transaction(function () use ($data, $password, &$rankNote) {
             $user = User::create([
                 'name' => $data['contact_person'],
                 'email' => $data['email'],
@@ -276,7 +310,11 @@ class DeveloperController extends Controller
                 'email_verified_at' => now(),
             ]);
 
-            Developer::create($data + ['user_id' => $user->id]);
+            $developer = Developer::create($data + ['user_id' => $user->id]);
+
+            // A brand-new company has no place in the city's order to trade away, so
+            // anyone already standing on this rank is moved to the end of the list.
+            $rankNote = $this->settleRank($developer, previousPriority: null, previousCity: null);
 
             return $user;
         });
@@ -292,7 +330,7 @@ class DeveloperController extends Controller
         // replacement for the admin being able to see and copy it themselves.
         return redirect()
             ->route('admin.developers')
-            ->with('success', "{$data['company_name']} added.{$delivery['note']}")
+            ->with('success', "{$data['company_name']} added.{$delivery['note']}{$rankNote}")
             ->with('credentials', [
                 'name' => $data['contact_person'],
                 'email' => $data['email'],
@@ -578,6 +616,17 @@ class DeveloperController extends Controller
             'logo' => ['nullable', 'image', 'max:2048'],
             'about' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'cp_payout_percent' => ['sometimes', 'required', 'numeric', 'min:0', 'max:100'],
+            /*
+             * Where this company sits in the channel partner's developer directory for its
+             * own city: 1 opens the list, then 2, then everything unpinned.
+             *
+             * `sometimes` matters more here than on most fields. The row menu's Pause /
+             * Reactivate action posts a form carrying nothing but `status`, so without it a
+             * rank would be wiped every time someone paused an account. `nullable` is what
+             * clears a rank: an emptied input arrives as null through Laravel's
+             * ConvertEmptyStringsToNull, which reads as "not pinned" rather than rank 0.
+             */
+            'priority' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:999'],
             'verified' => ['sometimes', 'required', 'boolean'],
             'status' => ['required', 'in:active,paused'],
         ], [
@@ -597,7 +646,15 @@ class DeveloperController extends Controller
             }
         }
 
-        DB::transaction(function () use ($developer, $data) {
+        /*
+         * Read before the write: settling the new rank needs to know which seat this
+         * company is giving up, and after update() that is gone.
+         */
+        $previousPriority = $developer->priority;
+        $previousCity = $developer->city;
+        $rankNote = '';
+
+        DB::transaction(function () use ($developer, $data, $previousPriority, $previousCity, &$rankNote) {
             $developer->update($data);
 
             // Keep the login account in step — the email here IS their username.
@@ -606,9 +663,98 @@ class DeveloperController extends Controller
                 'email' => $data['email'] ?? null,
                 'mobile' => $data['mobile'] ?? null,
             ]));
+
+            // Inside the transaction: this company taking a rank and the other one
+            // leaving it are one change, and half of it committed would leave two
+            // companies sharing a position.
+            $rankNote = $this->settleRank($developer, $previousPriority, $previousCity);
         });
 
-        return back()->with('success', "{$developer->company_name} updated.");
+        return back()->with('success', "{$developer->company_name} updated.{$rankNote}");
+    }
+
+    /**
+     * A sentence naming any other company already sitting on this developer's rank in the
+     * same city, or '' when the rank is free (or there is no rank).
+     *
+     * A warning, not a validation failure. Two developers sharing rank 1 still produce a
+     * stable list — the sort terms below the pin settle it — and rejecting the save would
+     * force an admin to go clear the other rank first just to swap two rows around. What
+     * they actually need to know is that the second pin will not visibly do anything,
+     * which is the part that otherwise looks like the feature is broken.
+     *
+     * Scoped to `active`: a paused developer is not in the directory at all, so its rank
+     * cannot be competing with anything today.
+     */
+    /**
+     * Settle a developer into the rank it was just given, and move whoever was already
+     * standing there.
+     *
+     * A rank is a position in one city's directory, so two companies holding the same
+     * number leaves the order between them down to whatever the database happens to
+     * return - which is the exact question ("who is first?") the rank exists to answer.
+     * So the one being displaced is moved rather than left to collide:
+     *
+     *   - Both already pinned in this city: they swap. Pinning a company that sat at 5
+     *     onto 1 sends the current 1 down to 5, which is what an admin means by "put
+     *     this one first" - the other keeps a place, just not the top one.
+     *
+     *   - The arriving company had no place in this list yet (never pinned, or it just
+     *     moved city): there is no seat to hand back, so the displaced company goes to
+     *     the end of this city's pinned list. It is never quietly unpinned - an admin
+     *     ranked it deliberately, and losing that silently is the worse surprise.
+     *
+     * Scoped to one city because the rank is: the broker directory filters by city
+     * before it sorts, so the same number in two cities is two separate first places.
+     * Paused companies are included - a rank belongs to the row, not to whether it is
+     * visible today, and skipping them would hand back a duplicate on reactivation.
+     * Trashed ones are not, by the model's own soft-delete scope.
+     *
+     * Returns a sentence naming what moved, for the flash message, or '' if nothing did.
+     */
+    private function settleRank(Developer $developer, ?int $previousPriority, ?string $previousCity): string
+    {
+        // Unpinned, or no city to be ranked within: nothing to compete for.
+        if ($developer->priority === null || blank($developer->city)) {
+            return '';
+        }
+
+        $displaced = Developer::query()
+            ->whereKeyNot($developer->getKey())
+            ->where('city', $developer->city)
+            ->where('priority', $developer->priority)
+            ->get();
+
+        if ($displaced->isEmpty()) {
+            return '';
+        }
+
+        /*
+         * The seat being vacated only exists if this company actually held one in this
+         * same list. Arriving from another city, its old number describes that city's
+         * order and would land here arbitrarily. Re-saving a row already on this rank
+         * vacates nothing either - that case is a duplicate left by an older save, and
+         * handing back the number it is still sitting on would not resolve it.
+         */
+        $vacated = ($previousPriority !== null
+            && $previousPriority !== $developer->priority
+            && $previousCity === $developer->city)
+                ? $previousPriority
+                : (int) Developer::query()
+                    /*
+                     * End of the pinned list. Taken from the current maximum - which now
+                     * includes the arriving company - so the displaced one lands behind
+                     * everyone already pinned and cannot collide on the way down. The
+                     * column is an unsigned smallint, so this stays valid far past the
+                     * 999 the form accepts as typed input.
+                     */
+                    ->where('city', $developer->city)
+                    ->max('priority') + 1;
+
+        Developer::query()->whereKey($displaced->modelKeys())->update(['priority' => $vacated]);
+
+        return ' ' . $displaced->pluck('company_name')->join(', ', ' and ')
+            . " moved from priority {$developer->priority} to {$vacated} in {$developer->city}.";
     }
 
     /**

@@ -340,6 +340,9 @@ $toneClasses = [
     <x-confirm-dialog />
     <x-credentials-dialog />
     <x-reset-password-dialog />
+    {{-- Mounted here, not per page: any screen showing an uploaded file opens into it,
+         and a second copy on the page would answer the same window event twice. --}}
+    <x-file-preview />
 
     @stack('scripts')
 </body>

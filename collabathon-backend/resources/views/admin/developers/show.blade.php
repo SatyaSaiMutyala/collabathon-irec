@@ -3,6 +3,72 @@
     // than silently discarding it — `_form` marks the edit form as the source.
     $editReopen = $errors->any() && old('_form') === 'developer-edit';
 
+    /*
+     * Every file this developer has submitted, project by project, for the Documents panel.
+     *
+     * Three sources, because that is where an intake form spreads them: property_media
+     * (gallery images, brochure, price list, plans), the terms document on
+     * property_details, and one floor plan per unit type. Rows holding an external link
+     * instead of an upload - a YouTube walkthrough, a Matterport tour - carry no `path`
+     * and are skipped: there is no file to preview, and the listing page already links
+     * them.
+     *
+     * Built from the same capped set of projects the Listings panel shows, so the two
+     * panels always describe the same projects, and capped again per project: a listing
+     * with forty gallery images would otherwise bury every other project on the page.
+     */
+    $mediaLabels = [
+        'image' => 'Image',
+        'site_layout' => 'Site layout plan',
+        'master_plan' => 'Master plan',
+        'brochure' => 'Brochure',
+        'price_list' => 'Price list',
+        'payment_schedule' => 'Payment schedule',
+        'unit_plan' => 'Unit plan',
+        'floor_plan' => 'Floor plan',
+        'rera_certificate' => 'RERA certificate',
+    ];
+
+    $filesPerProject = 12;
+
+    $projectDocuments = $properties->take($projectCap)->map(function ($project) use ($mediaLabels) {
+        $files = collect();
+
+        if (filled($project->cover_image_path)) {
+            $files->push(['path' => $project->cover_image_path, 'label' => 'Cover image']);
+        }
+
+        foreach ($project->media as $item) {
+            if (filled($item->path)) {
+                $files->push([
+                    'path' => $item->path,
+                    'label' => $item->caption
+                        ?: ($mediaLabels[$item->kind] ?? ucfirst(str_replace('_', ' ', (string) $item->kind))),
+                ]);
+            }
+        }
+
+        if ($project->detail?->terms_type === 'document' && filled($project->detail->terms_document_path)) {
+            $files->push([
+                'path' => $project->detail->terms_document_path,
+                'label' => $project->detail->terms_title ?: 'Developer terms',
+            ]);
+        }
+
+        foreach ($project->unitTypes as $unit) {
+            if (filled($unit->floor_plan_path)) {
+                $files->push([
+                    'path' => $unit->floor_plan_path,
+                    'label' => trim($unit->label . ' floor plan'),
+                ]);
+            }
+        }
+
+        return ['project' => $project, 'files' => $files];
+    })->filter(fn ($row) => $row['files']->isNotEmpty())->values();
+
+    $documentCount = $projectDocuments->sum(fn ($row) => $row['files']->count());
+
     $sharePayload = \Illuminate\Support\Js::from([
         'name' => $developer->contact_person,
         'email' => $developer->user?->email ?? $developer->email,
@@ -37,7 +103,18 @@
     {{-- ============================== Header ============================== --}}
     <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div class="flex items-start gap-3.5 flex-1 min-w-[260px]">
-            <x-avatar :name="$developer->company_name" :src="$developer->logo_path" shape="square" size="lg" class="shrink-0" />
+            {{-- The logo is a file the developer supplied like any other, so it opens the
+                 same way. Only when there is one: the initials fallback is not a file. --}}
+            @if($developer->logo_path)
+                <x-preview-link :url="\App\Support\FileStorage::url($developer->logo_path)"
+                                :path="$developer->logo_path"
+                                :name="$developer->company_name . ' logo'"
+                                class="shrink-0 hover:opacity-90 transition-opacity">
+                    <x-avatar :name="$developer->company_name" :src="$developer->logo_path" shape="square" size="lg" />
+                </x-preview-link>
+            @else
+                <x-avatar :name="$developer->company_name" shape="square" size="lg" class="shrink-0" />
+            @endif
 
             <div class="min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
@@ -292,6 +369,69 @@
                     </x-slot:footer>
                 @endif
             </x-panel>
+
+            {{-- Everything submitted against those projects, in one place.
+
+                 It sits here rather than only on each listing because this is the page an
+                 admin is on when the question is "what has this developer actually given
+                 us" - checking that across eight projects previously meant opening eight
+                 listings. Every chip opens in the same overlay and the arrows step through
+                 the whole set, so the answer is one click and then the arrow key. --}}
+            <x-panel title="Project documents"
+                     :subtitle="$documentCount
+                         ? $documentCount . ' file' . ($documentCount === 1 ? '' : 's') . ' across '
+                             . $projectDocuments->count() . ' project' . ($projectDocuments->count() === 1 ? '' : 's')
+                         : null"
+                     flush>
+                @forelse($projectDocuments as $row)
+                    <div @class([
+                        'px-5 py-3.5',
+                        'border-b border-line-soft' => ! $loop->last,
+                    ])>
+                        <a href="{{ route('admin.properties.show', $row['project']) }}"
+                           class="text-[12.5px] font-medium text-ink hover:underline">
+                            {{ $row['project']->name }}
+                        </a>
+
+                        <div class="flex flex-wrap gap-1.5 mt-2">
+                            @foreach($row['files']->take($filesPerProject) as $file)
+                                @php
+                                    $fileUrl = \App\Support\FileStorage::url($file['path']);
+                                    $fileKind = \App\Support\FilePreview::kind($file['path']);
+                                @endphp
+                                <x-preview-link :url="$fileUrl" :path="$file['path']" :name="$file['label']"
+                                                group="developer-documents"
+                                                class="inline-flex items-center gap-1.5 h-7 pl-1 pr-2.5 rounded-lg border
+                                                       border-line bg-canvas text-[11.5px] text-ink-2 hover:border-primary
+                                                       hover:text-ink transition-colors">
+                                    @if($fileKind === 'image')
+                                        {{-- A thumbnail says more than any icon could about
+                                             which image this chip is. --}}
+                                        <img src="{{ $fileUrl }}" alt=""
+                                             class="w-5 h-5 rounded object-cover border border-line-soft shrink-0">
+                                    @else
+                                        <span class="inline-flex items-center justify-center w-5 h-5 shrink-0">
+                                            <x-icon name="file-text" class="w-3.5 h-3.5 text-ink-3" />
+                                        </span>
+                                    @endif
+                                    <span class="truncate max-w-[180px]">{{ $file['label'] }}</span>
+                                </x-preview-link>
+                            @endforeach
+
+                            @if($row['files']->count() > $filesPerProject)
+                                <a href="{{ route('admin.properties.show', $row['project']) }}"
+                                   class="inline-flex items-center h-7 px-2.5 rounded-lg text-[11.5px] text-primary-dark hover:underline">
+                                    {{ $row['files']->count() - $filesPerProject }} more on the listing
+                                </a>
+                            @endif
+                        </div>
+                    </div>
+                @empty
+                    <x-empty-state icon="file-text"
+                                   title="No documents yet"
+                                   description="Brochures, plans and images uploaded against this developer's projects will appear here." />
+                @endforelse
+            </x-panel>
         </div>
 
         <div class="space-y-4">
@@ -335,6 +475,23 @@
                             <x-badge :tone="$developer->verified ? 'primary' : 'neutral'" size="sm">
                                 {{ $developer->verified ? 'Shown' : 'Hidden' }}
                             </x-badge>
+                        </dd>
+                    </div>
+                    {{-- The one setting on this page that changes what a channel partner sees
+                         first, so it is stated as the outcome it produces rather than as a
+                         bare number sitting on its own. --}}
+                    <div class="px-5 py-3 flex items-start justify-between gap-4">
+                        <dt class="text-[12.5px] text-ink-3 pt-0.5">Directory priority</dt>
+                        <dd class="text-right">
+                            @if($developer->priority !== null)
+                                <x-badge tone="primary" size="sm">#{{ $developer->priority }}</x-badge>
+                                <p class="text-[11.5px] text-ink-3 mt-1">
+                                    Position {{ $developer->priority }} for partners browsing
+                                    {{ $developer->city ?: 'this city' }}
+                                </p>
+                            @else
+                                <span class="text-[12.5px] text-ink-2">Not pinned</span>
+                            @endif
                         </dd>
                     </div>
                     <div class="px-5 py-3 flex items-center justify-between gap-4">
@@ -472,6 +629,17 @@
 
                     <x-switch-field label="Verified developer" name="verified" :checked="$developer->verified"
                                     hint="Adds a verified badge on every listing this developer owns." />
+
+                    {{-- Location-based by construction: a developer has one city, and the
+                         app's directory is filtered to a city before this rank is read. So
+                         the number is a position within this company's own city and cannot
+                         push it up any other city's list. --}}
+                    <x-field label="Directory priority" name="priority" type="number" min="1" max="999"
+                             :value="$developer->priority" placeholder="Not pinned"
+                             :hint="'1 shows this developer first when a channel partner browses '
+                                 . ($developer->city ?: 'this city')
+                                 . ', 2 shows them second, and so on. Taking a number another developer'
+                                 . ' already holds swaps the two. Leave empty to list them with everyone else.'" />
                 </div>
 
                 <div class="pt-1 flex items-center justify-end gap-2.5">

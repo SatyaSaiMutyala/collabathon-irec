@@ -121,8 +121,17 @@
     <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div class="flex items-start gap-3.5 flex-1 min-w-[260px]">
             @if($property->cover_image_path || $property->logo_path)
-                <img src="{{ \App\Support\FileStorage::url(($property->cover_image_path ?: $property->logo_path)) }}"
-                     alt="" class="w-14 h-14 rounded-xl object-cover border border-line-soft shrink-0">
+                @php
+                    $heroPath = $property->cover_image_path ?: $property->logo_path;
+                    // Resolved once: on S3 each call signs a fresh URL, and the <img> and
+                    // the overlay pointing at two different signatures is a second download.
+                    $heroUrl = \App\Support\FileStorage::url($heroPath);
+                @endphp
+                <x-preview-link :url="$heroUrl" :path="$heroPath" :name="$property->name . ' cover image'"
+                                class="shrink-0 rounded-xl hover:opacity-90 transition-opacity">
+                    <img src="{{ $heroUrl }}"
+                         alt="" class="w-14 h-14 rounded-xl object-cover border border-line-soft">
+                </x-preview-link>
             @else
                 <x-avatar :name="$property->name" size="lg" class="w-14 h-14 shrink-0" />
             @endif
@@ -296,10 +305,16 @@
                                 <x-icon name="download" class="w-4 h-4 text-ink-3 shrink-0" />
                                 <p class="text-[12.5px] text-ink truncate">{{ basename($detail->terms_document_path) }}</p>
                             </div>
-                            <x-button variant="subtle" size="sm" tag="a" target="_blank"
-                                      href="{{ \App\Support\FileStorage::url($detail->terms_document_path) }}">
-                                Open
-                            </x-button>
+                            {{-- Styled as x-button variant=subtle size=sm; it cannot be one,
+                                 because x-button renders its own anchor and the two would nest. --}}
+                            <x-preview-link :url="\App\Support\FileStorage::url($detail->terms_document_path)"
+                                            :path="$detail->terms_document_path"
+                                            :name="$detail->terms_title ?: 'Developer terms'"
+                                            class="inline-flex items-center justify-center gap-1.5 whitespace-nowrap
+                                                   h-8 px-3 text-[12.5px] font-medium rounded-lg bg-canvas text-ink-2
+                                                   hover:bg-line-soft hover:text-ink shadow-card transition-colors">
+                                <x-icon name="eye" class="w-4 h-4 shrink-0" /> Preview
+                            </x-preview-link>
                         </div>
                     @else
                         {{-- Sanitised on write by App\Support\RichText, so the stored markup
@@ -363,11 +378,16 @@
                                         <td class="px-4 py-3 text-[12.5px] text-ink-2 nums">{{ $unit->units_count ?? '—' }}</td>
                                         <td class="px-4 py-3">
                                             @if($unit->floor_plan_path)
-                                                <a href="{{ \App\Support\FileStorage::url($unit->floor_plan_path) }}"
-                                                   target="_blank" rel="noopener"
-                                                   class="inline-flex items-center gap-1 text-[12.5px] text-primary hover:underline">
-                                                    View <x-icon name="external" class="w-3.5 h-3.5" />
-                                                </a>
+                                                {{-- Grouped, so the arrows walk every unit type's
+                                                     plan in one pass: the usual way these get
+                                                     compared is one after another. --}}
+                                                <x-preview-link :url="\App\Support\FileStorage::url($unit->floor_plan_path)"
+                                                                :path="$unit->floor_plan_path"
+                                                                :name="$unit->label . ' floor plan'"
+                                                                group="floor-plans"
+                                                                class="inline-flex items-center gap-1 text-[12.5px] text-primary hover:underline">
+                                                    View <x-icon name="eye" class="w-3.5 h-3.5" />
+                                                </x-preview-link>
                                             @else
                                                 <span class="text-[12.5px] text-ink-3">—</span>
                                             @endif
@@ -388,14 +408,16 @@
                     <div class="grid grid-cols-3 gap-2">
                         @foreach($media['image'] as $image)
                             @php $imageUrl = $image->url ?: \App\Support\FileStorage::url($image->path); @endphp
-                            <a href="{{ $imageUrl }}" target="_blank" rel="noopener"
-                               class="block rounded-lg overflow-hidden border border-line hover:opacity-90 transition-opacity">
+                            <x-preview-link :url="$imageUrl" :path="$image->path"
+                                            :name="$image->caption ?: ($property->name . ' image ' . ($loop->index + 1))"
+                                            group="gallery"
+                                            class="block rounded-lg overflow-hidden border border-line hover:opacity-90 transition-opacity">
                                 {{-- 4:3 matches the crop tool's output ratio (_form.blade.php /
                                      resources/js/app.js cropTool) — aspect-square was clipping a
                                      chunk off every thumbnail here. --}}
                                 <img src="{{ $imageUrl }}" alt=""
                                      class="w-full aspect-[4/3] object-cover">
-                            </a>
+                            </x-preview-link>
                         @endforeach
                     </div>
                 @else
@@ -425,12 +447,18 @@
                                 @if($items?->isNotEmpty())
                                     <span class="flex items-center gap-2">
                                         @foreach($items as $i => $item)
-                                            <a href="{{ \App\Support\FileStorage::url($item->path) }}"
-                                               target="_blank" rel="noopener"
-                                               class="inline-flex items-center gap-1 text-primary hover:underline">
+                                            {{-- One group across every kind: an admin checking a
+                                                 listing's paperwork reads the brochure, then the
+                                                 price list, then the payment schedule, and the
+                                                 arrows follow that without reopening each time. --}}
+                                            <x-preview-link :url="\App\Support\FileStorage::url($item->path)"
+                                                            :path="$item->path"
+                                                            :name="$label . ($items->count() > 1 ? ' #' . ($i + 1) : '')"
+                                                            group="attachments"
+                                                            class="inline-flex items-center gap-1 text-primary hover:underline">
                                                 {{ $items->count() > 1 ? '#' . ($i + 1) : 'View' }}
-                                                <x-icon name="external" class="w-3 h-3" />
-                                            </a>
+                                                <x-icon name="eye" class="w-3 h-3" />
+                                            </x-preview-link>
                                         @endforeach
                                     </span>
                                 @else

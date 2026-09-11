@@ -32,7 +32,20 @@ class DeveloperController extends Controller
             ->when($request->query('search'), fn ($q, $term) => $q->where('company_name', 'like', $term . '%'))
             ->when($request->query('city'), fn ($q, $city) => $q->where('city', $city));
 
-        $query = $this->applySort($query, $request, self::SORTABLE);
+        /*
+         * Admin pins lead the directory, then the caller's own sort orders the rest.
+         *
+         * This is the location-based priority the admin panel sets: `priority` is a rank
+         * within the developer's own city (a developer row has exactly one `city`, and the
+         * `city` filter above has already narrowed the page to it), so a company pinned to
+         * rank 1 in Hyderabad opens the list the moment a channel partner selects
+         * Hyderabad, and never appears above anyone in another city's list.
+         *
+         * Applied before applySort() on purpose — the first ORDER BY term added wins, so
+         * the pins lead and `sort`/`direction` decide the order among everything below
+         * them. See Developer::scopePinnedFirst().
+         */
+        $query = $this->applySort($query->pinnedFirst(), $request, self::SORTABLE);
 
         return DeveloperResource::collection($this->paginate($query, $request));
     }

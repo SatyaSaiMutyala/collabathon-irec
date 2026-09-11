@@ -237,6 +237,10 @@
             <x-th sort="name">Company</x-th>
             <x-th hide="lg">Contact</x-th>
             <x-th hide="md">City / State</x-th>
+            {{-- Sits next to the city because it only means anything alongside one: the
+                 rank orders this developer within its own city's directory in the app.
+                 Ascending on the first click, so rank 1 lands at the top. --}}
+            <x-th sort="priority" default-direction="asc" hide="md">Priority</x-th>
             <x-th hide="lg">Country</x-th>
             <x-th hide="xl">Pincode</x-th>
             <x-th sort="created_at" hide="xl">Created</x-th>
@@ -281,6 +285,19 @@
                          read together, and a separate column would be the first thing to
                          get hidden at this breakpoint anyway. --}}
                     <p class="text-[11.5px] text-ink-3 truncate pl-5">{{ $dev->state ?: '—' }}</p>
+                </td>
+
+                {{-- Pinned developers open the directory for their city in the app, in this
+                     order; an em dash is an ordinary, unpinned company. --}}
+                <td class="px-4 py-3 hidden md:table-cell">
+                    @if($dev->priority !== null)
+                        <x-badge tone="primary" size="sm"
+                                 title="Shown at position {{ $dev->priority }} when a channel partner filters by {{ $dev->city ?: 'this city' }}">
+                            #{{ $dev->priority }}
+                        </x-badge>
+                    @else
+                        <span class="text-[12.5px] text-ink-3">—</span>
+                    @endif
                 </td>
 
                 <td class="px-4 py-3 text-[12.5px] text-ink-2 hidden lg:table-cell">{{ $dev->country ?: '—' }}</td>
