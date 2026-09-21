@@ -712,6 +712,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
     try {
       const fullName = [form.suffix, form.fullNameAsRera].filter(Boolean).join(' ').trim();
       const {data} = await kycApi.digilockerInitialize(fullName, form.mobileNumber.trim(), form.emailId.trim());
+      console.log('[DigiLocker] initialize response:', JSON.stringify(data));
 
       if (data.status !== 'initialized') {
         setAadhaarVerification({status: 'unavailable', name: null, message: data.message ?? 'Could not start DigiLocker verification.', maskedAadhaar: null});
@@ -721,6 +722,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
       setDigilockerSession({visible: true, url: data.url, clientId: data.client_id});
       setAadhaarVerification({status: 'idle', name: null, message: null, maskedAadhaar: null});
     } catch (error) {
+      console.warn('[DigiLocker] initialize threw:', extractError(error).message, error);
       setAadhaarVerification({
         status: 'unavailable',
         name: null,
@@ -741,6 +743,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
     if (!navState.url?.startsWith(DIGILOCKER_REDIRECT_PREFIX)) {
       return;
     }
+    console.log('[DigiLocker] redirect detected, closing WebView. clientId =', digilockerSession.clientId);
     const clientId = digilockerSession.clientId;
     setDigilockerSession({visible: false, url: null, clientId: null});
     if (clientId) {
@@ -760,6 +763,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
 
     try {
       const {data: statusData} = await kycApi.digilockerStatus(clientId);
+      console.log('[DigiLocker] status response:', JSON.stringify(statusData));
 
       if (statusData.status === 'failed') {
         setAadhaarVerification({status: 'rejected', name: null, message: statusData.message ?? 'DigiLocker verification failed.', maskedAadhaar: null});
@@ -785,6 +789,10 @@ const CompleteProfileScreen = ({navigation, route}) => {
       }
 
       const {data} = await kycApi.digilockerDownloadAadhaar(clientId);
+      // The full answer, on success or not — this is everything Surepass/DigiLocker
+      // actually gave us: name, dob, gender, maskedAadhaar, address, and (once
+      // re-hosted server-side) the attached XML's own path/url/name under `document`.
+      console.log('[DigiLocker] download-aadhaar response:', JSON.stringify(data));
 
       if (data.status === 'verified') {
         const details = data.data ?? {};
@@ -820,6 +828,7 @@ const CompleteProfileScreen = ({navigation, route}) => {
 
       setAadhaarVerification({status: data.status, name: null, message: data.message ?? null, maskedAadhaar: null});
     } catch (error) {
+      console.warn('[DigiLocker] status/download-aadhaar threw:', extractError(error).message, error);
       setAadhaarVerification({
         status: 'unavailable',
         name: null,

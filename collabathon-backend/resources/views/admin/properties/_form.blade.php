@@ -84,6 +84,20 @@
 
     $unitTypeRows = $unitTypeRows ?: [['label' => '']];
 
+    /**
+     * Per-row field errors for the unit-type rows, keyed the way Alpine's own `rows`
+     * array is — [row index => [field name => message]] — since those rows are
+     * templated client-side (x-for), not with a Blade @foreach one could attach
+     * $errors->first('unit_types.0.price_min') to directly. Read by the row markup
+     * below via `unitTypeErrors[i]?.<field>` for both the red border and the message.
+     */
+    $unitTypeErrors = [];
+    foreach ($errors->keys() as $key) {
+        if (preg_match('/^unit_types\.(\d+)\.(.+)$/', $key, $match)) {
+            $unitTypeErrors[(int) $match[1]][$match[2]] = $errors->first($key);
+        }
+    }
+
     // A fixed list on the model, not master data from Settings: the eight compass points
     // are closed, so there is nothing for an admin to maintain. Validation reads the same
     // constant, so the dropdown cannot offer a value the controller would then reject.
@@ -136,6 +150,7 @@
               step: {{ $initialStep }},
               last: {{ count($steps) }},
               rows: @js($unitTypeRows),
+              unitTypeErrors: @js($unitTypeErrors),
               busy: false,
               saving: false,
               uploadError: '',
@@ -543,7 +558,8 @@
                                             <label class="block">
                                                 <span class="block text-[11.5px] text-ink-2 mb-1">Unit type</span>
                                                 <select :name="`unit_types[${i}][label]`" x-model="rows[i].label"
-                                                        class="w-full h-9 pl-3 pr-8 rounded-lg bg-panel border border-line text-[13px] text-ink appearance-none focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
+                                                        class="w-full h-9 pl-3 pr-8 rounded-lg bg-panel border text-[13px] text-ink appearance-none focus:outline-none focus:ring-[3px] transition-[border-color,box-shadow]"
+                                                        :class="unitTypeErrors[i]?.label ? 'border-danger focus:border-danger focus:ring-danger-ring' : 'border-line focus:border-primary focus:ring-primary-ring'">
                                                     <option value="">Select…</option>
                                                     {{-- From Settings → Unit types, plus any label already saved on
                                                          this project so a type switched off there does not vanish
@@ -552,52 +568,72 @@
                                                         <option value="{{ $label }}">{{ $label }}</option>
                                                     @endforeach
                                                 </select>
+                                                <p x-show="unitTypeErrors[i]?.label" x-cloak x-text="unitTypeErrors[i]?.label"
+                                                   class="text-[11px] text-danger mt-1"></p>
                                             </label>
 
                                             <label class="block">
                                                 <span class="block text-[11.5px] text-ink-2 mb-1">Carpet (sq.ft.)</span>
                                                 <input type="number" min="0" :name="`unit_types[${i}][carpet_area_sqft]`"
                                                        x-model="rows[i].carpet_area_sqft" placeholder="1250"
-                                                       class="w-full h-9 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
+                                                       class="w-full h-9 px-3 rounded-lg bg-panel border text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:ring-[3px] transition-[border-color,box-shadow]"
+                                                       :class="unitTypeErrors[i]?.carpet_area_sqft ? 'border-danger focus:border-danger focus:ring-danger-ring' : 'border-line focus:border-primary focus:ring-primary-ring'">
+                                                <p x-show="unitTypeErrors[i]?.carpet_area_sqft" x-cloak x-text="unitTypeErrors[i]?.carpet_area_sqft"
+                                                   class="text-[11px] text-danger mt-1"></p>
                                             </label>
 
                                             <label class="block">
                                                 <span class="block text-[11.5px] text-ink-2 mb-1">Built-up (sq.ft.)</span>
                                                 <input type="number" min="0" :name="`unit_types[${i}][built_up_area_sqft]`"
                                                        x-model="rows[i].built_up_area_sqft" placeholder="1437"
-                                                       class="w-full h-9 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
+                                                       class="w-full h-9 px-3 rounded-lg bg-panel border text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:ring-[3px] transition-[border-color,box-shadow]"
+                                                       :class="unitTypeErrors[i]?.built_up_area_sqft ? 'border-danger focus:border-danger focus:ring-danger-ring' : 'border-line focus:border-primary focus:ring-primary-ring'">
+                                                <p x-show="unitTypeErrors[i]?.built_up_area_sqft" x-cloak x-text="unitTypeErrors[i]?.built_up_area_sqft"
+                                                   class="text-[11px] text-danger mt-1"></p>
                                             </label>
 
                                             <label class="block">
                                                 <span class="block text-[11.5px] text-ink-2 mb-1">Super built-up (sq.ft.)</span>
                                                 <input type="number" min="0" :name="`unit_types[${i}][super_built_up_area_sqft]`"
                                                        x-model="rows[i].super_built_up_area_sqft" placeholder="1625"
-                                                       class="w-full h-9 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
+                                                       class="w-full h-9 px-3 rounded-lg bg-panel border text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:ring-[3px] transition-[border-color,box-shadow]"
+                                                       :class="unitTypeErrors[i]?.super_built_up_area_sqft ? 'border-danger focus:border-danger focus:ring-danger-ring' : 'border-line focus:border-primary focus:ring-primary-ring'">
+                                                <p x-show="unitTypeErrors[i]?.super_built_up_area_sqft" x-cloak x-text="unitTypeErrors[i]?.super_built_up_area_sqft"
+                                                   class="text-[11px] text-danger mt-1"></p>
                                             </label>
 
                                             <label class="block">
                                                 <span class="block text-[11.5px] text-ink-2 mb-1">Facing</span>
                                                 <select :name="`unit_types[${i}][facing]`" x-model="rows[i].facing"
-                                                        class="w-full h-9 pl-3 pr-8 rounded-lg bg-panel border border-line text-[13px] text-ink appearance-none focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
+                                                        class="w-full h-9 pl-3 pr-8 rounded-lg bg-panel border text-[13px] text-ink appearance-none focus:outline-none focus:ring-[3px] transition-[border-color,box-shadow]"
+                                                        :class="unitTypeErrors[i]?.facing ? 'border-danger focus:border-danger focus:ring-danger-ring' : 'border-line focus:border-primary focus:ring-primary-ring'">
                                                     <option value="">Select…</option>
                                                     @foreach($facingOptions as $facing)
                                                         <option value="{{ $facing }}">{{ $facing }}</option>
                                                     @endforeach
                                                 </select>
+                                                <p x-show="unitTypeErrors[i]?.facing" x-cloak x-text="unitTypeErrors[i]?.facing"
+                                                   class="text-[11px] text-danger mt-1"></p>
                                             </label>
 
                                             <label class="block">
                                                 <span class="block text-[11.5px] text-ink-2 mb-1">Starting from</span>
                                                 <input type="number" :name="`unit_types[${i}][price_min]`"
                                                        x-model="rows[i].price_min" placeholder="1800000"
-                                                       class="w-full h-9 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
+                                                       class="w-full h-9 px-3 rounded-lg bg-panel border text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:ring-[3px] transition-[border-color,box-shadow]"
+                                                       :class="unitTypeErrors[i]?.price_min ? 'border-danger focus:border-danger focus:ring-danger-ring' : 'border-line focus:border-primary focus:ring-primary-ring'">
+                                                <p x-show="unitTypeErrors[i]?.price_min" x-cloak x-text="unitTypeErrors[i]?.price_min"
+                                                   class="text-[11px] text-danger mt-1"></p>
                                             </label>
 
                                             <label class="block">
                                                 <span class="block text-[11.5px] text-ink-2 mb-1">No. of units</span>
                                                 <input type="number" :name="`unit_types[${i}][units_count]`"
                                                        x-model="rows[i].units_count" placeholder="120"
-                                                       class="w-full h-9 px-3 rounded-lg bg-panel border border-line text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary-ring">
+                                                       class="w-full h-9 px-3 rounded-lg bg-panel border text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:ring-[3px] transition-[border-color,box-shadow]"
+                                                       :class="unitTypeErrors[i]?.units_count ? 'border-danger focus:border-danger focus:ring-danger-ring' : 'border-line focus:border-primary focus:ring-primary-ring'">
+                                                <p x-show="unitTypeErrors[i]?.units_count" x-cloak x-text="unitTypeErrors[i]?.units_count"
+                                                   class="text-[11px] text-danger mt-1"></p>
                                             </label>
 
                                             {{-- Not <x-file-field>: that component owns its own name/id and
@@ -607,7 +643,8 @@
                                                  the same control, sized to the row's h-9 grid. --}}
                                             <div class="block" x-data="{ picked: '' }">
                                                 <span class="block text-[11.5px] text-ink-2 mb-1">Upload floor plan</span>
-                                                <label class="relative flex items-center gap-2 w-full h-9 px-3 rounded-lg bg-panel border border-dashed border-line hover:border-primary hover:bg-canvas cursor-pointer transition-colors">
+                                                <label class="relative flex items-center gap-2 w-full h-9 px-3 rounded-lg border border-dashed hover:bg-canvas cursor-pointer transition-colors"
+                                                       :class="unitTypeErrors[i]?.floor_plan ? 'border-danger bg-danger-soft hover:border-danger' : 'border-line bg-panel hover:border-primary'">
                                                     <x-icon name="download" class="w-3.5 h-3.5 text-ink-3 shrink-0" />
                                                     <span class="text-[12px] text-ink-3 truncate min-w-0" x-show="! picked">Choose a file…</span>
                                                     <span class="text-[12px] text-ink truncate min-w-0" x-show="picked" x-cloak
@@ -617,6 +654,8 @@
                                                            x-on:change="picked = $event.target.files[0]?.name ?? ''"
                                                            class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                                                 </label>
+                                                <p x-show="unitTypeErrors[i]?.floor_plan" x-cloak x-text="unitTypeErrors[i]?.floor_plan"
+                                                   class="text-[11px] text-danger mt-1"></p>
 
                                                 {{-- The plan already saved against this row, which the hidden
                                                      `existing_floor_plan` above carries through the rebuild.

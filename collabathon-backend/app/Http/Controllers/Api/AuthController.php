@@ -235,8 +235,10 @@ class AuthController extends Controller
             // Aadhaar stays strictly unique regardless of is_company — it identifies
             // the individual submitting it, a company registration or not (and is
             // optional-not-required for a company in the first place; see
-            // validateStepIsComplete()).
-            'aadhaar_card' => ['nullable', 'string', 'max:32', Rule::unique('broker_profiles', 'aadhaar_card')->ignore($profileId)],
+            // validateStepIsComplete()). Not a plain `unique` column check any
+            // more — see aadhaarDuplicateRule()'s own docblock for why a masked
+            // number alone can't safely decide that.
+            'aadhaar_card' => ['nullable', 'string', 'max:32', $this->aadhaarDuplicateRule($request, $profileId)],
             // Set by the app after DigilockerController::downloadAadhaar came back
             // verified — same trust boundary as pan_verified above. The earlier
             // QR/XML/eAadhaar-upload Aadhaar endpoints (and their own verified flag)
@@ -287,10 +289,9 @@ class AuthController extends Controller
                 ->mapWithKeys(fn ($column) => [$column => ['nullable', 'string']])
                 ->all(),
         ], [
-            // pan_card/rera_number/gst_number no longer use Laravel's `unique` rule —
-            // documentSharingRule() is a closure that calls $fail() with its own
-            // message directly, so there's nothing to override here for those three.
-            'aadhaar_card.unique' => 'This Aadhaar number is already registered with another channel partner account.',
+            // pan_card/rera_number/gst_number/aadhaar_card no longer use Laravel's
+            // `unique` rule — each is a closure that calls $fail() with its own
+            // message directly, so there's nothing to override here for any of them.
         ]);
 
         // A step's own required fields only matter when this is a real "Next"/final
@@ -502,6 +503,51 @@ class AuthController extends Controller
 
             if ($existing > 0) {
                 $fail("This {$label} is already registered with another channel partner account.");
+            }
+        };
+    }
+
+    /**
+     * `aadhaar_card` only ever holds DigiLocker's own masked form once a broker
+     * has verified (e.g. "XXXXXXXX2576") — the last four digits UIDAI reveals
+     * through that flow are not unique across real people, so a plain equality
+     * check on the stored value flags two genuinely different Aadhaar holders
+     * who simply happen to share the same last four digits as the same person
+     * registering twice. The verified name DigiLocker returned alongside it is
+     * the tiebreaker: same masked number *and* a matching name (case, spacing,
+     * punctuation aside — "Saiprakash H T" and "saiprakash ht" are the same
+     * name) really is the same person; same masked number with a clearly
+     * different name ("Saiprakash H T" vs "Satya") is two different people,
+     * not a duplicate.
+     *
+     * Falls back to the original strict "same digits = duplicate" behaviour
+     * whenever either side has no verified name to compare — a manually-typed
+     * Aadhaar, or an account that registered before DigiLocker verification
+     * existed, gives no better signal to disambiguate with, so this stays
+     * exactly as protective as it always was for that data rather than
+     * getting looser.
+     */
+    private function aadhaarDuplicateRule(Request $request, int $profileId): \Closure
+    {
+        $normalize = fn (?string $name) => filled($name) ? preg_replace('/[^a-z0-9]/', '', strtolower($name)) : null;
+        $thisName = $normalize($request->input('aadhaar_verified_name'));
+
+        return function (string $attribute, $value, \Closure $fail) use ($profileId, $normalize, $thisName) {
+            if (blank($value)) {
+                return;
+            }
+
+            $otherNames = BrokerProfile::where('aadhaar_card', $value)
+                ->where('id', '!=', $profileId)
+                ->pluck('aadhaar_verified_name');
+
+            foreach ($otherNames as $otherName) {
+                $otherName = $normalize($otherName);
+
+                if ($thisName === null || $otherName === null || $thisName === $otherName) {
+                    $fail('This Aadhaar number is already registered with another channel partner account.');
+                    return;
+                }
             }
         };
     }

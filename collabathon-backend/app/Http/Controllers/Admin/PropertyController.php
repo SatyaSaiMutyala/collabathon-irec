@@ -917,7 +917,12 @@ class PropertyController extends Controller
             // dropdown and what the column will accept cannot drift apart.
             'unit_types.*.facing' => ['nullable', 'string', Rule::in(PropertyUnitType::FACINGS)],
             'unit_types.*.price_min' => ['nullable', 'integer', 'min:0'],
-            'unit_types.*.price_max' => ['nullable', 'integer', 'min:0', 'gte:unit_types.*.price_min'],
+            // No 'gte:unit_types.*.price_min' here: price_max rides through the form as
+            // a hidden, uneditable carry-forward of whatever a row already had (see the
+            // note beside that input in _form.blade.php) — comparing it against a
+            // freshly-typed price_min produced an error the admin had no visible field
+            // to fix, on any row whose stored price_max predates that field's removal.
+            'unit_types.*.price_max' => ['nullable', 'integer', 'min:0'],
             'unit_types.*.units_count' => ['nullable', 'integer', 'min:0'],
             'unit_types.*.floor_plan' => $anyDoc,
             'unit_types.*.existing_floor_plan' => ['nullable', 'string', 'max:255'],
