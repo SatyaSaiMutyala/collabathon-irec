@@ -67,6 +67,19 @@ export function buildPalette(primary) {
     dangerSoft: '#FBEAE9',
     warning: '#C9922B',
     warningSoft: '#FBF1DD',
+    // Secondary accents from the redesign handoff's brand table — decorative tints for
+    // small tagged content (an amenity icon tile, a status chip) that isn't itself a
+    // primary action or a semantic success/danger/warning state, so it doesn't belong
+    // in those three. Not derived from `primary`: these are fixed brand colours, the
+    // same five hex values on every theme regardless of the admin's chosen primary.
+    accentCyan: '#0096CA',
+    accentCyanSoft: shade('#0096CA', 0.86),
+    accentYellow: '#FFC612',
+    accentYellowSoft: shade('#FFC612', 0.86),
+    accentOrange: '#F5831F',
+    accentOrangeSoft: shade('#F5831F', 0.86),
+    accentPink: '#ED1458',
+    accentPinkSoft: shade('#ED1458', 0.86),
     white: '#FFFFFF',
     black: '#000000',
     overlayStrong: 'rgba(10, 12, 20, 0.72)',
@@ -75,17 +88,15 @@ export function buildPalette(primary) {
 }
 
 /**
- * Default seed theme. Pulled from the brand mark itself — specifically its blue ribbon
- * petal in `assets/images/logo-mark.png` (sampled: #0090D0), darkened ~20% to
- * `#0073A6` for a clean 5.25:1 contrast on white (the raw petal hue only clears
- * 3.56:1, too low for reliable button/link text). Blue over the mark's other hues
- * because this is a broker/real-estate B2B platform — blue reads as trust and
- * professionalism, and is the de facto convention across the category (99acres,
- * Housing.com, Zillow), where the mark's purple or orange read more "creative/luxury"
- * than the audience here is going for. Every screen past Welcome — which keeps its own
- * richer one-off palette, see that screen's top-of-file note — reads as the same app
- * instead of jumping to monochrome the moment sign-in starts. Still fully
- * admin-swappable via `setPrimaryColor`.
+ * Default seed theme. Superseded 2026-09-23 per the client-approved redesign handoff
+ * (see memory `ui-redesign-handoff-2026-09`) — `#622D91`, the purple sampled from the
+ * brand mark itself, is now the primary action colour across both Channel Partner and
+ * Developer sides. Replaces the earlier blue seed (`#0073A6`), which was chosen for
+ * category convention over the mark's own colours; the redesign spec calls for the
+ * mark's purple to anchor buttons and selected navigation instead. Every screen past
+ * Welcome — which keeps its own richer one-off palette, see that screen's top-of-file
+ * note — reads as the same app instead of jumping to monochrome the moment sign-in
+ * starts. Still fully admin-swappable via `setPrimaryColor`.
  */
-export const DEFAULT_PRIMARY = '#0073A6';
+export const DEFAULT_PRIMARY = '#622D91';
 export const defaultPalette = buildPalette(DEFAULT_PRIMARY);

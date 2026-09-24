@@ -6,7 +6,7 @@ import {useAppTheme} from '../theme';
 import RemoteImage from './RemoteImage';
 
 // 'cover', not 'contain': this is a fixed-height, full-width banner/card (see
-// PropertyHero/PropertyCard) and any empty letterbox space reads as broken. The admin
+// ProjectOverviewTab/PropertyCard) and any empty letterbox space reads as broken. The admin
 // panel's mandatory crop tool (resources/js/app.js cropTool, ratio matched to this)
 // exists precisely so the admin — not this component — decides what part of a photo
 // fills the frame, instead of an arbitrary uncontrolled crop.

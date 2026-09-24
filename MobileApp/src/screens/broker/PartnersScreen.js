@@ -88,6 +88,9 @@ const PartnersScreen = ({navigation}) => {
             onPress={() =>
               item.property && navigation.navigate('ProjectDetail', {projectId: item.property.id})
             }
+            // "View request" (LeadCard's default) doesn't fit here — this is an
+            // already-accepted partnership, not a pending ask.
+            buttonLabel="View project"
             // The whole point of an accepted lead is that the developer is now reachable,
             // so their route sits on the card rather than a tap away.
             footer={

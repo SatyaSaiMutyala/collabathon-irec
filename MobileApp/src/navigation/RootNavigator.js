@@ -51,7 +51,7 @@ const BrokerRootStack = () => (
       component={MapPickerScreen}
       options={{animation: 'slide_from_bottom'}}
     />
-    {/* Registered on both stacks: PropertyDetailBody is shared, so the terms button
+    {/* Registered on both stacks: ProjectOverviewTab is shared, so the terms button
         has to resolve whichever role opened the project. */}
     <BrokerStack.Screen
       name="ProjectTerms"
@@ -84,7 +84,7 @@ const DeveloperRootStack = () => (
       component={NotificationDetailScreen}
       options={{animation: 'slide_from_right'}}
     />
-    {/* Registered on both stacks: PropertyDetailBody is shared, so the terms button
+    {/* Registered on both stacks: ProjectOverviewTab is shared, so the terms button
         has to resolve whichever role opened the project. */}
     <DeveloperStack.Screen
       name="ProjectTerms"

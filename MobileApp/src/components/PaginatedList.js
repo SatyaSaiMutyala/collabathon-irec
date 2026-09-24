@@ -110,9 +110,18 @@ const PaginatedList = React.forwardRef(({
       // sitting docked right under it. Applying this unconditionally would also
       // centre a short *real* list vertically instead of anchoring it to the top,
       // which is the wrong look once there's actual content to scroll.
+      //
+      // `justifyContent: 'center'` used to live here too, which centres every child
+      // of the content container as one block — ListHeaderComponent included. A
+      // screen with a substantial header (a whole tabbed project page, say) and zero
+      // items in the list itself saw its entire header shoved down the screen,
+      // reading as a large, unexplained gap above real content. Centring only
+      // belongs to the empty-state message, not the header above it — see the
+      // wrapper around ListEmptyComponent below, which claims the leftover space on
+      // its own instead of asking the whole container to redistribute around it.
       contentContainerStyle={[
         {paddingBottom: spacing.xxl},
-        list.items.length === 0 && !showSkeleton && {flexGrow: 1, justifyContent: 'center'},
+        list.items.length === 0 && !showSkeleton && {flexGrow: 1},
         contentContainerStyle,
       ]}
       // Refreshing follows the user's own gesture only — never a focus reload and never
@@ -146,13 +155,15 @@ const PaginatedList = React.forwardRef(({
         ) : null
       }
       ListEmptyComponent={
-        <EmptyState
-          icon={emptyIcon}
-          title={emptyTitle}
-          message={emptyMessage}
-          filtered={emptyFiltered}
-          style={{marginTop: 0}}
-        />
+        <View style={{flex: 1, justifyContent: 'center'}}>
+          <EmptyState
+            icon={emptyIcon}
+            title={emptyTitle}
+            message={emptyMessage}
+            filtered={emptyFiltered}
+            style={{marginTop: 0}}
+          />
+        </View>
       }
       {...rest}
     />

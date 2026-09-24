@@ -1,6 +1,7 @@
 /**
  * Maps the API's property resource onto the view shape the property components render
- * (PropertyCard / PropertyHero / PropertyDetailBody).
+ * (PropertyCard / ProjectOverviewTab / ProjectDetailsTab / ProjectLocationTab /
+ * ProjectFilesSalesTab).
  *
  * Kept at the store boundary rather than inside each component so there is exactly
  * one place that knows both shapes. If the API changes, only this file moves.
@@ -186,6 +187,10 @@ export function normalizeProperty(api) {
     currency,
     location: [location.locality, location.city].filter(Boolean).join(', '),
     postedDaysAgo: daysSince(api.created_at),
+    // A bounded ~160-char teaser sent on list rows too (unlike the full `description`
+    // below, which only arrives on the single-project detail fetch) — see
+    // PropertyResource::description_excerpt on the API side.
+    descriptionExcerpt: api.description_excerpt ?? null,
 
     coverImage: api.cover_image_url ?? media.images[0] ?? null,
     images: media.images,
@@ -267,10 +272,20 @@ export function normalizeProperty(api) {
         mapsLink: location.maps_link,
         connectivity: listToText(detail.connectivity_highlights),
         nearbyInfrastructure: listToText(detail.nearby_infrastructure),
+        // Raw, one entry per line — each is admin free text like "Metro 800m" or
+        // "Airport 22km" (see PropertyDetail's actual stored values), not a
+        // {label,value} pair, so a per-row display (its own icon, its own line)
+        // needs the array itself rather than `connectivity`'s single joined string.
+        connectivityItems: detail.connectivity_highlights ?? [],
+        nearbyItems: detail.nearby_infrastructure ?? [],
         coordinates:
           location.latitude && location.longitude
             ? `${location.latitude}, ${location.longitude}`
             : null,
+        // Raw numbers, alongside the display string above — a map view needs actual
+        // coordinates to centre on, not the formatted "lat, lng" text meant for a row.
+        latitude: location.latitude ?? null,
+        longitude: location.longitude ?? null,
       },
       specs: {
         landParcel: scale.land_parcel_acres ? `${scale.land_parcel_acres} acres` : null,

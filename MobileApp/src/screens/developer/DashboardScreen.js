@@ -9,7 +9,7 @@ import {
   Card,
   Chip,
   IconButton,
-  PropertyCard,
+  ProjectPreviewCard,
   ScreenContainer,
   StatRow,
   TrendChart,
@@ -217,11 +217,11 @@ const DashboardScreen = ({navigation}) => {
         </View>
 
         {topProperties.map(project => (
-          <PropertyCard
+          <ProjectPreviewCard
             key={project.id}
             project={project}
-            showDots={false}
-            priceVariant="h2"
+            showType
+            buttonLabel="View opportunity"
             onPress={() => navigation.navigate('PropertyLeads', {projectId: project.id})}
           />
         ))}

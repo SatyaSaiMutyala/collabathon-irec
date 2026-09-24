@@ -58,6 +58,16 @@ class PropertyResource extends JsonResource
                 && $this->developer_status === \App\Models\Property::DEV_ACCEPTED,
 
             'tagline' => $this->tagline,
+            // A bounded teaser for list cards — `description` itself is allowed up to
+            // 20,000 characters (see PropertyController's validation), so sending it in
+            // full on every row of a list would be exactly the payload bloat `$isDetail`
+            // below exists to avoid. This is sent unconditionally (list and detail
+            // alike) precisely because it stays small regardless of how long the real
+            // field runs; the full text is still gated below for the detail screen.
+            'description_excerpt' => $this->when(
+                (bool) $this->description,
+                fn () => \Illuminate\Support\Str::limit($this->description, 160)
+            ),
             'cover_image_url' => $this->cover_image_path ? \App\Support\FileStorage::url($this->cover_image_path) : null,
 
             'location' => [
@@ -92,7 +102,8 @@ class PropertyResource extends JsonResource
 
             // Detail screen only. These all live on the `properties` row that is already
             // selected, so gating them costs nothing to fetch — it only keeps the list
-            // payload narrow, which is the same reason `description` is gated.
+            // payload narrow, which is the same reason the full `description` is gated
+            // (see `description_excerpt` above for the bounded list-safe version).
             'description' => $this->when($isDetail, $this->description),
 
             'scale' => $this->when($isDetail, fn () => [

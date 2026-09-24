@@ -1,6 +1,8 @@
-import React, {useCallback, useEffect} from 'react';
-import {StatusBar, View} from 'react-native';
-import {useContentColumn} from '../../theme/scaling';
+import React, {useCallback, useEffect, useState} from 'react';
+import {StatusBar, TouchableOpacity, View} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import Icon from 'react-native-vector-icons/Ionicons';
+import {moderateScale, useContentColumn} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
 import {
   AppText,
@@ -9,9 +11,12 @@ import {
   PaginatedList,
   BrokerLeadCardSkeleton,
   PropertyDetailSkeleton,
-  PropertyDetailBody,
-  PropertyHero,
+  ProjectDetailsTab,
+  ProjectFilesSalesTab,
+  ProjectLocationTab,
+  ProjectOverviewTab,
   ProjectDecisionPanel,
+  TabBar,
 } from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 // Deliberately the developer's own endpoint, not the broker one: /properties/{id}
@@ -24,12 +29,24 @@ import {
   selectPropertyLeads,
 } from '../../store/slices/leadsSlice';
 
-/** One listing plus every broker who touched it — viewed and interested alike. */
+const TABS = ['Overview', 'Details', 'Location', 'Files & Sales'];
+
+/**
+ * One listing plus every broker who touched it — viewed and interested alike.
+ *
+ * The listing's own info is the same four-tab Overview/Details/Location/Files & Sales
+ * view ProjectDetailScreen shows a browsing broker (this developer's own project, same
+ * data, same components) — the decision panel and the CP Requests list below it are
+ * what's specific to owning the listing, so they sit after the tabs rather than inside
+ * one of them.
+ */
 const PropertyLeadsScreen = ({route, navigation}) => {
   const {colors, spacing} = useAppTheme();
   const column = useContentColumn();
+  const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const {projectId} = route.params;
+  const [activeTab, setActiveTab] = useState(0);
 
   const project = useAppSelector(state => selectMyPropertyById(state, projectId));
   const detailStatus = useAppSelector(state => selectMyPropertyStatus(state, projectId));
@@ -68,11 +85,22 @@ const PropertyLeadsScreen = ({route, navigation}) => {
 
   return (
     <View style={{flex: 1, backgroundColor: colors.background}}>
-      <StatusBar barStyle="light-content" />
-      {/* Lays out its own root rather than using ScreenContainer (the hero is
-          full-bleed), so it opts into the tablet column cap by hand — same as
-          ProjectDetailScreen, which is the broker-side view of this same listing. */}
-      <View style={[{flex: 1, width: '100%'}, column]}>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      {/* Lays out its own root rather than using ScreenContainer, so it opts into the
+          tablet column cap by hand — same as ProjectDetailScreen, which shows this
+          same listing's info to a browsing broker. */}
+      <View style={[{flex: 1, width: '100%'}, column, {paddingTop: insets.top}]}>
+        <View style={{flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.sm}}>
+          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={10}>
+            <Icon name="chevron-back" size={moderateScale(24)} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <AppText variant="h3" numberOfLines={1} style={{flex: 1, marginLeft: spacing.sm, marginRight: spacing.xl}}>
+            {project.name}
+          </AppText>
+        </View>
+
+        <TabBar tabs={TABS} activeIndex={activeTab} onChange={setActiveTab} />
+
         <PaginatedList
           renderSkeleton={() => (
             <View style={{paddingHorizontal: spacing.lg}}>
@@ -88,11 +116,13 @@ const PropertyLeadsScreen = ({route, navigation}) => {
           contentContainerStyle={{paddingBottom: spacing.xxxl}}
           ListHeaderComponent={
             <>
-              <PropertyHero project={project} onBack={() => navigation.goBack()} />
-              <PropertyDetailBody project={project} />
+              {activeTab === 0 && <ProjectOverviewTab project={project} />}
+              {activeTab === 1 && <ProjectDetailsTab project={project} />}
+              {activeTab === 2 && <ProjectLocationTab project={project} />}
+              {activeTab === 3 && <ProjectFilesSalesTab project={project} />}
 
               {/* Closes out the project details: the developer decides here, having just
-                  read the sheet above. Everything below is lead activity. */}
+                  read the tabs above. Everything below is lead activity. */}
               <View style={{paddingHorizontal: spacing.lg}}>
                 <ProjectDecisionPanel project={project} />
               </View>

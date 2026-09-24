@@ -1,5 +1,5 @@
-import React, {useEffect} from 'react';
-import {ScrollView, StatusBar, StyleSheet, View} from 'react-native';
+import React, {useEffect, useState} from 'react';
+import {ScrollView, StatusBar, StyleSheet, TouchableOpacity, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale, useContentColumn} from '../../theme/scaling';
@@ -8,9 +8,12 @@ import {
   AppText,
   Button,
   EmptyState,
-  PropertyDetailBody,
+  ProjectDetailsTab,
+  ProjectFilesSalesTab,
+  ProjectLocationTab,
+  ProjectOverviewTab,
   PropertyDetailSkeleton,
-  PropertyHero,
+  TabBar,
 } from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
 import {
@@ -20,24 +23,25 @@ import {
   selectPropertyStatus,
 } from '../../store/slices/propertiesSlice';
 
+const TABS = ['Overview', 'Details', 'Location', 'Files & Sales'];
+
 /**
  * Property detail. Opening the screen records a view; pressing "Interested" is the
  * moment the broker's contact details unlock for the developer — the server sets
  * that flag, the client only asks for it.
+ *
+ * Four tabs (Overview/Details/Location/Files & Sales) instead of one long scroll —
+ * header and tab strip are fixed above the ScrollView, not inside it, so switching
+ * tabs never has to fight the previous tab's scroll position; the `key` on the
+ * ScrollView below resets it to the top on every switch, matching a native tab view.
  */
 const ProjectDetailScreen = ({route, navigation}) => {
   const {colors, spacing, radius} = useAppTheme();
   const column = useContentColumn();
-  // This screen lays out its own root instead of ScreenContainer (the hero is
-  // full-bleed under the status bar, so the top inset must stay unreserved) — but
-  // the sticky "Mark as Interested" footer at the bottom is exactly the same shape
-  // of problem ScreenContainer's SafeAreaView and the tab bar both already solve:
-  // a fixed paddingBottom leaves the real system navigation bar (taller on 3-button
-  // nav than on gesture nav) overlapping the footer. Reserving the real inset here
-  // fixes it the same way tabBarOptions.js does for the tab bar itself.
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const {projectId} = route.params;
+  const [activeTab, setActiveTab] = useState(0);
 
   const project = useAppSelector(state => selectPropertyById(state, projectId));
   const detailStatus = useAppSelector(state => selectPropertyStatus(state, projectId));
@@ -87,18 +91,32 @@ const ProjectDetailScreen = ({route, navigation}) => {
 
   return (
     <View style={{flex: 1, backgroundColor: colors.background}}>
-      <StatusBar barStyle="light-content" />
-      {/* This screen lays out its own root rather than using ScreenContainer (the hero
-          is full-bleed), so it opts into the same tablet column cap by hand. Wrapping
-          the scroller *and* the sticky footer keeps the two the same width — capping
-          only the content would leave the action bar running the full width of an
-          iPad, detached from the column it belongs to. */}
-      <View style={[styles.column, column]}>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      {/* This screen lays out its own root rather than using ScreenContainer, so it
+          opts into the same tablet column cap by hand. Wrapping the header, tabs,
+          scroller and sticky footer all in it keeps every one of them the same width
+          — capping only the content would leave the rest running the full width of
+          an iPad, detached from the column they belong to. */}
+      <View style={[styles.column, column, {paddingTop: insets.top}]}>
+        <View style={{flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.sm}}>
+          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={10}>
+            <Icon name="chevron-back" size={moderateScale(24)} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <AppText variant="h3" numberOfLines={1} style={{flex: 1, marginLeft: spacing.sm, marginRight: spacing.xl}}>
+            {project.name}
+          </AppText>
+        </View>
+
+        <TabBar tabs={TABS} activeIndex={activeTab} onChange={setActiveTab} />
+
         <ScrollView
+          key={activeTab}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{paddingBottom: spacing.xxxl}}>
-          <PropertyHero project={project} onBack={() => navigation.goBack()} />
-          <PropertyDetailBody project={project} highlightCommission />
+          {activeTab === 0 && <ProjectOverviewTab project={project} highlightCommission />}
+          {activeTab === 1 && <ProjectDetailsTab project={project} />}
+          {activeTab === 2 && <ProjectLocationTab project={project} />}
+          {activeTab === 3 && <ProjectFilesSalesTab project={project} />}
         </ScrollView>
 
         <View

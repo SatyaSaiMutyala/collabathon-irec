@@ -11,12 +11,14 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /**
  * The developer as the mobile app sees it.
  *
- * Both reachable channels — the public contact and the internal `key_contact_*`
- * columns — are starred until the broker viewing this has an *accepted* lead with
- * this developer, the same rule `PartnerResource` applies in the other direction
- * (`Lead::STATUS_ACCEPTED`, checked by the caller and handed in via `withContact()`).
- * A pending or nonexistent request sees masked numbers/emails on both; an accepted
- * one sees the real values on both. `key_contact_person`'s name/designation are not
+ * Every reachable channel — the public contact, the internal `key_contact_*` columns,
+ * the website, and this developer's social links — is starred until the broker viewing
+ * this has an *accepted* lead with this developer, the same rule `PartnerResource`
+ * applies in the other direction (`Lead::STATUS_ACCEPTED`, checked by the caller and
+ * handed in via `withContact()`). A pending or nonexistent request sees starred
+ * numbers/emails, a starred website (`ContactMask::website()`) and starred, non-navigable
+ * social links (`ContactMask::socialLink()` via `SocialPlatforms::linksFor()`); an
+ * accepted one sees every real value. `key_contact_person`'s name/designation are not
  * considered sensitive on their own (no reachable channel) and are always sent.
  */
 class DeveloperResource extends JsonResource
@@ -61,11 +63,16 @@ class DeveloperResource extends JsonResource
             'key_contact_designation' => $this->key_contact_designation,
             'key_contact_mobile' => $visible ? $this->key_contact_mobile : ContactMask::phone($this->key_contact_mobile),
             'key_contact_email' => $visible ? $this->key_contact_email : ContactMask::email($this->key_contact_email),
-            'website' => $this->website,
+            // The company's own site is a reachable channel too — this was previously
+            // sent in full regardless of `$visible`, the one gap in this gate.
+            'website' => $visible ? $this->website : ContactMask::website($this->website),
             // Only the platforms this developer actually filled in, ready to render —
             // {key, label, value} per platform rather than five raw columns the app
-            // would otherwise have to know the labels for itself.
-            'social_links' => SocialPlatforms::linksFor($this->resource),
+            // would otherwise have to know the labels for itself. Gated the same as
+            // mobile/email above: a social profile is a reachable channel too, so its
+            // value stays starred and the row inert until this developer has accepted
+            // the viewing broker's lead — see SocialPlatforms::linksFor().
+            'social_links' => SocialPlatforms::linksFor($this->resource, $visible),
             'country' => $this->country,
             'city' => $this->city,
             'state' => $this->state,

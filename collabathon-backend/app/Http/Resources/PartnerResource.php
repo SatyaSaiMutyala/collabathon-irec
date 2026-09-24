@@ -94,13 +94,15 @@ class PartnerResource extends JsonResource
                 ? $profile?->alternate_mobile
                 : ContactMask::phone($profile?->alternate_mobile),
 
-            // A URL or an address cannot be starred into something meaningful, and either
-            // one is enough to reach the broker, so these are withheld until accept.
-            'company_website' => $visible ? $profile?->company_website : null,
-            // Empty rather than null when withheld — this is a list, and the app can
-            // treat "nothing to show" the same way whether that's privacy or the broker
-            // just never filled any of these in.
-            'social_links' => $visible && $profile ? SocialPlatforms::linksFor($profile) : [],
+            // Starred and non-navigable rather than withheld — see
+            // ContactMask::website()/socialLink(). The developer can see the broker has
+            // a site and an Instagram, just not reach either, until accept.
+            'company_website' => $visible
+                ? $profile?->company_website
+                : ContactMask::website($profile?->company_website),
+            'social_links' => $profile ? SocialPlatforms::linksFor($profile, $visible) : [],
+            // An address cannot be starred into something meaningful and is enough to
+            // reach the broker on its own, so it stays withheld until accept.
             'office_address' => $visible ? $profile?->office_address : null,
             'residence_address' => $visible ? $profile?->residence_address : null,
 

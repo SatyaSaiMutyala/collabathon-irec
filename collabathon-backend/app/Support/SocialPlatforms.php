@@ -41,16 +41,27 @@ class SocialPlatforms
      * Only the platforms this model actually filled in — what a profile/show page
      * renders, so a blank field never shows up as an empty link row.
      *
+     * `$visible` mirrors the mobile/email contact gate: a social profile is a reachable
+     * channel just like a phone number, so before the viewer's request is accepted, the
+     * row stays in the list (the platform and its handle-shape are shown) but its value
+     * is starred and unusable, via `ContactMask::socialLink()` — never omitted outright,
+     * so the app can render the same row either way instead of a link that appears from
+     * nowhere once accepted.
+     *
      * @return array<int,array{key:string,label:string,value:string}>
      */
-    public static function linksFor(Model $model): array
+    public static function linksFor(Model $model, bool $visible = true): array
     {
         $links = [];
 
         foreach (self::ALL as $key => $label) {
             $value = $model->{$key} ?? null;
             if (! empty($value)) {
-                $links[] = ['key' => $key, 'label' => $label, 'value' => $value];
+                $links[] = [
+                    'key' => $key,
+                    'label' => $label,
+                    'value' => $visible ? $value : ContactMask::socialLink($value),
+                ];
             }
         }
 

@@ -36,6 +36,23 @@ export const PropertyCardSkeleton = () => {
 };
 
 /**
+ * Mirrors ProjectPreviewCard: a 180pt image block, then name/location/category as
+ * separate lines below it rather than overlaid — that card has no gradient to hide the
+ * text behind, so the skeleton needs its own line shapes instead of one flat block.
+ */
+export const ProjectPreviewCardSkeleton = () => {
+  const {spacing} = useAppTheme();
+  return (
+    <View style={{marginBottom: spacing.lg}}>
+      <Skeleton height={moderateScale(180)} />
+      <Skeleton width="60%" height={LINE} style={{marginTop: spacing.sm}} />
+      <Skeleton width="40%" height={LINE_SM} style={{marginTop: moderateScale(6)}} />
+      <Skeleton width="35%" height={LINE_SM} style={{marginTop: moderateScale(6)}} />
+    </View>
+  );
+};
+
+/**
  * Mirrors a row on the developer's My Projects list: a PropertyCard with the
  * acceptance-status strip underneath. The strip is part of the row's height, so a bare
  * PropertyCardSkeleton is ~28pt short per row — over five rows that is enough of a jump
@@ -117,36 +134,39 @@ export const BrokerLeadCardSkeleton = () => {
   );
 };
 
-/** Mirrors LeadCard: eyebrow, title, meta, price, then the tinted footer band. */
+/** Mirrors LeadCard: cover photo, title with a badge beside it, location, price, the
+ * developer row, then the "View request" button. */
 export const LeadCardSkeleton = () => {
   const {colors, spacing, avatarSize} = useAppTheme();
   return (
     <View style={[styles.leadCard, {backgroundColor: colors.card}]}>
-      <View>
-        <View style={{paddingHorizontal: spacing.md, paddingTop: spacing.md}}>
-          <Skeleton width={moderateScale(104)} height={LINE_SM} />
-          <Skeleton width="72%" height={moderateScale(16)} style={{marginTop: moderateScale(9)}} />
-          <Skeleton width="44%" height={LINE_SM} style={{marginTop: moderateScale(7)}} />
-          <Skeleton width="52%" height={moderateScale(12)} style={{marginTop: moderateScale(8)}} />
+      <Skeleton height={moderateScale(160)} />
+      <View style={{padding: spacing.md}}>
+        <View style={[styles.row, {alignItems: 'flex-start'}]}>
+          <View style={{flex: 1}}>
+            <Skeleton width="72%" height={moderateScale(16)} />
+            <Skeleton width="44%" height={LINE_SM} style={{marginTop: moderateScale(7)}} />
+          </View>
+          <Skeleton width={moderateScale(64)} height={moderateScale(20)} radius={moderateScale(999)} />
         </View>
+        <Skeleton width="40%" height={LINE} style={{marginTop: spacing.sm}} />
         <View
           style={[
             styles.row,
             {
-              backgroundColor: colors.surface,
               borderTopWidth: 1,
               borderTopColor: colors.border,
-              paddingHorizontal: spacing.md,
-              paddingVertical: moderateScale(11),
+              paddingTop: spacing.sm,
               marginTop: spacing.md,
             },
           ]}>
-          <Skeleton width={avatarSize.sm} height={avatarSize.sm} radius={moderateScale(999)} />
+          <Skeleton width={avatarSize.sm} height={avatarSize.sm} />
           <View style={{flex: 1, marginLeft: moderateScale(10)}}>
             <Skeleton width="55%" height={LINE} />
-            <Skeleton width="35%" height={LINE_SM} style={{marginTop: moderateScale(6)}} />
           </View>
+          <Skeleton width={moderateScale(70)} height={LINE_SM} />
         </View>
+        <Skeleton height={moderateScale(44)} style={{marginTop: spacing.md}} />
       </View>
     </View>
   );
@@ -248,30 +268,42 @@ export const ProfileDetailSkeleton = ({sections = 2}) => {
 };
 
 /**
- * Mirrors PropertyHero + PropertyDetailBody: full-bleed hero, then the price line, the
- * badge row and the first section card. The three-up stat tile that used to sit here
- * went with the quick-specs block — a skeleton for a component that no longer renders
- * is a guaranteed layout jump the moment the data lands.
+ * Shown for the whole screen while a project loads (ProjectDetailScreen/
+ * PropertyLeadsScreen) — no real header or tab strip has rendered yet at that point,
+ * so this draws its own placeholder versions of both, then Overview's own shape: hero
+ * photo, price line, and the configuration/possession tile pair, followed by a
+ * generic section skeleton for whatever loads in underneath. Matching the real shell
+ * matters here specifically because this component warned against a mismatch before —
+ * a skeleton for a layout that no longer renders is a guaranteed jump the moment the
+ * data lands.
  */
 export const PropertyDetailSkeleton = () => {
   const {spacing} = useAppTheme();
   return (
-    <View>
-      <Skeleton height={moderateScale(420)} />
+    <View style={{paddingTop: moderateScale(50)}}>
+      <View style={[styles.row, {paddingHorizontal: spacing.lg, marginBottom: spacing.sm}]}>
+        <Skeleton width={moderateScale(24)} height={moderateScale(24)} radius={moderateScale(999)} />
+        <Skeleton width="55%" height={moderateScale(20)} style={{marginLeft: spacing.sm}} />
+      </View>
+      <View style={[styles.row, {paddingHorizontal: spacing.lg, marginBottom: spacing.md}]}>
+        {[0, 1, 2, 3].map(index => (
+          <Skeleton
+            key={index}
+            width="22%"
+            height={LINE_SM}
+            style={{marginRight: index < 3 ? spacing.sm : 0}}
+          />
+        ))}
+      </View>
       <View style={{paddingHorizontal: spacing.lg}}>
+        <Skeleton height={moderateScale(220)} radius={moderateScale(14)} />
         <Skeleton width="70%" height={moderateScale(20)} style={{marginTop: spacing.lg}} />
         <Skeleton width="45%" height={LINE_SM} style={{marginTop: moderateScale(8)}} />
-        <View style={[styles.row, {marginTop: spacing.sm}]}>
-          {['32%', '26%', '22%'].map(width => (
-            <Skeleton
-              key={width}
-              width={width}
-              height={moderateScale(20)}
-              style={{marginRight: spacing.xs}}
-            />
-          ))}
+        <View style={[styles.row, {marginTop: spacing.md}]}>
+          <Skeleton width="48%" height={moderateScale(56)} />
+          <Skeleton width="48%" height={moderateScale(56)} style={{marginLeft: '4%'}} />
         </View>
-        <DetailSectionSkeleton rows={5} />
+        <DetailSectionSkeleton rows={4} />
       </View>
     </View>
   );
@@ -317,7 +349,7 @@ export const DashboardSkeleton = () => {
 
       <Skeleton width="35%" height={moderateScale(15)} style={{marginTop: spacing.xl}} />
       <View style={{marginTop: spacing.sm}}>
-        <PropertyCardSkeleton />
+        <ProjectPreviewCardSkeleton />
       </View>
     </View>
   );

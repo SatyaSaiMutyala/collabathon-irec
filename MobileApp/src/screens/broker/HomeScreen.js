@@ -1,20 +1,17 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {useFocusEffect} from '@react-navigation/native';
-import {StyleSheet, TouchableOpacity, View} from 'react-native';
+import {Image, StyleSheet, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {moderateScale} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
 import {firstName} from '../../utils/name';
 import {
   AppText,
-  Avatar,
-  Card,
   DeveloperCard,
   IconButton,
   Input,
   LocationPickerSheet,
   PaginatedList,
-  StatRow,
   DeveloperCardSkeleton,
   ScreenContainer,
 } from '../../components';
@@ -28,12 +25,52 @@ import {useCurrentLocation} from '../../hooks/useLocation';
 import {useDebouncedValue} from '../../hooks/useDebouncedValue';
 import {setMapPickerCallback} from '../../utils/mapPickerCallback';
 
+/** One of the two headline stat cards — icon and value+label sit in one row, not
+ * stacked, so the card reads compact instead of tall. */
+const StatTile = ({icon, tone, value, label, onPress}) => {
+  const {colors, radius, spacing} = useAppTheme();
+  const toneColor = tone === 'success' ? colors.success : colors.primary;
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onPress={onPress}
+      style={{
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginHorizontal: spacing.xs,
+        backgroundColor: colors.surface,
+        borderRadius: radius.lg,
+        padding: spacing.xs,
+      }}>
+      <View
+        style={{
+          width: moderateScale(32),
+          height: moderateScale(32),
+          borderRadius: radius.md,
+          backgroundColor: toneColor,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+        <Icon name={icon} size={moderateScale(15)} color={colors.white} />
+      </View>
+      <View style={{marginLeft: spacing.xs, flex: 1}}>
+        <AppText variant="h3">{value}</AppText>
+        <AppText variant="caption" color={colors.textMuted} numberOfLines={1}>
+          {label}
+        </AppText>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
 /**
  * Developer directory. Search and city filtering are sent to the API — this screen
  * holds only the pages it has fetched, never the whole table.
  */
 const HomeScreen = ({navigation}) => {
-  const {colors, spacing} = useAppTheme();
+  const {colors, radius, spacing} = useAppTheme();
   const dispatch = useAppDispatch();
 
   const user = useAppSelector(state => state.auth.user);
@@ -131,30 +168,80 @@ const HomeScreen = ({navigation}) => {
 
   return (
     <ScreenContainer edges={['top']}>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginTop: spacing.sm,
-          marginBottom: spacing.lg,
-        }}>
-        <View style={{flexDirection: 'row', alignItems: 'center', flex: 1}}>
-          <Avatar uri={user?.avatar_url} name={user?.name} size="sm" />
-          <View style={{marginLeft: spacing.sm, flex: 1}}>
-            <AppText variant="caption" color={colors.textMuted}>
-              Hi, {firstName(user?.name, 'Broker')}
+      <PaginatedList
+        // Cancels ScreenContainer's own horizontal padding so DeveloperCard's much
+        // smaller paddingHorizontal is the only inset left — two stacked paddings
+        // (the screen's 20 plus the card's own) were eating enough width that a
+        // longer developer name had nowhere left to go before truncating. The
+        // header below restores its own paddingHorizontal since it isn't a card.
+        style={{marginHorizontal: -spacing.lg}}
+        renderSkeleton={() => <DeveloperCardSkeleton />}
+        list={list}
+        onRefresh={loadFirstPage}
+        onEndReached={handleEndReached}
+        emptyIcon="business-outline"
+        emptyTitle="No developers found"
+        emptyMessage="Try a different search term or clear the city filter."
+        ListHeaderComponent={
+          // Logo through the location pill used to sit fixed above this list,
+          // taking up permanent screen space even while scrolling through
+          // developers. Moved into the list's own header so it scrolls away with
+          // everything else instead of being pinned.
+          <View style={{paddingHorizontal: spacing.lg}}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginTop: spacing.sm,
+              }}>
+              <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                <Image
+                  source={require('../../assets/images/logo-mark.png')}
+                  style={{width: moderateScale(28), height: moderateScale(28)}}
+                  resizeMode="contain"
+                />
+                <AppText variant="h3" style={{marginLeft: spacing.xs}}>
+                  Collabathon
+                </AppText>
+              </View>
+              {/* No unread count/dot: nothing in the notifications API distinguishes
+                  read from unread yet, and a badge with no real signal behind it
+                  would just be decoration pretending to be data. */}
+              <IconButton
+                icon="notifications-outline"
+                variant="outline"
+                onPress={() => navigation.navigate('Notifications')}
+              />
+            </View>
+
+            <AppText variant="h1" style={{marginTop: spacing.lg}}>
+              Hi {firstName(user?.name, 'Broker')},
             </AppText>
+            <AppText variant="body" color={colors.textMuted} style={{marginTop: moderateScale(2)}}>
+              Let's find your next opportunity.
+            </AppText>
+
             <TouchableOpacity
               activeOpacity={0.75}
               onPress={() => setIsPickerVisible(true)}
-              style={{flexDirection: 'row', alignItems: 'center', marginTop: moderateScale(1)}}>
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                alignSelf: 'flex-start',
+                marginTop: spacing.md,
+                paddingHorizontal: spacing.sm,
+                paddingVertical: spacing.xs,
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: radius.sm,
+              }}>
               <Icon name="location" size={moderateScale(14)} color={colors.primary} />
               <AppText
                 variant="bodyMedium"
                 weight="semiBold"
                 numberOfLines={1}
-                style={{marginLeft: moderateScale(4), maxWidth: moderateScale(160)}}>
+                style={{marginLeft: moderateScale(6), maxWidth: moderateScale(160)}}>
                 {mode === 'all'
                   ? 'All locations'
                   : mode === 'city'
@@ -167,68 +254,54 @@ const HomeScreen = ({navigation}) => {
                 name="chevron-down"
                 size={moderateScale(14)}
                 color={colors.textMuted}
-                style={{marginLeft: moderateScale(2)}}
+                style={{marginLeft: moderateScale(4)}}
               />
             </TouchableOpacity>
+
+            {/* Each tile is a shortcut to the tab that lists what it counts, so the
+                number is not a dead end. Figures come from /dashboard — see the note
+                on its import above. Labels unchanged on purpose (Interested Projects/
+                Approved Interests) — this screen's wording was explicitly kept out of
+                the interested→request rename pass elsewhere in the app. */}
+            <View style={{flexDirection: 'row', marginTop: spacing.lg, marginHorizontal: -spacing.xs}}>
+              <StatTile
+                icon="business"
+                tone="primary"
+                value={stats?.requests_sent ?? 0}
+                label="Interested Projects"
+                onPress={() => navigation.navigate('RequestsTab')}
+              />
+              <StatTile
+                icon="checkmark"
+                tone="success"
+                value={stats?.associations ?? 0}
+                label="Approved Interests"
+                onPress={() => navigation.navigate('PartnersTab')}
+              />
+            </View>
+
+            <Input
+              placeholder="Search developers"
+              leftIcon="search-outline"
+              value={query}
+              onChangeText={setQuery}
+              autoCapitalize="none"
+              containerStyle={[
+                styles.searchShadow,
+                {backgroundColor: colors.surface, marginTop: spacing.lg, height: moderateScale(38)},
+              ]}
+            />
+
+            <View style={{marginTop: spacing.lg, marginBottom: spacing.sm}}>
+              <AppText variant="h3">
+                All Developers{' '}
+                <AppText variant="caption" color={colors.textMuted}>
+                  · {list.total} Found
+                </AppText>
+              </AppText>
+            </View>
           </View>
-        </View>
-        <IconButton
-          icon="notifications-outline"
-          onPress={() => navigation.navigate('Notifications')}
-        />
-      </View>
-
-      {/* Each cell is a shortcut to the tab that lists what it counts, so the
-          number is not a dead end. Figures come from /dashboard — see the note
-          on its import above. */}
-      <Card style={{paddingVertical: spacing.sm, marginBottom: moderateScale(10)}}>
-        <StatRow
-          stats={[
-            {
-              value: String(stats?.requests_sent ?? 0),
-              label: 'Interested Projects',
-              onPress: () => navigation.navigate('RequestsTab'),
-            },
-            {
-              value: String(stats?.associations ?? 0),
-              label: 'Approved Interests',
-              onPress: () => navigation.navigate('PartnersTab'),
-            },
-          ]}
-        />
-      </Card>
-
-      <Input
-        placeholder="Search developer by name..."
-        leftIcon="search-outline"
-        value={query}
-        onChangeText={setQuery}
-        autoCapitalize="none"
-        containerStyle={styles.searchShadow}
-      />
-
-      <View style={{marginBottom: spacing.sm}}>
-        <AppText variant="h3">
-          All Developers{' '}
-          <AppText variant="caption" color={colors.textMuted}>
-            · {list.total} Found
-          </AppText>
-        </AppText>
-      </View>
-
-      <PaginatedList
-        // Cancels ScreenContainer's own horizontal padding so DeveloperCard's much
-        // smaller paddingHorizontal is the only inset left — two stacked paddings
-        // (the screen's 20 plus the card's own) were eating enough width that a
-        // longer developer name had nowhere left to go before truncating.
-        style={{marginHorizontal: -spacing.lg}}
-        renderSkeleton={() => <DeveloperCardSkeleton />}
-        list={list}
-        onRefresh={loadFirstPage}
-        onEndReached={handleEndReached}
-        emptyIcon="business-outline"
-        emptyTitle="No developers found"
-        emptyMessage="Try a different search term or clear the city filter."
+        }
         renderItem={({item}) => (
           <DeveloperCard developer={item} onPress={() => goToDeveloper(item.id)} />
         )}

@@ -59,7 +59,7 @@ const LoginScreen = ({navigation}) => {
           hitSlop={10}
           style={{alignSelf: 'flex-start', marginTop: spacing.xs, marginBottom: spacing.xs}}>
           {/* iOS uses a chevron for back, not Material's full arrow — this matches
-              CompleteProfileScreen, MobileOtpLoginScreen and PropertyHero. */}
+              CompleteProfileScreen, MobileOtpLoginScreen and ProjectDetailScreen. */}
           <Icon name="chevron-back" size={moderateScale(24)} color={colors.textPrimary} />
         </TouchableOpacity>
       )}

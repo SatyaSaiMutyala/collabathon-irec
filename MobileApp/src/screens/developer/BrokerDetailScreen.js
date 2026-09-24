@@ -5,13 +5,13 @@ import {moderateScale} from '../../theme/scaling';
 import {useAppTheme} from '../../theme';
 import {
   AppText,
-  Avatar,
   Badge,
   Button,
   Card,
   Chip,
   InfoRow,
   ProjectMiniCard,
+  RemoteImage,
   ScreenContainer,
 } from '../../components';
 import {useAppDispatch, useAppSelector} from '../../store/hooks';
@@ -22,6 +22,7 @@ import {
   selectPartnerById,
   selectPartnerProjects,
 } from '../../store/slices/partnersSlice';
+import {initialsOf} from '../../utils/name';
 import {SOCIAL_ICONS} from '../../utils/socialIcons';
 
 /** ISO timestamp to "12 Mar 2026"; anything unparseable is dropped rather than shown raw. */
@@ -35,6 +36,65 @@ const formatDate = iso => {
     : date.toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric'});
 };
 
+/** Square, not circular or the wide 5:2 logo frame Avatar's own `square` shape uses —
+ * a person's initials tile, matching the identity-row pattern used elsewhere in this
+ * redesign (DeveloperProfileScreen's logo, StatTile's icon square). */
+const InitialsTile = ({uri, name, size}) => {
+  const {colors, radius} = useAppTheme();
+
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: radius.md,
+        backgroundColor: colors.primarySoft,
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+      }}>
+      <RemoteImage
+        uri={uri}
+        style={{width: size, height: size}}
+        resizeMode="cover"
+        fallback={
+          <AppText variant="h3" weight="bold" color={colors.primaryDark}>
+            {initialsOf(name)}
+          </AppText>
+        }
+      />
+    </View>
+  );
+};
+
+/** icon-in-a-circle + label-over-value, one line — the same "fact" shape
+ * ProjectDetailsTab's Key details panel uses, for the same reason: every value here is
+ * short enough to sit flush right instead of stacking under its label. */
+const FactRow = ({label, value, isLast}) => {
+  const {colors, spacing} = useAppTheme();
+  if (!value) {
+    return null;
+  }
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: spacing.sm,
+        borderBottomWidth: isLast ? 0 : 1,
+        borderBottomColor: colors.border,
+      }}>
+      <AppText variant="body" color={colors.textSecondary} style={{flex: 1}}>
+        {label}
+      </AppText>
+      <AppText variant="bodyMedium" weight="semiBold">
+        {value}
+      </AppText>
+    </View>
+  );
+};
+
 /**
  * One broker, reached either from a pending request in Requests or from an accepted
  * partner in Partners.
@@ -45,7 +105,7 @@ const formatDate = iso => {
  * made, so the same layout gains the projects the two have actually worked on.
  */
 const BrokerDetailScreen = ({route, navigation}) => {
-  const {colors, spacing} = useAppTheme();
+  const {colors, radius, spacing} = useAppTheme();
   const dispatch = useAppDispatch();
   // Two entry points: a pending request from the inbox (`leadId`) or an accepted broker
   // from the partner roster (`partnerId`). Both resolve to the same broker payload —
@@ -115,7 +175,7 @@ const BrokerDetailScreen = ({route, navigation}) => {
           <Icon name="chevron-back" size={moderateScale(24)} color={colors.textPrimary} />
         </TouchableOpacity>
         <AppText variant="h3" style={{marginLeft: spacing.sm}}>
-          Broker request
+          Request
         </AppText>
       </View>
 
@@ -124,64 +184,81 @@ const BrokerDetailScreen = ({route, navigation}) => {
         contentContainerStyle={{paddingBottom: spacing.xxxl}}>
 
         {/* ------------------------------------------------------------- identity */}
-        <View style={{alignItems: 'center', marginTop: spacing.lg}}>
-          <Avatar
-            uri={broker.photo_url}
-            name={broker.name}
-            size="xl"
-            ringColor={colors.primary}
-          />
-          <AppText variant="h2" align="center" style={{marginTop: spacing.md}}>
-            {broker.name}
-          </AppText>
-          {!!broker.company_name && (
-            <AppText variant="body" color={colors.textSecondary} align="center">
-              {broker.company_name}
+        <View style={{flexDirection: 'row', alignItems: 'flex-start', marginTop: spacing.lg}}>
+          <InitialsTile uri={broker.photo_url} name={broker.name} size={moderateScale(56)} />
+          <View style={{flex: 1, marginLeft: spacing.md}}>
+            <AppText variant="h3" numberOfLines={2}>
+              {broker.name}
             </AppText>
-          )}
-          {!!label && (
-            <View style={{marginTop: spacing.sm}}>
-              <Badge label={label} tone={tone} />
-            </View>
-          )}
-          {!!lead?.property?.name && (
-            <AppText
-              variant="caption"
-              color={colors.textMuted}
-              align="center"
-              style={{marginTop: spacing.xs}}>
-              Requested {lead.property.name}
-            </AppText>
-          )}
-          {!lead && broker.projects_count != null && (
-            <AppText
-              variant="caption"
-              color={colors.textMuted}
-              align="center"
-              style={{marginTop: spacing.xs}}>
-              {broker.projects_count} {broker.projects_count === 1 ? 'project' : 'projects'} together
-              {formatDate(broker.last_collaborated_at)
-                ? ` · last accepted ${formatDate(broker.last_collaborated_at)}`
-                : ''}
-            </AppText>
-          )}
+            {!!broker.company_name && (
+              <AppText variant="body" color={colors.textSecondary} numberOfLines={1}>
+                {broker.company_name}
+              </AppText>
+            )}
+            {!!lead?.property?.name && (
+              <AppText variant="caption" color={colors.textMuted} numberOfLines={1} style={{marginTop: moderateScale(2)}}>
+                Requested {lead.property.name}
+              </AppText>
+            )}
+            {!lead && broker.projects_count != null && (
+              <AppText variant="caption" color={colors.textMuted} style={{marginTop: moderateScale(2)}}>
+                {broker.projects_count} {broker.projects_count === 1 ? 'project' : 'projects'} together
+                {formatDate(broker.last_collaborated_at)
+                  ? ` · last accepted ${formatDate(broker.last_collaborated_at)}`
+                  : ''}
+              </AppText>
+            )}
+          </View>
+          {!!label && <Badge label={label} tone={tone} />}
+        </View>
+
+        {/* ------------------------------------------------------------- facts */}
+        <AppText variant="h3" style={{marginTop: spacing.xl, marginBottom: spacing.sm}}>
+          Request details
+        </AppText>
+        <View style={{backgroundColor: colors.surface, borderRadius: radius.lg, paddingHorizontal: spacing.md}}>
+          {[
+            {label: 'Project', value: lead?.property?.name},
+            {label: 'Based in', value: [broker.city, broker.state].filter(Boolean).join(', ') || null},
+            {label: 'Type', value: broker.is_company ? 'Company' : 'Independent broker'},
+            {label: 'Experience', value: broker.years_of_experience ? `${broker.years_of_experience} years` : null},
+            {label: 'Team size', value: broker.team_size ? `${broker.team_size}` : null},
+            {label: 'RERA number', value: broker.rera_number},
+            {label: 'GST number', value: broker.gst_number},
+            {label: 'Operates', value: broker.operates_multiple_states ? 'Multiple states' : null},
+            {label: 'On Collabathon since', value: formatDate(broker.registered_at ?? broker.member_since)},
+          ]
+            .filter(row => !!row.value)
+            .map((row, index, arr) => (
+              <FactRow key={row.label} label={row.label} value={row.value} isLast={index === arr.length - 1} />
+            ))}
         </View>
 
         {/* ------------------------------------------------------------- contact */}
-        <AppText variant="overline" color={colors.textMuted} style={{marginTop: spacing.xl}}>
+        <AppText variant="overline" color={colors.textMuted} style={{marginTop: spacing.lg}}>
           CONTACT
         </AppText>
         <Card style={{marginTop: spacing.xs}}>
           {!visible && (
-            <View style={styles.lockNote}>
-              <Icon name="lock-closed" size={moderateScale(15)} color={colors.warning} />
-              <AppText
-                variant="caption"
-                color={colors.textSecondary}
-                style={{marginLeft: moderateScale(8), flex: 1}}>
-                The last few digits are hidden while this request is pending. Accepting
-                releases the full phone and email — declining leaves them masked.
-              </AppText>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                backgroundColor: colors.primarySoft,
+                borderRadius: radius.md,
+                padding: spacing.sm,
+                marginBottom: spacing.sm,
+              }}>
+              <Icon name="lock-closed" size={moderateScale(16)} color={colors.primaryDark} />
+              <View style={{marginLeft: spacing.sm, flex: 1}}>
+                <AppText variant="bodyMedium" color={colors.primaryDark}>
+                  Your privacy matters
+                </AppText>
+                <AppText variant="caption" color={colors.textSecondary} style={{marginTop: moderateScale(2)}}>
+                  The last few digits are hidden while this request is pending. Accepting
+                  releases the full phone and email — declining leaves them masked.
+                </AppText>
+              </View>
             </View>
           )}
           <InfoRow
@@ -213,45 +290,6 @@ const BrokerDetailScreen = ({route, navigation}) => {
           ))}
           <InfoRow icon="business-outline" label="Office" value={broker.office_address} />
           <InfoRow icon="home-outline" label="Residence" value={broker.residence_address} />
-        </Card>
-
-        {/* ------------------------------------------------------------- credentials */}
-        <AppText variant="overline" color={colors.textMuted} style={{marginTop: spacing.lg}}>
-          CREDENTIALS
-        </AppText>
-        <Card style={{marginTop: spacing.xs}}>
-          <InfoRow icon="shield-checkmark-outline" label="RERA number" value={broker.rera_number} />
-          <InfoRow icon="receipt-outline" label="GST number" value={broker.gst_number} />
-          <InfoRow
-            icon="briefcase-outline"
-            label="Type"
-            value={broker.is_company ? 'Company' : 'Independent broker'}
-          />
-          <InfoRow
-            icon="ribbon-outline"
-            label="Experience"
-            value={broker.years_of_experience ? `${broker.years_of_experience} years` : null}
-          />
-          <InfoRow
-            icon="people-outline"
-            label="Team size"
-            value={broker.team_size ? `${broker.team_size}` : null}
-          />
-          <InfoRow
-            icon="location-outline"
-            label="Based in"
-            value={[broker.city, broker.state].filter(Boolean).join(', ') || null}
-          />
-          <InfoRow
-            icon="map-outline"
-            label="Operates"
-            value={broker.operates_multiple_states ? 'Multiple states' : null}
-          />
-          <InfoRow
-            icon="time-outline"
-            label="On Collabathon since"
-            value={formatDate(broker.registered_at ?? broker.member_since)}
-          />
         </Card>
 
         {/* ------------------------------------------------------------- coverage */}
@@ -328,16 +366,19 @@ const BrokerDetailScreen = ({route, navigation}) => {
         )}
 
         {!!broker.project_contributions && (
-          <>
-            <AppText variant="overline" color={colors.textMuted} style={{marginTop: spacing.lg}}>
-              PAST PROJECTS
+          <View style={{marginTop: spacing.lg}}>
+            <AppText variant="h3" style={{marginBottom: spacing.sm}}>
+              Past projects
             </AppText>
-            <Card style={{marginTop: spacing.xs}}>
-              <AppText variant="body" color={colors.textSecondary}>
-                {broker.project_contributions}
+            <View style={{backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md}}>
+              <AppText variant="body" color={colors.textSecondary} style={{fontStyle: 'italic'}}>
+                "{broker.project_contributions}"
               </AppText>
-            </Card>
-          </>
+              <AppText variant="caption" color={colors.textMuted} style={{marginTop: spacing.sm}}>
+                — {broker.name}
+              </AppText>
+            </View>
+          </View>
         )}
 
         {!!respondError && (
@@ -378,11 +419,6 @@ const styles = {
     justifyContent: 'space-between',
     marginTop: spacing.lg,
   }),
-  lockNote: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingBottom: moderateScale(10),
-  },
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
