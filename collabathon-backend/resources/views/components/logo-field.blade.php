@@ -89,10 +89,16 @@
              this preview looks the same as the logo will everywhere else once saved. --}}
         <img x-bind:src="previewUrl" alt=""
              class="w-[110px] h-[44px] object-contain bg-panel border border-line-soft">
-        <button type="button" x-on:click="$refs.input.click()"
-                class="text-[12px] font-medium text-primary-dark hover:underline">
-            Change
-        </button>
+        <div class="flex flex-col items-start gap-1.5">
+            <button type="button" x-on:click="$refs.input.click()"
+                    class="text-[12px] font-medium text-primary-dark hover:underline">
+                Change
+            </button>
+            <button type="button" x-on:click="clear()"
+                    class="text-[12px] font-medium text-danger hover:underline">
+                Remove
+            </button>
+        </div>
     </div>
 
     @if($hasError)

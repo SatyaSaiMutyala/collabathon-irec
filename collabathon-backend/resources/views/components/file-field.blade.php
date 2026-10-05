@@ -7,6 +7,18 @@
     'required' => false,
     'icon' => 'download',
     'current' => null,   // storage path already on record — edit forms pass this
+    // The record's property_media.id for $current, when it has one — lets its card post
+    // into the same remove_media[] the gallery already uses, so "Remove" here deletes it
+    // on save too.
+    'currentId' => null,
+    // For a $current that is a plain column (cover_image_path, logo_path — not a
+    // property_media row, so no id) whose controller has been taught to read a matching
+    // clear_<name> flag. Pass the input name to post, e.g. "logo" → clear_logo.
+    //
+    // Both are left null by callers with no removal wiring at all (KYC docs, broker
+    // photos) — the card still renders there, just without a Remove button, rather than
+    // showing one that looks like it works but silently does nothing on save.
+    'currentClearField' => null,
 ])
 
 {{-- Native file inputs cannot be repopulated by old(), so a failed submit always loses the
@@ -83,6 +95,15 @@
         this.release(this.files.splice(index, 1)[0]);
         this.sync();
     },
+    /* Single-file mode only — sync()'s DataTransfer rebuild is for the multi-file
+       append/remove case; clearing a lone native file input back to empty just needs
+       its own value reset. Without this there was no way back to nothing-chosen
+       short of picking a different file to replace it with. */
+    removeSingle() {
+        this.files.forEach(entry => this.release(entry));
+        this.files = [];
+        this.$refs.input.value = '';
+    },
 }">
     @if($label)
         <label for="{{ $id }}" class="flex items-center gap-1 text-[12.5px] font-medium text-ink mb-1.5">
@@ -92,14 +113,28 @@
     @endif
 
     {{-- `relative`, so the absolutely-positioned input below resolves against this label
-         rather than against the page. --}}
+         rather than against the page. Solid border + canvas fill once a single file is
+         picked, not the dashed dropzone look — dashed reads as "drop something here",
+         which stops being true the moment there is a real attached file sitting in it;
+         a chat app's own attachment preview is solid for the same reason. Multi-file
+         mode keeps the dropzone dashed throughout, since it is always still inviting
+         more files — its picked list renders as its own block below instead. --}}
     <label for="{{ $id }}"
            @class([
-               'relative flex items-center gap-2.5 w-full min-h-10 px-3.5 py-2 rounded-lg bg-panel border border-dashed cursor-pointer transition-colors',
-               'border-danger' => $hasError,
-               'border-line hover:border-primary hover:bg-canvas' => ! $hasError,
-           ])>
-        <x-icon :name="$icon" class="w-4 h-4 text-ink-3 shrink-0" />
+               'relative flex items-center gap-2.5 w-full min-h-10 px-3.5 py-2 rounded-lg cursor-pointer transition-colors',
+               'border-danger border bg-panel' => $hasError,
+               'border-line border-dashed border hover:border-primary hover:bg-canvas bg-panel' => ! $hasError && $multiple,
+           ])
+           @if(! $multiple)
+               {{-- Picked state sizes to its content (a bounded card, like a chat
+                    attachment) instead of stretching the dropzone's full width —
+                    `inline-flex` + a max-width lets the row be only as wide as the
+                    filename needs, with `truncate` still catching a long one. --}}
+               x-bind:class="files.length
+                   ? 'inline-flex w-auto max-w-sm {{ $hasError ? 'border-danger border bg-panel' : 'border border-line bg-canvas' }}'
+                   : 'flex w-full {{ $hasError ? 'border-danger border bg-panel' : 'border border-dashed border-line hover:border-primary hover:bg-canvas bg-panel' }}'"
+           @endif>
+        <x-icon :name="$icon" class="w-4 h-4 text-ink-3 shrink-0" x-show="! files.length" />
 
         {{-- min-w-0 is what makes `truncate` work on a flex child: without it the item's
              min-width resolves to its content, so a long placeholder widens the row instead
@@ -114,20 +149,47 @@
             <span class="text-[13px] text-ink min-w-0" x-show="files.length" x-cloak
                   x-text="files.length === 1 ? '1 file selected — choose more…' : files.length + ' files selected — choose more…'"></span>
         @else
-            {{-- The picked filename wraps rather than ellipsing. Half these fields sit in a
-                 two-column grid, and `truncate` cut a real name — "Screenshot 2026-08-05 at
-                 7.40.40 PM.png" — down to "Screenshot 2026-08-0…", which tells the user
-                 nothing about which file they just chose. The control is a growable dropzone,
-                 so a second line costs less than the lost information. `break-words`, not
-                 `break-all`: it wraps at the spaces a screenshot name already has, and only
-                 breaks mid-word for a name that has none — `WhatsApp_Image_2026-08-05.jpeg`
-                 would otherwise overflow the row. --}}
-            <template x-if="files[0]?.url">
-                <img x-bind:src="files[0].url" alt=""
-                     class="w-8 h-8 rounded object-cover border border-line-soft shrink-0">
+            {{-- Picked state: a proper attachment card (icon badge, filename, type +
+                 size, remove) instead of a cramped inline filename — the earlier
+                 version read as "is this actually attached?" rather than looking like
+                 a real file the way a chat app's own attachment preview does. --}}
+            <template x-if="files.length">
+                <div class="flex items-center gap-3 flex-1 min-w-0 py-1" x-cloak>
+                    <template x-if="files[0]?.url">
+                        <img x-bind:src="files[0].url" alt=""
+                             class="w-11 h-11 rounded-lg object-cover border border-line-soft shrink-0">
+                    </template>
+                    <template x-if="! files[0]?.url">
+                        <span class="w-11 h-11 rounded-lg bg-danger-soft grid place-items-center shrink-0">
+                            <x-icon name="file-text" class="w-5 h-5 text-danger" />
+                        </span>
+                    </template>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-[13px] font-medium text-ink truncate"
+                           x-bind:title="files[0]?.file.name" x-text="files[0]?.file.name"></p>
+                        <p class="text-[11.5px] text-ink-3 mt-0.5"
+                           x-text="(files[0]?.file.name.split('.').pop() || '').toUpperCase() + ' · ' +
+                                   (files[0]?.file.size > 1048576
+                                       ? (files[0].file.size / 1048576).toFixed(1) + ' MB'
+                                       : Math.max(1, Math.round(files[0]?.file.size / 1024)) + ' KB')"></p>
+                    </div>
+                    {{-- stop+prevent: this whole control is a <label for=input>, whose
+                         default behaviour is reopening the file picker on any click
+                         inside it — without these the remove button would clear the
+                         selection and immediately reopen the picker on top of it.
+                         relative z-10: the transparent file input below is absolutely
+                         positioned over the whole label (so a click anywhere else still
+                         reopens the picker) and comes after this button in the DOM — a
+                         positioned element with no z-index still paints above a static
+                         one, so without this the input silently ate every click meant
+                         for the button and the remove action never fired at all. --}}
+                    <button type="button" x-on:click.stop.prevent="removeSingle()"
+                            class="relative z-10 text-danger hover:bg-danger-soft rounded-md p-1.5 shrink-0 transition-colors"
+                            aria-label="Remove file">
+                        <x-icon name="x" class="w-4 h-4" />
+                    </button>
+                </div>
             </template>
-            <span class="text-[13px] text-ink min-w-0 break-words leading-snug" x-show="files.length" x-cloak
-                  x-bind:title="files[0]?.file.name" x-text="files[0]?.file.name"></span>
         @endif
 
         {{-- Transparent and stretched over the label rather than `sr-only`.
@@ -183,28 +245,61 @@
         </ul>
     @endif
 
-    {{-- A file input cannot be pre-filled, so on an edit the stored file is shown beside it.
-         Choosing a new one replaces it; leaving the input empty keeps it. --}}
-    {{-- An image on record is shown as a thumbnail, not just named: "On file:
-         cover-4821.jpg" tells an admin nothing about which picture they are replacing.
-         Hidden as soon as a new file is picked, since that pick is the replacement. --}}
+    {{-- A file input cannot be pre-filled, so on an edit the stored file is shown beside it
+         as the same attachment card the freshly-picked state above uses — thumbnail or
+         file-type badge, bold filename, type + size. Hidden the moment a new file is
+         picked, since that pick is the replacement, and a local `marked` flag lets
+         Remove hide it immediately without waiting for a save. Only shown with a working
+         Remove when $currentId is given: that is what lets it post into remove_media[],
+         the same mechanism the gallery already uses, so deletion happens on save exactly
+         like removing a gallery image does. --}}
     @if($current)
-        <div class="flex items-center gap-2 mt-1.5" @if($currentIsImage) x-show="! files.length" x-cloak @endif>
-            @if($currentIsImage)
-                <a href="{{ \App\Support\FileStorage::url($current) }}" target="_blank" rel="noopener" class="shrink-0">
-                    <img src="{{ \App\Support\FileStorage::url($current) }}" alt=""
-                         class="w-11 h-11 rounded-lg object-cover border border-line-soft">
-                </a>
-            @else
-                <x-icon name="check" class="w-3.5 h-3.5 text-success shrink-0" />
+        @php
+            $currentSize = \App\Support\FileStorage::size($current);
+            $currentExt = strtoupper(pathinfo($current, PATHINFO_EXTENSION));
+            // Storage renames every upload to a random hash before saving it (collision
+            // safety), and nothing captures the original filename to show back later —
+            // so basename($current) is that hash, not anything an admin picked. The
+            // field's own label is what this file actually is in every case that
+            // reaches here (one named slot per property, never a pool of unrelated
+            // files), so "Brochure.pdf" stands in for it reliably.
+            $currentName = ($label ?: 'File') . '.' . strtolower(pathinfo($current, PATHINFO_EXTENSION));
+        @endphp
+        @php $removable = $currentId || $currentClearField; @endphp
+        <div class="mt-1.5" x-data="{ marked: false }" x-show="! files.length && ! marked" x-cloak>
+            @if($currentId)
+                <input type="checkbox" name="remove_media[]" value="{{ $currentId }}" x-model="marked" class="sr-only">
+            @elseif($currentClearField)
+                <input type="checkbox" name="clear_{{ $currentClearField }}" value="1" x-model="marked" class="sr-only">
             @endif
-            <p class="text-[11.5px] text-ink-3 min-w-0">
-                On file:
-                <a href="{{ \App\Support\FileStorage::url($current) }}" target="_blank" rel="noopener"
-                   class="text-ink-2 hover:text-ink underline decoration-line underline-offset-2 break-words">
-                    {{ basename($current) }}
-                </a>
-            </p>
+            <div class="relative inline-flex w-auto max-w-sm items-center gap-3 px-3.5 py-2 rounded-lg border border-line bg-canvas">
+                @if($currentIsImage)
+                    <img src="{{ \App\Support\FileStorage::url($current) }}" alt=""
+                         class="w-11 h-11 rounded-lg object-cover border border-line-soft shrink-0">
+                @else
+                    <span class="w-11 h-11 rounded-lg bg-danger-soft grid place-items-center shrink-0">
+                        <x-icon name="file-text" class="w-5 h-5 text-danger" />
+                    </span>
+                @endif
+                <div class="flex-1 min-w-0">
+                    <a href="{{ \App\Support\FileStorage::url($current) }}" target="_blank" rel="noopener"
+                       class="block text-[13px] font-medium text-ink truncate hover:underline"
+                       title="{{ $currentName }}">{{ $currentName }}</a>
+                    <p class="text-[11.5px] text-ink-3 mt-0.5">
+                        {{ $currentExt }}@if($currentSize) &middot; {{ $currentSize > 1048576 ? number_format($currentSize / 1048576, 1) . ' MB' : max(1, round($currentSize / 1024)) . ' KB' }}@endif
+                    </p>
+                </div>
+                @if($removable)
+                    <button type="button" @click="marked = true"
+                            class="text-danger hover:bg-danger-soft rounded-md p-1.5 shrink-0 transition-colors"
+                            aria-label="Remove file">
+                        <x-icon name="x" class="w-4 h-4" />
+                    </button>
+                @endif
+            </div>
+            @if($removable)
+                <p class="text-[11px] text-ink-3 mt-1">Removed when you save.</p>
+            @endif
         </div>
     @endif
 

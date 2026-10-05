@@ -129,8 +129,12 @@
                 <div class="relative">
                     <img x-bind:src="result.previewUrl" alt=""
                          class="w-full {{ $aspectClass }} object-cover rounded-lg border border-line-soft">
+                    {{-- Solid pill, not text floating on the photo — matches the existing-gallery
+                         tiles below this field, so a remove button reads the same whichever
+                         state a given image is in. --}}
                     <button type="button" x-on:click="removeResult(index)"
-                            class="absolute inset-x-1 bottom-1.5 text-[11px] font-medium text-danger hover:underline bg-panel/90 rounded">
+                            class="absolute inset-x-1.5 bottom-1.5 py-1 text-[11px] font-medium text-center
+                                   text-danger bg-panel rounded-md shadow-card hover:bg-danger-soft transition-colors">
                         Remove
                     </button>
                 </div>
@@ -146,10 +150,16 @@
                  either way even if a future caller passes a different $ratio. --}}
             <img x-bind:src="previewUrl" alt=""
                  class="w-[160px] h-[120px] object-cover rounded-lg border border-line-soft">
-            <button type="button" x-on:click="$refs.input.click()"
-                    class="text-[12px] font-medium text-primary-dark hover:underline">
-                Change
-            </button>
+            <div class="flex flex-col items-start gap-1.5">
+                <button type="button" x-on:click="$refs.input.click()"
+                        class="text-[12px] font-medium text-primary-dark hover:underline">
+                    Change
+                </button>
+                <button type="button" x-on:click="clear()"
+                        class="text-[12px] font-medium text-danger hover:underline">
+                    Remove
+                </button>
+            </div>
         </div>
     @endif
 

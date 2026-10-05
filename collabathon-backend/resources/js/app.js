@@ -809,6 +809,16 @@ export function cropTool(config = {}) {
             this.commitResults();
         },
 
+        // Single mode only — undoes a committed apply() and empties the real input, back
+        // to the picker trigger. Mirrors removeResult() above, which does the equivalent
+        // for one entry in multi mode.
+        clear() {
+            if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
+            this.previewUrl = null;
+            this.fileName = '';
+            this.$refs.input.value = '';
+        },
+
         cancel() {
             this.editing = false;
             this.bitmap?.close?.();

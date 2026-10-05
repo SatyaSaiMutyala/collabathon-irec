@@ -70,6 +70,14 @@
        legible — the panel's own shadow and ring do most of the separating. */
     --color-scrim: rgb(16 27 46 / 0.24);
 
+    /* File-preview overlay's own, much darker scrim. That overlay IS the page while
+       it's open — the backdrop isn't softening a dialog floating over content the admin
+       still needs to read, it's a lightbox — and white header text/icons need strong
+       contrast to stay legible regardless of what the page under them looks like. The
+       24% scrim above left the admin topbar showing through almost at full strength,
+       colliding with the preview's own header at the same position. */
+    --color-scrim-strong: rgb(8 13 23 / 0.92);
+
     /* Text ink — a hair of navy in the near-black, so body text sits in the
        same family as the brand hue instead of a flat neutral grey. */
     --color-ink: #101b2e;

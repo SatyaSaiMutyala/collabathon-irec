@@ -820,21 +820,36 @@ class PropertyController extends Controller
         return $values;
     }
 
-    /** New logo/cover uploads, deleting what they replace only once stored. */
+    /**
+     * New logo/cover uploads, deleting what they replace only once stored. A new upload
+     * always wins over a same-request "remove" tick on the same field — picking a
+     * replacement is a stronger signal than a stale checkbox left over from before it
+     * was picked.
+     *
+     * Without a new upload, an explicit clear_<input> flag removes the existing file
+     * instead — the on-save-only pattern remove_media[] uses for property_media rows,
+     * reimplemented here because logo_path/cover_image_path live on the property row
+     * itself rather than in that table.
+     */
     private function replacedBranding(Request $request, Property $property): array
     {
         $branding = [];
 
         foreach (['logo' => 'logo_path', 'cover_image' => 'cover_image_path'] as $input => $column) {
-            if (! $file = $request->file($input)) {
+            if ($file = $request->file($input)) {
+                $previous = $property->{$column};
+                $branding[$column] = $this->upload($file, $property->id);
+
+                if ($previous) {
+                    \App\Support\FileStorage::delete($previous);
+                }
+
                 continue;
             }
 
-            $previous = $property->{$column};
-            $branding[$column] = $this->upload($file, $property->id);
-
-            if ($previous) {
-                \App\Support\FileStorage::delete($previous);
+            if ($request->boolean("clear_{$input}") && $property->{$column}) {
+                \App\Support\FileStorage::delete($property->{$column});
+                $branding[$column] = null;
             }
         }
 
@@ -870,6 +885,11 @@ class PropertyController extends Controller
             '_full' => ['nullable', 'boolean'],
             'remove_media' => ['nullable', 'array'],
             'remove_media.*' => ['integer'],
+            // logo_path/cover_image_path live on the property row itself, not a
+            // property_media row, so they can't go through remove_media[] — see
+            // replacedBranding().
+            'clear_logo' => ['nullable', 'boolean'],
+            'clear_cover_image' => ['nullable', 'boolean'],
 
             // 1 · Project basic info
             'developer_id' => ['required', 'exists:developers,id'],
@@ -899,7 +919,9 @@ class PropertyController extends Controller
 
             // 3 · Configuration & pricing
             'currency' => ['required', 'in:INR'],
-            'price_min' => ['required', 'integer', 'min:0'],
+            // Was required — a listing can now be saved (as a draft, typically) before
+            // the starting price is known, same as every other field in this step.
+            'price_min' => ['nullable', 'integer', 'min:0'],
             // No longer collected by the form — the price band collapsed to a single
             // "Starting from". Kept nullable rather than dropped so existing records and
             // the API contract are unaffected, and so a ceiling can be reintroduced later.

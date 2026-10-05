@@ -30,7 +30,7 @@
      class="fixed inset-0 z-[70] flex flex-col"
      role="dialog" aria-modal="true" aria-label="File preview">
 
-    <div x-show="open" x-transition.opacity @click="close()" class="absolute inset-0 bg-scrim"></div>
+    <div x-show="open" x-transition.opacity @click="close()" class="absolute inset-0 bg-scrim-strong"></div>
 
     {{-- Header ------------------------------------------------------------- --}}
     <header class="relative flex items-center gap-3 px-4 sm:px-6 py-3 shrink-0">

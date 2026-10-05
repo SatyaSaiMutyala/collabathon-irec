@@ -358,7 +358,7 @@
                         <x-field label="Title" name="tagline" placeholder="Short marketing line" />
 
                         <x-file-field label="Project logo / branding" name="logo" accept="image/*" :current="$property?->logo_path"
-                                      hint="PNG or JPG, up to 2 MB." />
+                                      current-clear-field="logo" hint="PNG or JPG, up to 2 MB." />
 
                         <x-field label="Project description" name="description" type="textarea" rows="4"
                                  placeholder="Detailed overview of the project" />
@@ -495,7 +495,7 @@
                                  list are the three places a new currency has to be added;
                                  a single option also means it is always pre-selected. --}}
                             <x-select-field label="Currency" name="currency" :options="['INR']" />
-                            <x-field label="Starting from" name="price_min" type="number" placeholder="1800000" required />
+                            <x-field label="Starting from" name="price_min" type="number" placeholder="1800000" />
                             {{-- Options come from Settings → Measurement units, plus whatever
                                  this project already has, so a unit retired there does not
                                  vanish from a project still using it. --}}
@@ -641,17 +641,79 @@
                                                  built from the row index. The dashed-dropzone look and the
                                                  filename readout are borrowed from it so the two still read as
                                                  the same control, sized to the row's h-9 grid. --}}
-                                            <div class="block" x-data="{ picked: '' }">
+                                            <div class="block" x-data="{
+                                                file: null,
+                                                url: null,
+                                                onPick(e) {
+                                                    if (this.url) URL.revokeObjectURL(this.url);
+                                                    this.file = e.target.files[0] ?? null;
+                                                    this.url = this.file && this.file.type.startsWith('image/') ? URL.createObjectURL(this.file) : null;
+                                                },
+                                                remove() {
+                                                    if (this.url) URL.revokeObjectURL(this.url);
+                                                    this.file = null;
+                                                    this.url = null;
+                                                    this.$refs.input.value = '';
+                                                },
+                                                sizeLabel() {
+                                                    if (! this.file) return '';
+                                                    return this.file.size > 1048576
+                                                        ? (this.file.size / 1048576).toFixed(1) + ' MB'
+                                                        : Math.max(1, Math.round(this.file.size / 1024)) + ' KB';
+                                                },
+                                            }">
                                                 <span class="block text-[11.5px] text-ink-2 mb-1">Upload floor plan</span>
-                                                <label class="relative flex items-center gap-2 w-full h-9 px-3 rounded-lg border border-dashed hover:bg-canvas cursor-pointer transition-colors"
-                                                       :class="unitTypeErrors[i]?.floor_plan ? 'border-danger bg-danger-soft hover:border-danger' : 'border-line bg-panel hover:border-primary'">
-                                                    <x-icon name="download" class="w-3.5 h-3.5 text-ink-3 shrink-0" />
-                                                    <span class="text-[12px] text-ink-3 truncate min-w-0" x-show="! picked">Choose a file…</span>
-                                                    <span class="text-[12px] text-ink truncate min-w-0" x-show="picked" x-cloak
-                                                          x-bind:title="picked" x-text="picked"></span>
-                                                    <input type="file" :name="`unit_types[${i}][floor_plan]`"
+                                                {{-- Empty state: a plain dashed dropzone, same as before. Picked
+                                                     state: an attachment card (icon badge, bold filename, type +
+                                                     size, remove) instead of a cramped inline filename — matches
+                                                     the treatment on <x-file-field>'s own single-file mode. --}}
+                                                {{-- Picked state sizes to its content (inline-flex + max-width)
+                                                     instead of stretching the full row width. --}}
+                                                <label class="relative flex items-center px-3 rounded-lg border cursor-pointer transition-colors"
+                                                       :class="[
+                                                           file ? 'inline-flex w-auto max-w-full gap-3 py-2' : 'w-full gap-2 h-9',
+                                                           unitTypeErrors[i]?.floor_plan
+                                                               ? 'border-danger bg-danger-soft hover:border-danger'
+                                                               : (file ? 'border-line bg-canvas' : 'border-dashed border-line bg-panel hover:border-primary hover:bg-canvas'),
+                                                       ]">
+                                                    <x-icon name="download" class="w-3.5 h-3.5 text-ink-3 shrink-0" x-show="! file" />
+                                                    <span class="text-[12px] text-ink-3 truncate min-w-0" x-show="! file">Choose a file…</span>
+
+                                                    <template x-if="file">
+                                                        <div class="flex items-center gap-2.5 flex-1 min-w-0" x-cloak>
+                                                            <template x-if="url">
+                                                                <img x-bind:src="url" alt="" class="w-9 h-9 rounded-lg object-cover border border-line-soft shrink-0">
+                                                            </template>
+                                                            <template x-if="! url">
+                                                                <span class="w-9 h-9 rounded-lg bg-danger-soft grid place-items-center shrink-0">
+                                                                    <x-icon name="file-text" class="w-4 h-4 text-danger" />
+                                                                </span>
+                                                            </template>
+                                                            <div class="flex-1 min-w-0">
+                                                                <p class="text-[12px] font-medium text-ink truncate"
+                                                                   x-bind:title="file.name" x-text="file.name"></p>
+                                                                <p class="text-[11px] text-ink-3 mt-0.5"
+                                                                   x-text="(file.name.split('.').pop() || '').toUpperCase() + ' · ' + sizeLabel()"></p>
+                                                            </div>
+                                                            {{-- stop+prevent: this control is a <label for=input> whose
+                                                                 default behaviour is reopening the picker on any click
+                                                                 inside it. relative z-10: the transparent file input
+                                                                 below is absolutely positioned over the whole label
+                                                                 and comes after this button in the DOM, so without an
+                                                                 explicit stacking order it silently ate every click
+                                                                 meant for the button. --}}
+                                                            <button type="button"
+                                                                    x-on:click.stop.prevent="remove()"
+                                                                    class="relative z-10 text-danger hover:bg-danger-soft rounded-md p-1.5 shrink-0 transition-colors"
+                                                                    aria-label="Remove file">
+                                                                <x-icon name="x" class="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    </template>
+
+                                                    <input type="file" x-ref="input" :name="`unit_types[${i}][floor_plan]`"
                                                            accept="image/*,application/pdf"
-                                                           x-on:change="picked = $event.target.files[0]?.name ?? ''"
+                                                           x-on:change="onPick($event)"
                                                            class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                                                 </label>
                                                 <p x-show="unitTypeErrors[i]?.floor_plan" x-cloak x-text="unitTypeErrors[i]?.floor_plan"
@@ -662,7 +724,7 @@
                                                      Without this the edit form looked like no plan had ever
                                                      been uploaded. Hidden the moment a new file is picked,
                                                      because that pick is what replaces it. --}}
-                                                <template x-if="! picked && rows[i]?.existing_floor_plan">
+                                                <template x-if="! file && rows[i]?.existing_floor_plan">
                                                     <p class="flex items-center gap-1.5 text-[11px] text-ink-3 mt-1">
                                                         <x-icon name="check" class="w-3 h-3 text-success shrink-0" />
                                                         <a :href="rows[i].existing_floor_plan_url" target="_blank" rel="noopener"
@@ -730,28 +792,48 @@
                                      way <x-file-field>'s "On file" link does — it has no native input value
                                      to read back and its own preview is reserved for what's cropped this
                                      session. --}}
-                                {{-- Shown as the picture itself, matching how <x-file-field> now
-                                     previews a stored image. The hero shot is the one field where
-                                     a filename is least use — an admin replacing it needs to see
-                                     what is currently there. --}}
+                                {{-- Same attachment-card look as <x-file-field>'s own $current state,
+                                     reimplemented locally here: cropTool() (the Alpine component behind
+                                     <x-photo-field>) has no concept of a stored path to read back, only
+                                     what gets cropped this session, so this stays a separate sibling
+                                     block rather than a prop on that component. Its own local `cleared`
+                                     flag is the same pattern the gallery and <x-file-field> use — ticking
+                                     the checkbox doesn't delete anything itself, Save does, via
+                                     PropertyController::replacedBranding() reading clear_cover_image. --}}
                                 @if($property?->cover_image_path)
-                                    <div class="flex items-center gap-2.5 mt-2">
-                                        <a href="{{ \App\Support\FileStorage::url($property->cover_image_path) }}" target="_blank" rel="noopener" class="shrink-0">
-                                            <img src="{{ \App\Support\FileStorage::url($property->cover_image_path) }}" alt=""
-                                                 class="w-20 aspect-[4/3] rounded-lg object-cover border border-line" />
-                                        </a>
-                                        <p class="text-[11.5px] text-ink-3 min-w-0">
-                                            Current cover:
-                                            <a href="{{ \App\Support\FileStorage::url($property->cover_image_path) }}" target="_blank" rel="noopener"
-                                               class="text-ink-2 hover:text-ink underline decoration-line underline-offset-2 break-words">
-                                                {{ basename($property->cover_image_path) }}
+                                    @php
+                                        $coverSize = \App\Support\FileStorage::size($property->cover_image_path);
+                                        // Storage renames every upload to a random hash before saving it, and
+                                        // nothing captures the original filename to show back later — see the
+                                        // matching note in file-field.blade.php.
+                                        $coverName = 'Cover image.' . strtolower(pathinfo($property->cover_image_path, PATHINFO_EXTENSION));
+                                    @endphp
+                                    <div class="mt-2" x-data="{ cleared: false }" x-show="! cleared" x-cloak>
+                                        <input type="checkbox" name="clear_cover_image" value="1" x-model="cleared" class="sr-only">
+                                        <div class="relative inline-flex w-auto max-w-sm items-center gap-3 px-3.5 py-2 rounded-lg border border-line bg-canvas">
+                                            <a href="{{ \App\Support\FileStorage::url($property->cover_image_path) }}" target="_blank" rel="noopener" class="shrink-0">
+                                                <img src="{{ \App\Support\FileStorage::url($property->cover_image_path) }}" alt=""
+                                                     class="w-11 h-11 rounded-lg object-cover border border-line-soft">
                                             </a>
-                                            <span class="block mt-0.5">Cropping a new one replaces it.</span>
-                                        </p>
+                                            <div class="flex-1 min-w-0">
+                                                <a href="{{ \App\Support\FileStorage::url($property->cover_image_path) }}" target="_blank" rel="noopener"
+                                                   class="block text-[13px] font-medium text-ink truncate hover:underline"
+                                                   title="{{ $coverName }}">{{ $coverName }}</a>
+                                                <p class="text-[11.5px] text-ink-3 mt-0.5">
+                                                    {{ strtoupper(pathinfo($property->cover_image_path, PATHINFO_EXTENSION)) }}@if($coverSize) &middot; {{ $coverSize > 1048576 ? number_format($coverSize / 1048576, 1) . ' MB' : max(1, round($coverSize / 1024)) . ' KB' }}@endif
+                                                </p>
+                                            </div>
+                                            <button type="button" @click="cleared = true"
+                                                    class="text-danger hover:bg-danger-soft rounded-md p-1.5 shrink-0 transition-colors"
+                                                    aria-label="Remove file">
+                                                <x-icon name="x" class="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                        <p class="text-[11px] text-ink-3 mt-1">Cropping a new one replaces it. Removed when you save.</p>
                                     </div>
                                 @endif
                             </div>
-                            <x-file-field label="Site layout plan" name="site_layout" accept="image/*,application/pdf" :current="$firstMedia('site_layout')?->path" />
+                            <x-file-field label="Site layout plan" name="site_layout" accept="image/*,application/pdf" :current="$firstMedia('site_layout')?->path" :current-id="$firstMedia('site_layout')?->id" />
                         </div>
 
                         <x-photo-field label="Project images" name="gallery[]" multiple
@@ -777,9 +859,11 @@
                                                    x-model="marked" class="sr-only">
                                             <img src="{{ $image->url ?: \App\Support\FileStorage::url($image->path) }}" alt=""
                                                  class="w-full aspect-[4/3] object-cover rounded-lg border border-line">
+                                            {{-- Solid pill, not text floating on the photo — plain red text over
+                                                 a light sky or a white wall was unreadable. --}}
                                             <button type="button" @click="marked = true"
-                                                    class="absolute inset-x-1 bottom-1.5 text-[11px] font-medium
-                                                           text-danger hover:underline">
+                                                    class="absolute inset-x-1.5 bottom-1.5 py-1 text-[11px] font-medium text-center
+                                                           text-danger bg-panel rounded-md shadow-card hover:bg-danger-soft transition-colors">
                                                 Remove
                                             </button>
                                         </div>
@@ -794,8 +878,8 @@
                              the project sheet — the Master Data import can also still bring
                              one — this form just no longer asks for it. --}}
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <x-file-field label="Brochure" name="brochure" accept="application/pdf" hint="PDF." :current="$firstMedia('brochure')?->path" />
-                            <x-file-field label="Price list" name="price_list" accept="application/pdf" hint="PDF." :current="$firstMedia('price_list')?->path" />
+                            <x-file-field label="Brochure" name="brochure" accept="application/pdf" hint="PDF." :current="$firstMedia('brochure')?->path" :current-id="$firstMedia('brochure')?->id" />
+                            <x-file-field label="Price list" name="price_list" accept="application/pdf" hint="PDF." :current="$firstMedia('price_list')?->path" :current-id="$firstMedia('price_list')?->id" />
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -806,7 +890,7 @@
                         </div>
 
                         <div class="border-t border-line-soft pt-4">
-                            <x-file-field label="Payment schedule" name="payment_schedule_file" accept="application/pdf" hint="PDF." :current="$firstMedia('payment_schedule')?->path" />
+                            <x-file-field label="Payment schedule" name="payment_schedule_file" accept="application/pdf" hint="PDF." :current="$firstMedia('payment_schedule')?->path" :current-id="$firstMedia('payment_schedule')?->id" />
                         </div>
                     </section>
 

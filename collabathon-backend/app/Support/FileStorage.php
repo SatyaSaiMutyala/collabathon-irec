@@ -123,6 +123,16 @@ class FileStorage
         return filled($path) && self::diskFor($path)->exists($path);
     }
 
+    /** Bytes, or null if the path is empty or the object is missing from its disk. */
+    public static function size(?string $path): ?int
+    {
+        if (! self::exists($path)) {
+            return null;
+        }
+
+        return self::diskFor($path)->size($path);
+    }
+
     public static function get(string $path): ?string
     {
         return self::diskFor($path)->get($path);
