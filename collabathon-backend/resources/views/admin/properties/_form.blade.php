@@ -801,6 +801,15 @@
 
                         <x-file-field label="Unit plan / layout images" name="unit_plans[]" multiple accept="image/*"
                                       hint="Project-wide layout images, separate from each unit type's floor plan." />
+
+                        {{-- These are `unit_plan` media rows, not the per-unit-type
+                             `floor_plan_path` above — two different things that read
+                             alike. The project sheet has always listed them, but the form
+                             showed none, so a listing with eighteen looked empty here and
+                             the only way to drop one was to delete the listing. --}}
+                        @if($isEdit)
+                            <x-existing-media title="Unit plans on file" :items="$mediaByKind->get('unit_plan')" />
+                        @endif
                     </section>
 
                     {{-- 4 · Project Specifications -------------------------------------- --}}
@@ -888,36 +897,8 @@
                                            ? 'Anything cropped here is added to the gallery — existing images stay.'
                                            : 'Exterior, interior and amenity shots — pick several at once, crop each to a clean landscape shot.'" />
 
-                        {{-- Existing gallery, with per-image removal. Ticking the box posts the
-                             media id in remove_media[]; nothing is deleted until the form saves. --}}
-                        @if($isEdit && $mediaByKind->get('image')?->isNotEmpty())
-                            <div>
-                                <p class="text-[12.5px] font-medium text-ink mb-2">
-                                    In the gallery
-                                    <span class="text-ink-3 font-normal">({{ $mediaByKind['image']->count() }})</span>
-                                </p>
-                                <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2.5">
-                                    @foreach($mediaByKind['image'] as $image)
-                                        {{-- Clicking Remove hides the tile outright — the checkbox stays in
-                                             the DOM (just visually gone, via x-show) so remove_media[] still
-                                             posts on Save, which is when the file is actually deleted. --}}
-                                        <div x-data="{ marked: false }" x-show="! marked" class="relative">
-                                            <input type="checkbox" name="remove_media[]" value="{{ $image->id }}"
-                                                   x-model="marked" class="sr-only">
-                                            <img src="{{ $image->url ?: \App\Support\FileStorage::url($image->path) }}" alt=""
-                                                 class="w-full aspect-[4/3] object-cover rounded-lg border border-line">
-                                            {{-- Solid pill, not text floating on the photo — plain red text over
-                                                 a light sky or a white wall was unreadable. --}}
-                                            <button type="button" @click="marked = true"
-                                                    class="absolute inset-x-1.5 bottom-1.5 py-1 text-[11px] font-medium text-center
-                                                           text-danger bg-panel rounded-md shadow-card hover:bg-danger-soft transition-colors">
-                                                Remove
-                                            </button>
-                                        </div>
-                                    @endforeach
-                                </div>
-                                <p class="text-[11.5px] text-ink-3 mt-2">Click Remove on an image to delete it when you save.</p>
-                            </div>
+                        @if($isEdit)
+                            <x-existing-media title="In the gallery" :items="$mediaByKind->get('image')" />
                         @endif
 
                         {{-- Master plan was removed from intake. Two columns now, not three.
