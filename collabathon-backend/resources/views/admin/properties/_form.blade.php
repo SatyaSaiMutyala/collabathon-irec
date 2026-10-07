@@ -75,14 +75,40 @@
             'price_max' => $u->price_max,
             'units_count' => $u->units_count,
             'existing_floor_plan' => $u->floor_plan_path,
-            // Only for the "On file" link — no input posts this back.
-            'existing_floor_plan_url' => $u->floor_plan_path
-                ? \App\Support\FileStorage::url($u->floor_plan_path)
-                : null,
         ])->all()
         : []);
 
     $unitTypeRows = $unitTypeRows ?: [['label' => '']];
+
+    /**
+     * How a row's saved plan is shown back. None of these post anywhere — the hidden
+     * `existing_floor_plan` is what carries the file through a rebuild.
+     *
+     * Applied after the old()/saved fork rather than inside it, so a row that came back
+     * from a failed submit shows its plan exactly like a freshly loaded one. It used to
+     * lose the link entirely on that path, because old() only returns what was posted
+     * and the URL never was.
+     *
+     * No file size here, unlike <x-file-field>. On S3 that is a HEAD request per file,
+     * and this is a repeater — a listing with twenty unit types would pay twenty round
+     * trips on every page load to print a number that is barely readable in a cell this
+     * narrow. The type is the part worth knowing.
+     */
+    $unitTypeRows = array_map(function (array $row) {
+        $path = $row['existing_floor_plan'] ?? null;
+
+        if (! $path) {
+            return $row;
+        }
+
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+
+        return $row + [
+            'existing_floor_plan_url' => \App\Support\FileStorage::url($path),
+            'existing_floor_plan_ext' => strtoupper($extension) ?: 'FILE',
+            'existing_floor_plan_is_image' => in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true),
+        ];
+    }, $unitTypeRows);
 
     /**
      * Per-row field errors for the unit-type rows, keyed the way Alpine's own `rows`
@@ -724,13 +750,34 @@
                                                      Without this the edit form looked like no plan had ever
                                                      been uploaded. Hidden the moment a new file is picked,
                                                      because that pick is what replaces it. --}}
+                                                {{-- The same attachment card <x-file-field> shows for a
+                                                     saved file, scaled down to fit a repeater cell.
+                                                     It used to print basename(path), which storage
+                                                     renames to a random hash on upload — so the row
+                                                     read "On file: Zx8IMgawx7dByCO…", a string that
+                                                     tells an admin nothing and truncates to less. The
+                                                     unit type's own name is what this plan actually
+                                                     is, and it updates live as that name is typed. --}}
                                                 <template x-if="! file && rows[i]?.existing_floor_plan">
-                                                    <p class="flex items-center gap-1.5 text-[11px] text-ink-3 mt-1">
-                                                        <x-icon name="check" class="w-3 h-3 text-success shrink-0" />
-                                                        <a :href="rows[i].existing_floor_plan_url" target="_blank" rel="noopener"
-                                                           class="truncate text-ink-2 hover:text-ink underline decoration-line underline-offset-2"
-                                                           x-text="'On file: ' + rows[i].existing_floor_plan.split('/').pop()"></a>
-                                                    </p>
+                                                    <a :href="rows[i].existing_floor_plan_url" target="_blank" rel="noopener"
+                                                       class="mt-1.5 flex items-center gap-2 rounded-lg border border-line bg-canvas px-2 py-1.5 hover:border-primary transition-colors">
+                                                        <template x-if="rows[i].existing_floor_plan_is_image">
+                                                            <img :src="rows[i].existing_floor_plan_url" alt=""
+                                                                 class="w-8 h-8 rounded object-cover border border-line-soft shrink-0">
+                                                        </template>
+                                                        {{-- A PDF plan, which has no thumbnail to show. --}}
+                                                        <template x-if="! rows[i].existing_floor_plan_is_image">
+                                                            <span class="w-8 h-8 rounded bg-danger-soft grid place-items-center shrink-0">
+                                                                <x-icon name="file-text" class="w-4 h-4 text-danger" />
+                                                            </span>
+                                                        </template>
+                                                        <span class="min-w-0">
+                                                            <span class="block text-[11.5px] font-medium text-ink truncate"
+                                                                  x-text="(rows[i].label ? rows[i].label + ' floor plan' : 'Floor plan')"></span>
+                                                            <span class="block text-[10.5px] text-ink-3"
+                                                                  x-text="(rows[i].existing_floor_plan_ext || 'FILE') + ' · on file'"></span>
+                                                        </span>
+                                                    </a>
                                                 </template>
                                             </div>
                                         </div>

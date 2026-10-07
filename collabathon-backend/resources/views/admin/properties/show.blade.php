@@ -440,12 +440,21 @@
             <x-panel title="Attachments" flush>
                 <dl class="divide-y divide-line-soft">
                     @foreach($attachmentKinds as $kind => $label)
-                        <div class="px-5 py-3 flex items-center justify-between gap-3">
-                            <dt class="text-[12.5px] text-ink-3">{{ $label }}</dt>
-                            <dd class="text-[12.5px] shrink-0">
+                        {{-- `items-start`, and the shrink-0 on the label rather than the
+                             value. A listing can carry a floor plan per unit type, so this
+                             row is "View" on most kinds and fifteen numbered links on
+                             unit plans — which, held on one unwrappable line, ran out past
+                             the panel and squeezed "Unit plan / layout" into three. The
+                             label is the fixed part; the links are what should wrap. --}}
+                        <div class="px-5 py-3 flex items-start justify-between gap-3">
+                            <dt class="text-[12.5px] text-ink-3 shrink-0">{{ $label }}</dt>
+                            <dd class="text-[12.5px] min-w-0">
                                 @php $items = $media->get($kind); @endphp
                                 @if($items?->isNotEmpty())
-                                    <span class="flex items-center gap-2">
+                                    {{-- Row gap is tighter than the column gap: wrapped
+                                         lines of links should read as one block, not as
+                                         separate rows of the list. --}}
+                                    <span class="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
                                         @foreach($items as $i => $item)
                                             {{-- One group across every kind: an admin checking a
                                                  listing's paperwork reads the brochure, then the
