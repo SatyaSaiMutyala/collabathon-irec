@@ -105,7 +105,11 @@
         'brochure' => 'Brochure',
         'price_list' => 'Price list',
         'payment_schedule' => 'Payment schedule',
-        'unit_plan' => 'Unit plan / layout',
+        // 'unit_plan' is not here on purpose. Every other kind is one file, which the
+        // Attachments list shows as a single "View". Unit plans are a set — eighteen on
+        // a real listing — and as numbered links they filled that narrow panel with
+        // "#1 #2 #3 …", naming nothing and showing nothing. They get their own thumbnail
+        // panel beside the gallery instead.
     ];
 @endphp
 
@@ -424,6 +428,36 @@
                     <p class="text-[12.5px] text-ink-3">No images uploaded yet.</p>
                 @endif
             </x-panel>
+
+            {{-- Shown like the gallery, not like an attachment row: these are pictures,
+                 and a plan is identified by looking at it. The caption the intake form or
+                 the Master Data import saved is the plan's real name ("2BHK", "Typical
+                 floor"); numbering is the fallback for a set that never carried one. --}}
+            @if($media->get('unit_plan')?->isNotEmpty())
+                <x-panel title="Unit plans" :subtitle="$media['unit_plan']->count() . ' files'" padded>
+                    <div class="grid grid-cols-3 gap-2">
+                        @foreach($media['unit_plan'] as $plan)
+                            @php
+                                $planUrl = $plan->url ?: \App\Support\FileStorage::url($plan->path);
+                                $planName = $plan->caption ?: 'Unit plan ' . ($loop->index + 1);
+                            @endphp
+                            <x-preview-link :url="$planUrl" :path="$plan->path" :name="$planName"
+                                            group="unit-plans" class="block group">
+                                @if(\App\Support\FilePreview::kind($plan->path) === 'image')
+                                    <img src="{{ $planUrl }}" alt=""
+                                         class="w-full aspect-[4/3] object-cover rounded-lg border border-line group-hover:opacity-90 transition-opacity">
+                                @else
+                                    {{-- A plan filed as a PDF, which the import allows. --}}
+                                    <span class="w-full aspect-[4/3] rounded-lg border border-line bg-danger-soft grid place-items-center">
+                                        <x-icon name="file-text" class="w-5 h-5 text-danger" />
+                                    </span>
+                                @endif
+                                <span class="block text-[11px] text-ink-3 truncate mt-1" title="{{ $planName }}">{{ $planName }}</span>
+                            </x-preview-link>
+                        @endforeach
+                    </div>
+                </x-panel>
+            @endif
 
             <x-panel title="Amenities" padded>
                 @if($detail?->amenities)
